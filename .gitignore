@@ -1,0 +1,132 @@
+# =============================================================================
+# Python
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+.ipynb_checkpoints/
+
+# =============================================================================
+# Virtual environments
+# =============================================================================
+.venv/
+venv/
+env/
+ENV/
+
+# =============================================================================
+# Editors / OS
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =============================================================================
+# Backup files (we rely on git history, not *.bak sidecars)
+# =============================================================================
+*.bak
+*.bak_*
+*.backup
+*.orig
+
+# =============================================================================
+# Secrets — NEVER commit API keys
+# =============================================================================
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+*.pem
+*.key
+
+# =============================================================================
+# Local run artifacts
+# =============================================================================
+*.log
+lake_collector.log
+logs/
+
+# =============================================================================
+# Forecast outputs — too large / regenerated every run
+#   eth_forecast_outputs/       --> full forecast run dumps (can be 10+ MB)
+#   lake/silver/, lake/bronze/  --> intermediate data pipeline stages
+#   (lake/gold/eth_master_daily.csv is the canonical dataset -> keep it)
+# =============================================================================
+eth_forecast_outputs/
+lake/bronze/
+lake/silver/
+lake/reports/
+lake/raw/
+fsds_usage_report/
+
+# =============================================================================
+# Website / DB artifacts — the live DB regenerates from the pipeline,
+# and the exported JSON is rebuilt on every cron tick. Keep the schema
+# and code under version control, not the data.
+# =============================================================================
+forecast_site/predictions.db
+forecast_site/predictions.db-wal
+forecast_site/predictions.db-shm
+forecast_site/predictions.db-journal
+forecast_site/public/latest.json
+forecast_site/public/accuracy.json
+forecast_site/public/history.json
+
+# =============================================================================
+# Phase / test artifacts — large pickled metrics shouldn't live in git
+# =============================================================================
+tests/phase0/phase5_loo_metrics*.pkl
+tests/phase0/phase5_production_metrics*.pkl
+tests/phase0/*.pkl
+tests/phase0/phase*_output*.log
+
+# =============================================================================
+# Notebooks — keep source but not outputs (strip with nbstripout or commit
+# the un-executed version)
+# =============================================================================
+# Uncomment the next line once nbstripout is wired up:
+# *.ipynb
+
+# =============================================================================
+# Frontend build artifacts (future Next.js / Vercel)
+# =============================================================================
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# =============================================================================
+# Local Claude Code session metadata (not useful for other machines)
+# =============================================================================
+.claude/
+
+# =============================================================================
+# Temporary scratch / doc-compare workspaces
+# =============================================================================
+tmp_*/
+tmp_*.zip
+
+# =============================================================================
+# Windows "새 텍스트 문서.txt" style empty files
+# =============================================================================
+새\ 텍스트\ 문서.txt
+*.tmp
+

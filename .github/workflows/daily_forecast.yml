@@ -1,0 +1,133 @@
+# Daily ETH forecast pipeline.
+#
+# Runs every morning UTC: refreshes the master dataset, runs the full forecast
+# suite, persists the headline summary + hybrid scenarios into SQLite, and
+# backfills any previously unresolved forecasts.
+#
+# Designed for commit-back-to-repo deployment: the DB file is updated in-place
+# and pushed on a dedicated branch. A companion website (Next.js / static) can
+# clone the branch or mirror the DB on deploy.
+name: Daily ETH forecast
+
+on:
+  schedule:
+    # 00:10 UTC = 09:10 KST. 10-minute offset keeps us clear of the hourly
+    # top-of-hour traffic spike on free data APIs (FRED, Yahoo).
+    - cron: "10 0 * * *"
+  workflow_dispatch:
+    inputs:
+      fast_mode:
+        description: "Run eth_price_forecast in fast-mode (degraded accuracy, shorter runtime)"
+        type: boolean
+        default: false
+      model_phase:
+        description: "Model phase label written into forecast_runs"
+        type: string
+        default: "phase4b_production"
+
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false  # don't abort a mid-flight run if manually triggered again
+
+permissions:
+  contents: write  # required to push the updated DB back to the repo
+
+jobs:
+  forecast:
+    # Free-tier runner has 7GB RAM + 2 cores — enough for the current feature set.
+    # Move to a self-hosted runner if wall time > 20 min after Phase 5/6.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Secrets — configure under Settings > Secrets and variables > Actions.
+      FRED_API_KEY:         ${{ secrets.FRED_API_KEY }}
+      GLASSNODE_API_KEY:    ${{ secrets.GLASSNODE_API_KEY }}
+      DERIBIT_CLIENT_ID:    ${{ secrets.DERIBIT_CLIENT_ID }}
+      DERIBIT_CLIENT_SECRET: ${{ secrets.DERIBIT_CLIENT_SECRET }}
+      # Non-secret tuning knobs.
+      MODEL_PHASE:   ${{ inputs.model_phase || 'phase4b_production' }}
+      FAST_MODE_FLAG: ${{ inputs.fast_mode == true && '--fast-mode' || '' }}
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # match H:/codex local Python
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # If a requirements.txt lives at repo root we honour it; otherwise
+          # install the set eth_price_forecast uses at runtime.
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install numpy pandas scikit-learn scipy catboost \
+                        lightgbm xgboost yfinance requests beautifulsoup4 \
+                        python-dateutil
+          fi
+
+      - name: Refresh market data
+        run: |
+          python eth_data_collector.py
+
+      - name: Run forecast suite
+        run: |
+          python eth_price_forecast.py \
+              --master-data-csv lake/gold/eth_master_daily.csv \
+              $FAST_MODE_FLAG
+
+      - name: Persist forecast to DB
+        run: |
+          python -m forecast_site.persist_forecast \
+              --summary-csv eth_forecast_outputs/latest_forecast_summary.csv \
+              --model-phase "$MODEL_PHASE" \
+              --code-source eth_price_forecast.py \
+              --db forecast_site/predictions.db \
+              ${FAST_MODE_FLAG:+--fast-mode}
+
+      - name: Backfill actuals + refresh accuracy
+        run: |
+          python -m forecast_site.backfill_actuals \
+              --master-data-csv lake/gold/eth_master_daily.csv \
+              --db forecast_site/predictions.db
+
+      - name: Upload pipeline artifacts (debug)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forecast-outputs-${{ github.run_id }}
+          path: |
+            eth_forecast_outputs/latest_forecast_summary.csv
+            eth_forecast_outputs/compact_dashboard.csv
+            eth_forecast_outputs/summary.json
+            lake/reports/collector_summary.json
+          retention-days: 14
+
+      - name: Commit updated DB
+        # The DB + master CSV move every day; traditional output CSVs would
+        # cause merge conflicts so keep them out of this branch.
+        run: |
+          git config user.name  "eth-forecast-bot"
+          git config user.email "eth-forecast-bot@users.noreply.github.com"
+          # Dedicated branch keeps main/master clean; the website can track
+          # this branch directly.
+          branch="data/daily-forecast"
+          git fetch origin "$branch" || true
+          git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout -B "$branch"
+          git add forecast_site/predictions.db lake/gold/eth_master_daily.csv || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(forecast): daily run $(date -u +%Y-%m-%d)" \
+            -m "model_phase=$MODEL_PHASE"
+          git push origin "$branch"
