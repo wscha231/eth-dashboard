@@ -23,7 +23,7 @@ on:
       model_phase:
         description: "Model phase label written into forecast_runs"
         type: string
-        default: "phase4b_production"
+        default: "phase5_production"
 
 concurrency:
   group: daily-forecast
@@ -49,7 +49,7 @@ jobs:
       TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
       # Non-secret tuning knobs.
-      MODEL_PHASE:   ${{ inputs.model_phase || 'phase4b_production' }}
+      MODEL_PHASE:   ${{ inputs.model_phase || 'phase5_production' }}
       FAST_MODE_FLAG: ${{ inputs.fast_mode == true && '--fast-mode' || '' }}
       PYTHONUNBUFFERED: "1"
 
