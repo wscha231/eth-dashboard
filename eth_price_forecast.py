@@ -2761,13 +2761,35 @@ def build_features(
     if "deribit_eth_future_open_interest_sum" in frame.columns:
         oi = pd.to_numeric(frame["deribit_eth_future_open_interest_sum"], errors="coerce").replace(0.0, np.nan)
         regime_feature_map["deribit_future_oi_change_7"] = oi.pct_change(7, fill_method=None)
-    # Phase 3B macro composites (real_yield_10y, credit_stress, yield_curve_change_20,
-    # macro_asymmetry_20) were removed after the Phase 3B ablation showed they
-    # regress h=30 classification brier 0.173 -> 0.266 and AUC 0.750 -> 0.585
-    # at the candidate-feature level. The regression persists even with the
-    # Phase 4 synergy-aware selector, because the best-single classifier also
-    # degrades (brier 0.208 -> 0.224). If richer macro signals are retried in a
-    # later phase, re-introduce them one at a time with leave-one-out CV.
+    # Phase 5 production (leave-one-out gated re-add of the Phase 3B macro block):
+    # Four of six Phase 3B composites were marked CULPRIT by the Phase 5 LOO
+    # (fred_yield_curve_change_20, fred_real_yield_10y_z_90,
+    # fred_credit_stress_change_20, macro_asymmetry_20). They remain removed —
+    # all four are derivatives / z-scores / asymmetries of slow FRED series and
+    # the LOO shows differencing monthly-cadence macro data amplifies sampling
+    # noise that hurts h=30 brier / AUC.
+    #
+    # Two composites were marked SAFE and are re-added here as raw levels:
+    #   - fred_real_yield_10y = treasury_10y - breakeven_10y
+    #   - fred_credit_stress  = 0.5 * (hy_oas + bbb_oas)
+    # Combined Phase 5 freeze (2026-04-20) vs Phase 4B baseline:
+    #   h=7  cls brier 0.217 -> 0.206, AUC 0.669 -> 0.713  (meaningful lift)
+    #   h=30 flat within tolerance (no regression).
+    # See tests/phase0/freeze_phase5_production.py + phase5_production_metrics.json.
+    # If adding more macro features in the future, run the same leave-one-out
+    # gate before merging.
+    if {"fred_treasury_10y", "fred_breakeven_10y"}.issubset(frame.columns):
+        real_yield_10y = (
+            pd.to_numeric(frame["fred_treasury_10y"], errors="coerce")
+            - pd.to_numeric(frame["fred_breakeven_10y"], errors="coerce")
+        )
+        regime_feature_map["fred_real_yield_10y"] = real_yield_10y
+    if {"fred_hy_oas", "fred_bbb_oas"}.issubset(frame.columns):
+        credit_stress = 0.5 * (
+            pd.to_numeric(frame["fred_hy_oas"], errors="coerce")
+            + pd.to_numeric(frame["fred_bbb_oas"], errors="coerce")
+        )
+        regime_feature_map["fred_credit_stress"] = credit_stress
     if regime_feature_map:
         feature_blocks.append(pd.DataFrame(regime_feature_map, index=frame.index))
 

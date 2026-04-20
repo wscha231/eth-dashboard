@@ -650,17 +650,28 @@ def test_collector_documents_deribit_snapshot_limitation() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 3B: rich-column macro regime composites
+# Phase 3B / Phase 5: rich-column macro regime composites
 # ---------------------------------------------------------------------------
+#
+# After the Phase 5 leave-one-in ablation (2026-04-20), the six Phase 3B
+# composites split as follows:
+#   SAFE    : fred_real_yield_10y, fred_credit_stress        (kept — raw levels)
+#   CULPRIT : fred_yield_curve_change_20, fred_real_yield_10y_z_90,
+#             fred_credit_stress_change_20, macro_asymmetry_20 (blocked)
+# The guards below enforce that split: CULPRITs must never re-appear without a
+# new LOO freeze; SAFEs must continue to emit as features.
 
 
-PHASE3B_FEATURES = (
+PHASE5_CULPRIT_FEATURES = (
     "fred_yield_curve_change_20",
-    "fred_real_yield_10y",
     "fred_real_yield_10y_z_90",
-    "fred_credit_stress",
     "fred_credit_stress_change_20",
     "macro_asymmetry_20",
+)
+
+PHASE5_SAFE_FEATURES = (
+    "fred_real_yield_10y",
+    "fred_credit_stress",
 )
 
 
@@ -702,32 +713,51 @@ def _phase3b_synthetic_market_data(rows: int = 400) -> pd.DataFrame:
     )
 
 
-def test_phase3b_macro_composites_are_not_emitted() -> None:
-    """Regression guard: Phase 3B composites were removed after the ablation
-    showed they degrade h=30 classification brier from 0.173 to 0.266 and AUC
-    from 0.750 to 0.585 — at the best-single level, not only via ensemble
-    selection. Re-adding them as a blanket block would reintroduce the
-    regression; any future attempt must be leave-one-out gated first.
+def test_phase5_culprit_macro_composites_are_not_emitted() -> None:
+    """Regression guard: the four Phase 3B composites the Phase 5 LOO marked
+    CULPRIT must stay out. They are derivative / z-score / asymmetry forms of
+    slow FRED series and re-adding them drifts h=30 brier toward 0.266.
+    Any future attempt to re-include them requires a fresh leave-one-out gate.
     """
     data = _phase3b_synthetic_market_data(rows=400)
     feature_frame, candidates = efp.build_features(data, horizon=7)
-    for feature in PHASE3B_FEATURES:
+    for feature in PHASE5_CULPRIT_FEATURES:
         assert feature not in feature_frame.columns, (
-            f"{feature} was removed in Phase 4B; re-adding it without a leave-one-out "
-            f"freeze that shows h=30 brier <= 0.175 is a regression."
+            f"{feature} was marked CULPRIT in the Phase 5 LOO; re-adding it without "
+            f"a fresh leave-one-out freeze that shows h=30 brier <= 0.175 is a regression."
         )
         assert feature not in candidates
 
 
-def test_build_features_explains_phase3b_removal() -> None:
-    """The removal must be documented in-source so future contributors see why
-    adding macro composites as a block is gated on a leave-one-out experiment."""
+def test_phase5_safe_macro_composites_are_emitted() -> None:
+    """Phase 5 production re-added two raw-level composites the LOO marked
+    SAFE. They must continue to appear so the model gets the macro lift the
+    freeze captured (h=7 brier 0.217 -> 0.206, AUC 0.669 -> 0.713).
+    """
+    data = _phase3b_synthetic_market_data(rows=400)
+    feature_frame, candidates = efp.build_features(data, horizon=7)
+    for feature in PHASE5_SAFE_FEATURES:
+        assert feature in feature_frame.columns, (
+            f"{feature} was marked SAFE in the Phase 5 LOO and should be re-emitted "
+            f"as a raw-level macro feature."
+        )
+        assert feature in candidates, (
+            f"{feature} should be a modelling candidate, not just a raw column."
+        )
+
+
+def test_build_features_explains_phase5_macro_split() -> None:
+    """The Phase 5 LOO split must be documented in-source so future contributors
+    understand why only two of the six Phase 3B composites are active."""
     src = inspect.getsource(efp.build_features)
-    assert "Phase 3B macro composites" in src and "removed" in src.lower(), (
-        "build_features should keep a comment explaining why Phase 3B composites were removed"
+    assert "Phase 5" in src, (
+        "build_features should keep a comment explaining the Phase 5 LOO verdict"
     )
-    assert "leave-one-out" in src.lower(), (
-        "removal comment should tell future-us how to retry safely (leave-one-out)"
+    assert "leave-one-out" in src.lower() or "leave-one-in" in src.lower(), (
+        "comment should tell future-us how to retry safely (leave-one-out)"
+    )
+    assert "CULPRIT" in src or "culprit" in src.lower(), (
+        "comment should name the four culprit features so they are not re-added casually"
     )
 
 
