@@ -38,9 +38,20 @@ OUTPUT_JSON = Path(__file__).with_name("phase5_production_metrics.json")
 EQUAL_WEIGHT_REGRESSION_MODEL = "trimmed_regression_ensemble_equal"
 EQUAL_WEIGHT_CLASSIFICATION_MODEL = "trimmed_classification_ensemble_equal"
 
-# Populate after analyzing phase5_loo_metrics.json. Any subset of PHASE3B_FEATURES
-# whose variant was marked SAFE by analyze_phase5_loo.py should appear here.
-PHASE5_ALLOWLIST: set[str] = set()
+# Populated after running analyze_phase5_loo.py on the full LOO output
+# (2026-04-20). Verdict summary:
+#
+#   SAFE    : fred_real_yield_10y, fred_credit_stress
+#   CULPRIT : fred_yield_curve_change_20, fred_real_yield_10y_z_90,
+#             fred_credit_stress_change_20, macro_asymmetry_20
+#
+# Pattern: every culprit is a derivative / z-score / asymmetry form of a slow
+# FRED series, while every safe feature is a raw level. Derivatives on
+# monthly-cadence macro data amplify noise — Phase 5 keeps only the levels.
+PHASE5_ALLOWLIST: set[str] = {
+    "fred_real_yield_10y",
+    "fred_credit_stress",
+}
 
 
 def _records(leaderboard: pd.DataFrame) -> list[dict[str, Any]]:

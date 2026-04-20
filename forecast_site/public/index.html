@@ -359,6 +359,22 @@ function renderStaleBanner(run) {
   textEl.innerHTML = parts.join(" · ");
 }
 
+// Compute the "rolling" scenario set: rebase each frozen $ target to the
+// current live price using its original return. Lets the hero card respond
+// to intraday price movement without touching the backend.
+//
+//   rolling_close = live_price * (1 + (frozen_close - ref_price) / ref_price)
+//
+// This preserves the MODEL's return prediction while moving the anchor to
+// now. Widely-used convention in quant UIs ("rebase to spot"). If live is
+// unavailable we just fall back to the original frozen numbers.
+function rollingTarget(frozenClose, refPrice, livePrice) {
+  if (frozenClose == null || refPrice == null || !refPrice) return frozenClose;
+  if (livePrice == null) return frozenClose;
+  const ret = (frozenClose - refPrice) / refPrice;
+  return livePrice * (1 + ret);
+}
+
 function renderLatest(latest) {
   LATEST_DATA = latest;   // cache so live-price tick can re-render without re-fetching
   const metaEl = document.getElementById("generated-at");
@@ -371,41 +387,48 @@ function renderLatest(latest) {
   document.getElementById("ref-price").textContent = fmtUSD(run.reference_price);
   renderStaleBanner(run);
 
+  const refPrice = run.reference_price;
   const grid = document.getElementById("forecast-grid");
   grid.innerHTML = "";
   for (const h of Object.keys(latest.horizons).sort((a, b) => +a - +b)) {
     const f = latest.horizons[h];
-    const predictedClose = f.active_predicted_close || f.regression_predicted_close;
+    const frozenBase = f.active_predicted_close || f.regression_predicted_close;
+    const frozenBear = f.active_bear_predicted_close;
+    const frozenBull = f.active_bull_predicted_close;
 
-    // Delta from FROZEN reference (the forecast's own context — never changes).
-    const deltaFromRef = f.regression_predicted_return;
+    // Rolling ($-rebased) versions — responsive to the live tick.
+    const rollingBase = rollingTarget(frozenBase, refPrice, LIVE_PRICE);
+    const rollingBear = rollingTarget(frozenBear, refPrice, LIVE_PRICE);
+    const rollingBull = rollingTarget(frozenBull, refPrice, LIVE_PRICE);
 
-    // Delta from LIVE price (what a user looking at the page right now actually cares about).
-    let deltaFromLive = null;
-    if (LIVE_PRICE != null && predictedClose != null) {
-      deltaFromLive = (predictedClose - LIVE_PRICE) / LIVE_PRICE;
-    }
+    // Return stays invariant to the rebase (that's the whole point) — so we
+    // can use the model's original return number directly for the headline %.
+    const returnPct = f.regression_predicted_return;
 
-    const fromLiveHtml = deltaFromLive == null
-      ? `<span class="from-live">from live: —</span>`
-      : `<span class="from-live">from live ${fmtUSD(LIVE_PRICE)} → <b style="color: ${deltaFromLive >= 0 ? 'var(--up)' : 'var(--down)'};">${deltaFromLive >= 0 ? '+' : ''}${(deltaFromLive * 100).toFixed(2)}%</b></span>`;
+    // Hero = rolling base (falls back to frozen if live unavailable).
+    const heroClose = rollingBase;
+    const usingRoll = LIVE_PRICE != null;
+
+    const heroSub = usingRoll
+      ? `<span class="from-live"><b style="color: ${returnPct >= 0 ? 'var(--up)' : 'var(--down)'};">${returnPct >= 0 ? '+' : ''}${(returnPct * 100).toFixed(2)}%</b> rolling from live ${fmtUSD(LIVE_PRICE)} · original target ${fmtUSD(frozenBase)} at ref ${fmtUSD(refPrice)}</span>`
+      : `<span class="from-live">live price unavailable — showing frozen target at ${fmtUSD(refPrice)} reference</span>`;
 
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
       <h2>${h}-day forecast · target ${fmtDate(f.forecast_target_timestamp_utc)}</h2>
-      <div class="predicted">${fmtUSD(predictedClose)}
-        <span style="color: var(--muted); font-size: 16px;">(ref ${fmtPct(deltaFromRef)})</span>
-        ${fromLiveHtml}
+      <div class="predicted">${fmtUSD(heroClose)}
+        <span style="color: var(--muted); font-size: 16px;">${usingRoll ? 'rolling' : 'frozen'}</span>
+        ${heroSub}
       </div>
       <div>${directionTag(f.hybrid_predicted_direction || f.classification_predicted_direction)}
         &nbsp;<span class="tag flat">${(f.hybrid_signal_tier || "NO_SIGNAL").replace(/_/g, " ")}</span>
         &nbsp;<span class="label" style="color: var(--muted);">prob ${fmtProb(f.classification_probability_up)}</span>
       </div>
       <div style="margin-top: 12px;">
-        <div class="scenario-row"><span class="label">Bear scenario</span> <span>${fmtUSD(f.active_bear_predicted_close)}</span></div>
-        <div class="scenario-row"><span class="label">Base (active)</span> <span>${fmtUSD(f.active_predicted_close)}</span></div>
-        <div class="scenario-row"><span class="label">Bull scenario</span> <span>${fmtUSD(f.active_bull_predicted_close)}</span></div>
+        <div class="scenario-row"><span class="label">Bear scenario</span> <span>${fmtUSD(rollingBear)}</span></div>
+        <div class="scenario-row"><span class="label">Base (active)</span> <span>${fmtUSD(rollingBase)}</span></div>
+        <div class="scenario-row"><span class="label">Bull scenario</span> <span>${fmtUSD(rollingBull)}</span></div>
       </div>
     `;
     grid.appendChild(card);
