@@ -115,9 +115,19 @@
   }
   .reference-sub {
     color: var(--muted); font-size: 12px;
-    display: flex; gap: 8px; align-items: center;
-    margin-bottom: 24px;
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 12px;
   }
+  .stale-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 8px;
+    font-size: 13px; margin-bottom: 24px;
+  }
+  .stale-banner.fresh  { background: rgba(34,197,94,0.08);  border: 1px solid rgba(34,197,94,0.3);  color: #d1fae5; }
+  .stale-banner.warn   { background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.3); color: #fef3c7; }
+  .stale-banner.stale  { background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.3);  color: #fee2e2; }
+  .stale-banner .icon { font-size: 16px; }
+  .stale-banner b { color: inherit; }
   .card .predicted .from-live {
     display: block; font-size: 14px; font-weight: 500; color: var(--muted);
     margin-top: 2px;
@@ -149,6 +159,11 @@
     <span id="ref-label">frozen at input time</span>
     <span>·</span>
     <span id="live-updated">—</span>
+  </div>
+
+  <div class="stale-banner fresh" id="stale-banner" style="display: none;">
+    <span class="icon" id="stale-icon">🟢</span>
+    <span id="stale-text">—</span>
   </div>
 
   <div class="grid" id="forecast-grid">
@@ -290,6 +305,60 @@ async function tickLivePrice() {
   if (LATEST_DATA) renderLatest(LATEST_DATA);
 }
 
+function humanizeAge(deltaMs) {
+  if (deltaMs == null || !Number.isFinite(deltaMs)) return "unknown";
+  const mins = Math.round(deltaMs / 60000);
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function renderStaleBanner(run) {
+  const banner = document.getElementById("stale-banner");
+  const iconEl = document.getElementById("stale-icon");
+  const textEl = document.getElementById("stale-text");
+  if (!run || !run.run_timestamp_utc) { banner.style.display = "none"; return; }
+
+  const runAt = new Date(run.run_timestamp_utc);
+  const ageMs = Date.now() - runAt.getTime();
+  const ageHrs = ageMs / 3_600_000;
+
+  // Divergence between the frozen reference price (at forecast time) and live.
+  let divergencePct = null;
+  if (LIVE_PRICE != null && run.reference_price) {
+    divergencePct = (LIVE_PRICE - run.reference_price) / run.reference_price;
+  }
+
+  // Severity driven by BOTH freshness and divergence — either one alone can
+  // downgrade trust in the prediction.
+  let cls = "fresh", icon = "🟢";
+  if (ageHrs > 36 || (divergencePct != null && Math.abs(divergencePct) > 0.08)) {
+    cls = "stale"; icon = "🔴";
+  } else if (ageHrs > 12 || (divergencePct != null && Math.abs(divergencePct) > 0.03)) {
+    cls = "warn"; icon = "🟡";
+  }
+
+  banner.className = `stale-banner ${cls}`;
+  banner.style.display = "flex";
+  iconEl.textContent = icon;
+
+  const parts = [];
+  parts.push(`Forecast generated <b>${humanizeAge(ageMs)}</b> (${fmtDate(run.run_timestamp_utc)})`);
+  if (divergencePct != null) {
+    const arrow = divergencePct >= 0 ? "▲" : "▼";
+    const pct = (divergencePct * 100).toFixed(2);
+    parts.push(`live has moved <b>${arrow} ${pct}%</b> since the reference snapshot`);
+  }
+  if (cls === "stale") {
+    parts.push("prediction is likely <b>outdated</b> — wait for the next daily run");
+  } else if (cls === "warn") {
+    parts.push("treat the forecast as <b>directional only</b>; absolute targets may need a fresh run");
+  }
+  textEl.innerHTML = parts.join(" · ");
+}
+
 function renderLatest(latest) {
   LATEST_DATA = latest;   // cache so live-price tick can re-render without re-fetching
   const metaEl = document.getElementById("generated-at");
@@ -300,6 +369,7 @@ function renderLatest(latest) {
   const run = latest.run;
   metaEl.textContent = `generated ${fmtDate(latest.generated_at)} · data cutoff ${fmtDate(run.input_timestamp_utc)} · phase ${run.model_phase}`;
   document.getElementById("ref-price").textContent = fmtUSD(run.reference_price);
+  renderStaleBanner(run);
 
   const grid = document.getElementById("forecast-grid");
   grid.innerHTML = "";

@@ -8,6 +8,32 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-04-20 (staleness feedback)
+
+### Added — Forecast staleness banner
+
+Surfaces the two pieces of information a skeptical user needs before trusting
+a displayed number:
+
+1. **Forecast age** — "generated N hours ago" computed in the browser from
+   `run.run_timestamp_utc` so it updates without touching the backend. Uses
+   minutes / hours / days granularity.
+2. **Live vs reference divergence** — `(LIVE_PRICE − reference_price) /
+   reference_price`, rendered with an up/down arrow and signed percentage.
+
+A colour-coded banner combines both signals:
+
+| severity | trigger                                  | meaning shown                               |
+|----------|------------------------------------------|---------------------------------------------|
+| 🟢 fresh | age ≤ 12h AND |divergence| ≤ 3%          | prediction context still valid              |
+| 🟡 warn  | age ≤ 36h OR  |divergence| ≤ 8%          | directional signal OK, absolute targets may need re-run |
+| 🔴 stale | age >  36h OR |divergence| >  8%         | treat as outdated; wait for next daily run  |
+
+The banner re-renders on every 60-second live-price tick so a drift crosses
+the thresholds in real time.
+
+---
+
 ## [Unreleased] · 2026-04-20 (afternoon updates)
 
 ### Added — Live price + frontend polish
