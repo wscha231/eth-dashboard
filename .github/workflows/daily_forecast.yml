@@ -34,10 +34,11 @@ permissions:
 
 jobs:
   forecast:
-    # Free-tier runner has 7GB RAM + 2 cores — enough for the current feature set.
-    # Move to a self-hosted runner if wall time > 20 min after Phase 5/6.
+    # Free-tier runner has 7GB RAM + 2 cores.
+    # Phase 5 full run (CatBoost + MLP + 3-fold CV) takes ~50-70 min on 2 cores.
+    # Timeout bumped to 90 min; pip cache (requirements.txt) saves ~10 min on repeat runs.
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     env:
       # Secrets — configure under Settings > Secrets and variables > Actions.
