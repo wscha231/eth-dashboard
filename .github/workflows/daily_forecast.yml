@@ -109,6 +109,24 @@ jobs:
           python -m forecast_site.export_json \
               --db forecast_site/predictions.db
 
+      - name: Validate generated artifacts
+        run: |
+          set -euo pipefail
+          test -s eth_forecast_outputs/latest_forecast_summary.csv \
+            || { echo "::error::latest_forecast_summary.csv missing/empty"; exit 1; }
+          test -s forecast_site/predictions.db \
+            || { echo "::error::predictions.db missing/empty"; exit 1; }
+          for f in latest.json accuracy.json history.json; do
+            test -s "forecast_site/public/$f" \
+              || { echo "::error::public/$f missing/empty"; exit 1; }
+          done
+          phase=$(python -c "import json; print(json.load(open('forecast_site/public/latest.json'))['run']['model_phase'])")
+          src=$(python -c "import json; print(json.load(open('forecast_site/public/latest.json'))['run']['reference_price_source'])")
+          echo "model_phase=$phase reference_price_source=$src"
+          if [ "$phase" = "demo_today" ] || [ "$src" = "smoke_test_synthetic" ]; then
+            echo "::error::latest.json still holds bootstrap/synthetic values"; exit 1
+          fi
+
       - name: Send Telegram notification
         # Best-effort; the script itself no-ops if tokens are missing and
         # swallows transient failures.
@@ -131,25 +149,52 @@ jobs:
       - name: Commit updated DB
         # The DB + master CSV move every day; traditional output CSVs would
         # cause merge conflicts so keep them out of this branch.
+        #
+        # predictions.db and public/*.json are gitignored on main but tracked
+        # on data/daily-forecast, so a naive `git checkout` would clobber the
+        # freshly-generated files with the branch's older tracked versions.
+        # Stage artifacts in $RUNNER_TEMP first, then switch branch and copy
+        # them back.
         run: |
+          set -euo pipefail
           git config user.name  "eth-forecast-bot"
           git config user.email "eth-forecast-bot@users.noreply.github.com"
-          # Dedicated branch keeps main/master clean; the website can track
-          # this branch directly.
+
           branch="data/daily-forecast"
-          git fetch origin "$branch" || true
-          git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout -B "$branch"
-          # The JSON blobs are gitignored locally (regenerated every run) but
-          # Vercel needs them on this branch, so force-add for the deploy.
-          git add forecast_site/predictions.db lake/gold/eth_master_daily.csv || true
+
+          stage="$RUNNER_TEMP/forecast-stage"
+          rm -rf "$stage" && mkdir -p "$stage/public" "$stage/gold"
+          cp forecast_site/predictions.db        "$stage/predictions.db"
+          cp forecast_site/public/latest.json    "$stage/public/latest.json"
+          cp forecast_site/public/accuracy.json  "$stage/public/accuracy.json"
+          cp forecast_site/public/history.json   "$stage/public/history.json"
+          cp lake/gold/eth_master_daily.csv      "$stage/gold/eth_master_daily.csv"
+
+          git fetch origin "$branch"
+          git checkout -B "$branch" "origin/$branch"
+
+          mkdir -p forecast_site/public lake/gold
+          cp "$stage/predictions.db"            forecast_site/predictions.db
+          cp "$stage/public/latest.json"        forecast_site/public/latest.json
+          cp "$stage/public/accuracy.json"      forecast_site/public/accuracy.json
+          cp "$stage/public/history.json"       forecast_site/public/history.json
+          cp "$stage/gold/eth_master_daily.csv" lake/gold/eth_master_daily.csv
+
           git add --force \
+              forecast_site/predictions.db \
               forecast_site/public/latest.json \
               forecast_site/public/accuracy.json \
-              forecast_site/public/history.json || true
+              forecast_site/public/history.json \
+              lake/gold/eth_master_daily.csv
+
+          git status --short
+          git diff --cached --stat
+
           if git diff --cached --quiet; then
-            echo "No changes to commit"
+            echo "::warning::No changes vs. origin/$branch — skipping commit"
             exit 0
           fi
+
           git commit -m "chore(forecast): daily run $(date -u +%Y-%m-%d)" \
             -m "model_phase=$MODEL_PHASE"
           git push origin "$branch"
