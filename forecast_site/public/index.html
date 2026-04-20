@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ETH Forecast</title>
+<!-- Chart.js: tiny CDN-hosted plotting lib. No build step. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --bg: #0f1117;
@@ -96,6 +98,37 @@
     font-size: 13px; border-radius: 0 8px 8px 0;
   }
   .empty { color: var(--muted); font-style: italic; padding: 20px 0; }
+  .live-price {
+    display: flex; align-items: baseline; gap: 12px;
+    margin-bottom: 6px;
+  }
+  .live-price .price { font-size: 34px; font-weight: 700; color: var(--text); }
+  .live-price .dot {
+    display: inline-block; width: 8px; height: 8px;
+    background: var(--up); border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .live-price .dot.stale { background: var(--muted); animation: none; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+  .reference-sub {
+    color: var(--muted); font-size: 12px;
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 24px;
+  }
+  .card .predicted .from-live {
+    display: block; font-size: 14px; font-weight: 500; color: var(--muted);
+    margin-top: 2px;
+  }
+  .chart-card { margin-bottom: 20px; }
+  .chart-card h2 { margin-bottom: 4px; }
+  .chart-card .subtitle {
+    color: var(--muted); font-size: 12px; margin-bottom: 12px;
+  }
+  .chart-wrap { position: relative; height: 260px; }
+  @media (max-width: 600px) { .chart-wrap { height: 200px; } }
 </style>
 </head>
 <body>
@@ -105,13 +138,33 @@
 </header>
 
 <main>
-  <div class="reference" id="reference">
-    <span class="price" id="ref-price">—</span>
-    <span class="label" id="ref-label">reference price</span>
+  <div class="live-price">
+    <span class="dot" id="live-dot" title="updating every 60s"></span>
+    <span class="price" id="live-price">—</span>
+    <span class="label" style="color: var(--muted); font-size: 13px;">ETH / USD · live</span>
+  </div>
+  <div class="reference-sub">
+    <span>forecast reference: <b id="ref-price" style="color: var(--text);">—</b></span>
+    <span>·</span>
+    <span id="ref-label">frozen at input time</span>
+    <span>·</span>
+    <span id="live-updated">—</span>
   </div>
 
   <div class="grid" id="forecast-grid">
     <div class="empty">Loading forecasts…</div>
+  </div>
+
+  <div class="card chart-card">
+    <h2>Predicted vs actual · h=7</h2>
+    <div class="subtitle">Each point = one resolved forecast. Lines: ML prediction and realised close on the target date.</div>
+    <div class="chart-wrap"><canvas id="chart-h7"></canvas></div>
+  </div>
+
+  <div class="card chart-card">
+    <h2>Predicted vs actual · h=30</h2>
+    <div class="subtitle">The harder horizon: direction accuracy usually drops here, scenario bands widen.</div>
+    <div class="chart-wrap"><canvas id="chart-h30"></canvas></div>
   </div>
 
   <div class="card">
@@ -169,7 +222,76 @@ async function loadJSON(url) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Live ETH price
+// ---------------------------------------------------------------------------
+// We try Coinbase first (zero-auth, CORS-friendly, fast). If that fails for
+// any reason we fall back to CoinGecko's public endpoint. Both are free.
+// Refresh cadence: 60s — well inside both providers' rate limits.
+// ---------------------------------------------------------------------------
+let LIVE_PRICE = null;      // latest good number, null until first success
+let LIVE_PRICE_AT = null;   // Date of the last successful fetch
+let LATEST_DATA = null;     // cached latest.json so we can re-render on tick
+
+async function fetchLiveEthPrice() {
+  // Provider 1: Coinbase
+  try {
+    const r = await fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot",
+                          { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      const amount = parseFloat(j?.data?.amount);
+      if (Number.isFinite(amount)) return amount;
+    }
+  } catch (e) { /* fall through */ }
+
+  // Provider 2: CoinGecko
+  try {
+    const r = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd",
+      { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      const amount = parseFloat(j?.ethereum?.usd);
+      if (Number.isFinite(amount)) return amount;
+    }
+  } catch (e) { /* fall through */ }
+
+  return null;
+}
+
+function renderLivePrice() {
+  const priceEl = document.getElementById("live-price");
+  const dotEl = document.getElementById("live-dot");
+  const updEl = document.getElementById("live-updated");
+
+  if (LIVE_PRICE == null) {
+    priceEl.textContent = "—";
+    dotEl.classList.add("stale");
+    dotEl.title = "live price unavailable";
+    updEl.textContent = "live price unavailable";
+    return;
+  }
+  priceEl.textContent = fmtUSD(LIVE_PRICE);
+  dotEl.classList.remove("stale");
+  const secs = LIVE_PRICE_AT ? Math.round((Date.now() - LIVE_PRICE_AT) / 1000) : 0;
+  updEl.textContent = `live updated ${secs}s ago`;
+}
+
+async function tickLivePrice() {
+  const p = await fetchLiveEthPrice();
+  if (p != null) {
+    LIVE_PRICE = p;
+    LIVE_PRICE_AT = Date.now();
+  }
+  renderLivePrice();
+  // Re-render the forecast cards so the "% from current" recomputes against
+  // the new live price.
+  if (LATEST_DATA) renderLatest(LATEST_DATA);
+}
+
 function renderLatest(latest) {
+  LATEST_DATA = latest;   // cache so live-price tick can re-render without re-fetching
   const metaEl = document.getElementById("generated-at");
   if (!latest || !latest.run) {
     metaEl.textContent = "No runs yet — the pipeline hasn't produced a forecast.";
@@ -183,13 +305,28 @@ function renderLatest(latest) {
   grid.innerHTML = "";
   for (const h of Object.keys(latest.horizons).sort((a, b) => +a - +b)) {
     const f = latest.horizons[h];
-    const deltaPct = f.regression_predicted_return;
+    const predictedClose = f.active_predicted_close || f.regression_predicted_close;
+
+    // Delta from FROZEN reference (the forecast's own context — never changes).
+    const deltaFromRef = f.regression_predicted_return;
+
+    // Delta from LIVE price (what a user looking at the page right now actually cares about).
+    let deltaFromLive = null;
+    if (LIVE_PRICE != null && predictedClose != null) {
+      deltaFromLive = (predictedClose - LIVE_PRICE) / LIVE_PRICE;
+    }
+
+    const fromLiveHtml = deltaFromLive == null
+      ? `<span class="from-live">from live: —</span>`
+      : `<span class="from-live">from live ${fmtUSD(LIVE_PRICE)} → <b style="color: ${deltaFromLive >= 0 ? 'var(--up)' : 'var(--down)'};">${deltaFromLive >= 0 ? '+' : ''}${(deltaFromLive * 100).toFixed(2)}%</b></span>`;
+
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
       <h2>${h}-day forecast · target ${fmtDate(f.forecast_target_timestamp_utc)}</h2>
-      <div class="predicted">${fmtUSD(f.active_predicted_close || f.regression_predicted_close)}
-        <span style="color: var(--muted); font-size: 16px;">${fmtPct(deltaPct)}</span>
+      <div class="predicted">${fmtUSD(predictedClose)}
+        <span style="color: var(--muted); font-size: 16px;">(ref ${fmtPct(deltaFromRef)})</span>
+        ${fromLiveHtml}
       </div>
       <div>${directionTag(f.hybrid_predicted_direction || f.classification_predicted_direction)}
         &nbsp;<span class="tag flat">${(f.hybrid_signal_tier || "NO_SIGNAL").replace(/_/g, " ")}</span>
@@ -249,15 +386,108 @@ function renderHistory(rows) {
   `).join("");
 }
 
+function renderChart(canvasId, rows, horizon) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+
+  // Filter to this horizon, sort chronologically for proper line rendering.
+  const series = (rows || [])
+    .filter(r => +r.horizon_days === horizon)
+    .sort((a, b) => new Date(a.forecast_target_timestamp_utc) - new Date(b.forecast_target_timestamp_utc));
+
+  if (!series.length) {
+    ctx.parentElement.innerHTML = `<div class="empty">No resolved h=${horizon} forecasts yet.</div>`;
+    return;
+  }
+
+  const labels = series.map(r => fmtDate(r.forecast_target_timestamp_utc));
+  const predicted = series.map(r => r.regression_predicted_close);
+  const actual = series.map(r => r.actual_close);
+
+  // eslint-disable-next-line no-undef
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Predicted close",
+          data: predicted,
+          borderColor: "#4fd1c5",
+          backgroundColor: "rgba(79,209,197,0.15)",
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.2,
+        },
+        {
+          label: "Actual close",
+          data: actual,
+          borderColor: "#e4e6eb",
+          backgroundColor: "rgba(228,230,235,0.35)",
+          borderDash: [4, 4],
+          borderWidth: 2,
+          pointRadius: 4,
+          pointStyle: "rectRot",
+          tension: 0.2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: "#e4e6eb", boxWidth: 14, font: { size: 12 } },
+        },
+        tooltip: {
+          backgroundColor: "#1d2130",
+          titleColor: "#e4e6eb",
+          bodyColor: "#e4e6eb",
+          borderColor: "#2a2f3e",
+          borderWidth: 1,
+          callbacks: {
+            label: (c) => `${c.dataset.label}: ${fmtUSD(c.parsed.y)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: "#8a8f9c", font: { size: 11 }, maxRotation: 0, autoSkipPadding: 20 },
+          grid: { color: "rgba(42,47,62,0.5)" },
+        },
+        y: {
+          ticks: { color: "#8a8f9c", font: { size: 11 }, callback: (v) => fmtUSD(v) },
+          grid: { color: "rgba(42,47,62,0.5)" },
+        },
+      },
+    },
+  });
+}
+
 (async () => {
+  // Fire JSON loads and the first live-price fetch in parallel for a snappier
+  // first paint. The live price often beats the 3 local-HTTP JSON fetches so
+  // the hero card renders with the correct % from the start.
   const [latest, accuracy, history] = await Promise.all([
     loadJSON("latest.json"),
     loadJSON("accuracy.json"),
     loadJSON("history.json"),
+    tickLivePrice(),  // populates LIVE_PRICE / LIVE_PRICE_AT
   ]);
   renderLatest(latest);
   renderAccuracy(accuracy);
   renderHistory(history);
+  renderChart("chart-h7", history, 7);
+  renderChart("chart-h30", history, 30);
+
+  // Cheap "seconds ago" updater — keeps the subtitle honest without a
+  // network call. Runs independently of the price fetch.
+  setInterval(renderLivePrice, 1000);
+
+  // Full price refresh on a 60-second cadence — within Coinbase/CoinGecko
+  // free-tier limits with plenty of headroom.
+  setInterval(tickLivePrice, 60 * 1000);
 })();
 </script>
 </body>

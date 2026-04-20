@@ -50,6 +50,10 @@ def main() -> None:
                         help="Skip persist_forecast step")
     parser.add_argument("--skip-backfill", action="store_true",
                         help="Skip backfill_actuals step")
+    parser.add_argument("--skip-export", action="store_true",
+                        help="Skip export_json step")
+    parser.add_argument("--skip-notify", action="store_true",
+                        help="Skip Telegram notification step")
     parser.add_argument("--master-data-csv", default=str(DEFAULT_MASTER_CSV))
     parser.add_argument("--summary-csv", default=str(DEFAULT_SUMMARY_CSV))
     parser.add_argument("--db", default=str(DEFAULT_DB))
@@ -87,6 +91,18 @@ def main() -> None:
             "--master-data-csv", args.master_data_csv,
             "--db", args.db,
         ])
+
+    # Export JSON blobs the frontend consumes — run AFTER backfill so the
+    # accuracy snapshot reflects the freshest resolved actuals.
+    if not args.skip_export:
+        _run([
+            python, "-m", "forecast_site.export_json",
+            "--db", args.db,
+        ])
+
+    # Telegram alert. Best-effort; never aborts the pipeline.
+    if not args.skip_notify:
+        _run([python, "-m", "forecast_site.notify_telegram"])
 
     print("\n[run_daily] Complete.")
 

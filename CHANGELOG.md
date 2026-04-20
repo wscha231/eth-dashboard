@@ -8,7 +8,60 @@ are UTC.
 
 ---
 
-## [Unreleased] · 2026-04-20
+## [Unreleased] · 2026-04-20 (afternoon updates)
+
+### Added — Live price + frontend polish
+
+- **Live ETH/USD price** on `public/index.html`. Pulls from Coinbase (primary)
+  with CoinGecko fallback, refreshes every 60 seconds, shows a pulsing green
+  dot + "N seconds ago" freshness indicator. Both endpoints are free and
+  CORS-friendly — no API key needed for any real user.
+- **"% from live" on every forecast card**. The forecast is a ~$2,449 target
+  7 days out, so showing "+1.20%" against the frozen reference price from
+  when the model ran becomes misleading the moment spot moves. The card now
+  shows both: `(ref +1.20%)` for the original forecast context and
+  `from live $2,284 → +7.21%` for what the prediction is saying to someone
+  looking right now. The live figure re-computes on every 60s tick.
+- **Predicted-vs-actual charts** per horizon (h=7 and h=30) using Chart.js
+  via CDN. No build step, no bundle — the whole page stays a single HTML
+  file. Dark theme, tooltips, dashed-line for actuals.
+
+### Added — Alerts
+
+- **`forecast_site/notify_telegram.py`** — Markdown-formatted daily summary
+  to Telegram via the Bot API. Reads `TELEGRAM_BOT_TOKEN` and
+  `TELEGRAM_CHAT_ID` from env. Gracefully no-ops if either is unset and
+  swallows transient Telegram failures — never red-lights the cron.
+- Workflow wires the notify step after backfill + export, with
+  `continue-on-error: true` for defence in depth.
+
+### Added — Deployment scaffolding
+
+- **`forecast_site/vercel.json`** — zero-build Vercel config. Serves
+  `public/` with 60s edge cache on JSON + 5min HTML cache. Instructions in
+  the new `forecast_site/README.md` explain how to point Vercel at the
+  `data/daily-forecast` branch so the site auto-redeploys on every cron
+  tick.
+- **`forecast_site/README.md`** — architecture diagram, local dev / seed /
+  preview commands, and the Vercel deploy walkthrough.
+
+### Changed
+
+- `run_daily.py` now runs `export_json` + `notify_telegram` as final steps
+  (with `--skip-export` / `--skip-notify` for ergonomic local reruns).
+- `daily_forecast.yml` force-adds `public/*.json` when committing to
+  `data/daily-forecast` (they're gitignored locally but Vercel needs them
+  on the deploy branch).
+
+---
+
+## [Unreleased] · 2026-04-20 (morning)
+
+### Added — Version control + changelog
+
+- Initial git repo with `.gitignore` (excludes Python caches, `.bak` files,
+  secrets, pickled metrics, and ephemeral JSON/DB artifacts).
+- This `CHANGELOG.md` to track pipeline + website evolution together.
 
 ### Added — Website infrastructure (`forecast_site/`)
 

@@ -45,6 +45,9 @@ jobs:
       GLASSNODE_API_KEY:    ${{ secrets.GLASSNODE_API_KEY }}
       DERIBIT_CLIENT_ID:    ${{ secrets.DERIBIT_CLIENT_ID }}
       DERIBIT_CLIENT_SECRET: ${{ secrets.DERIBIT_CLIENT_SECRET }}
+      # Optional: Telegram alert. If unset, the notify step no-ops.
+      TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
       # Non-secret tuning knobs.
       MODEL_PHASE:   ${{ inputs.model_phase || 'phase4b_production' }}
       FAST_MODE_FLAG: ${{ inputs.fast_mode == true && '--fast-mode' || '' }}
@@ -100,6 +103,18 @@ jobs:
               --master-data-csv lake/gold/eth_master_daily.csv \
               --db forecast_site/predictions.db
 
+      - name: Export JSON blobs for frontend
+        run: |
+          python -m forecast_site.export_json \
+              --db forecast_site/predictions.db
+
+      - name: Send Telegram notification
+        # Best-effort; the script itself no-ops if tokens are missing and
+        # swallows transient failures.
+        continue-on-error: true
+        run: |
+          python -m forecast_site.notify_telegram
+
       - name: Upload pipeline artifacts (debug)
         uses: actions/upload-artifact@v4
         if: always()
@@ -123,7 +138,13 @@ jobs:
           branch="data/daily-forecast"
           git fetch origin "$branch" || true
           git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout -B "$branch"
+          # The JSON blobs are gitignored locally (regenerated every run) but
+          # Vercel needs them on this branch, so force-add for the deploy.
           git add forecast_site/predictions.db lake/gold/eth_master_daily.csv || true
+          git add --force \
+              forecast_site/public/latest.json \
+              forecast_site/public/accuracy.json \
+              forecast_site/public/history.json || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
