@@ -4,6 +4,7 @@ import argparse
 import importlib
 import inspect
 import json
+import os
 import subprocess
 import sys
 import traceback
@@ -3946,6 +3947,35 @@ def _weighted_series_average(feature_frame: pd.DataFrame, items: list[tuple[floa
     return weighted_sum.divide(total_weight.replace(0.0, np.nan))
 
 
+def _truthy_env(name: str) -> bool:
+    """Read an env var as a boolean flag. Accepts 1/true/yes/on (case-insensitive)."""
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def overlay_disabled_for_context(context: str) -> bool:
+    """Let operators bypass ``apply_regime_response_overlay`` in a specific call context.
+
+    The overlay was designed to stabilise *live* daily forecasts by blending
+    tree-model predictions toward recent momentum / trend anchors. On the
+    walk-forward OOF / recent-holdout diagnostic paths it cascades with the
+    MAE loss and the trimmed ensemble to shrink predicted returns to ~27%
+    of realised volatility at h=30 (negative skill vs the naive benchmark).
+
+    To run "raw model" experiments without touching production headline
+    outputs, set one of:
+
+        ETH_OVERLAY_DISABLE=1                 # disables in every context
+        ETH_OVERLAY_DISABLE_WALK_FORWARD=1    # only walk-forward OOF
+        ETH_OVERLAY_DISABLE_HOLDOUT=1         # only the recent-holdout branch
+
+    Live / hybrid / headline prediction paths never check this flag; they
+    keep the overlay unconditionally.
+    """
+    if _truthy_env("ETH_OVERLAY_DISABLE"):
+        return True
+    return _truthy_env(f"ETH_OVERLAY_DISABLE_{context.upper()}")
+
+
 def apply_regime_response_overlay(
     predictions: pd.Series | np.ndarray,
     feature_frame: pd.DataFrame,
@@ -5244,11 +5274,12 @@ def build_recent_holdout_report(
             train_sample_weight,
         )
         predictions = pd.Series(model.predict(holdout_dataset[feature_columns]), index=holdout_dataset.index)
-        predictions = apply_regime_response_overlay(
-            predictions,
-            holdout_dataset[feature_columns],
-            horizon=horizon,
-        )
+        if not overlay_disabled_for_context("holdout"):
+            predictions = apply_regime_response_overlay(
+                predictions,
+                holdout_dataset[feature_columns],
+                horizon=horizon,
+            )
         regression_holdout_predictions[model_name] = predictions.copy()
         metrics = evaluate_predictions(
             current_close=holdout_dataset["eth_close"].to_numpy(),
@@ -7485,7 +7516,8 @@ def walk_forward_leaderboard(
             fit_model_with_optional_sample_weight(model, X_train, y_train, train_sample_weight)
             pred = pd.Series(model.predict(X_test), index=X_test.index, dtype=float)
             overlay_frame = dataset.iloc[test_idx] if fold_feature_selection else X_test
-            pred = apply_regime_response_overlay(pred, overlay_frame, horizon=gap)
+            if not overlay_disabled_for_context("walk_forward"):
+                pred = apply_regime_response_overlay(pred, overlay_frame, horizon=gap)
             predictions.loc[X_test.index] = pred
             metrics = evaluate_predictions(
                 current_close=current_close_test.to_numpy(),
