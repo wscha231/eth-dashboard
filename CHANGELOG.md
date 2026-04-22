@@ -8,6 +8,99 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-04-22 (parallel tracks: overlay kill + LLM analyst)
+
+### Added — `ETH_OVERLAY_DISABLE_*` env switches on regression OOF
+
+Walk-forward OOF diagnostic (`tmp_analyze_h30.py`) traced the negative
+skill of `trimmed_regression_ensemble_equal` to a cascade of shrinkage
+layers rather than a single model/feature problem:
+
+- h=7 skill vs naive: **-10.6%** (RMSE $282 vs naive $255)
+- h=30 skill vs naive: **-12.6%** (RMSE $612 vs naive $543)
+- std(predicted_return) / std(actual_return) = **26.6% at h=30**
+- corr(pred, reference_close) = 0.983 at h=30 — model essentially echoes
+  current price
+
+Per-model leaderboard (`tmp_leaderboard_h30.py`) confirmed swapping the
+chart model alone recovers only 2.3% RMSE; catboost ($598) vs ensemble
+($612) — still worse than naive. The cause is structural:
+`apply_regime_response_overlay` blends up to 55% toward momentum
+anchors, then `skill_weighted_trimmed_mean` drops max+min models per
+row, then MAE loss shrinks toward the conditional median.
+
+`eth_price_forecast.py` now exposes a kill switch for the overlay on
+the two diagnostic paths without touching production:
+
+```
+ETH_OVERLAY_DISABLE=1                 # disables in every context
+ETH_OVERLAY_DISABLE_WALK_FORWARD=1    # only walk_forward_leaderboard
+ETH_OVERLAY_DISABLE_HOLDOUT=1         # only build_recent_holdout_report
+```
+
+Default (no env): overlay active, zero behaviour change. The live /
+hybrid / headline forecast paths intentionally ignore the flag — their
+production semantics require the anchor stabilisation. The first
+overlay-off longrun OOF run is queued behind the in-flight
+`phase5_nodefi` job; result will inform whether the overlay is a net
+positive even for daily headlines.
+
+### Added — `llm_analyst/` experiment: structured market-environment view
+
+Scaffolded a parallel product track that doesn't try to beat the
+regression's point-forecast miscalibration by adding more numeric
+features — instead asks an LLM to synthesise a structured directional
+view from a quantitative snapshot + recent news headlines, and demands
+a strict JSON schema (direction, confidence, thesis, key_risks,
+would_change_view_if, expected_return_low/high).
+
+Rationale: the data audit showed the numeric pipeline is comprehensive
+(~1000 candidate features across FRED macro / BTC cross-asset /
+Deribit-Binance derivatives / limited on-chain / Fear&Greed) but the
+qualitative regime layer — news, regulation, ETF flows, narrative
+shifts — is structurally absent. These are exactly the drivers that
+explain the 2026-01→02 crash the regression missed ($3,300 → $1,800).
+
+Modules (decoupled from `eth_price_forecast` and `forecast_site`):
+
+| Module            | Purpose |
+| ----------------- | ------- |
+| `news_store.py`   | SQLite schema for headlines, UNIQUE on url_sha1, indexed by `published_at` so the backtest harness can date-gate in O(log n). |
+| `news_fetcher.py` | RSS pull from CoinTelegraph / Decrypt / The Block / CoinDesk. stdlib XML parser, no `feedparser` dep. Handles RSS 2.0 + Atom. |
+| `snapshot.py`     | Date-gated numeric summary of `lake/gold/eth_master_daily.csv` — price, vol, derivatives, macro, on-chain (what's populated), sentiment. Renders to Markdown for prompts. |
+| `analyst.py`      | Prompt assembly + Anthropic Messages API via plain HTTPS (no SDK dep). Strict JSON parse, schema validation, and auto-persist to `analyst_views.db`. |
+| `backtest.py`     | Walk-forward harness: weekly calls over a date range, each leak-safe. Hard `--max-calls` guardrail. Dry-run mode for prompt iteration at zero API cost. |
+
+Verified end-to-end:
+
+- News fetcher: 133 real headlines ingested from 4 feeds (oldest
+  `2025-12-29`, newest `2026-04-22`).
+- Snapshot: 2026-04-21 renders to ~1.2KB Markdown with price, vol,
+  macro, derivatives, Fear&Greed.
+- Prompt total: ~3.8KB / ~1k tokens — roughly $0.05 per view on Claude
+  Sonnet 4.5.
+- Backtest dry-run correctly samples the 2026-01→03 window with
+  actuals ranging -38.7% to +10.3%, including the crash that broke the
+  regression model.
+
+Not yet live: historical news backfill (RSS gives only ~4 months),
+site panel integration, daily cron hook. Next step is setting
+`ANTHROPIC_API_KEY` and running a capped POC (≤20 calls ≈ $1) to
+produce the first skill-vs-naive number for the LLM path.
+
+### Diagnostic scripts (not deployed)
+
+- `tmp_analyze_h30.py` — loads `backtest_longrun_history.json`, prints
+  RMSE/MAE/MAPE, naive-baseline skill, predicted-return aggressiveness,
+  regime bucket errors, top-10 worst misses.
+- `tmp_leaderboard_h30.py` — per-model RMSE ranking from
+  `backtest.json`, highlights where `chart_model` sits.
+
+Both gitignored under `tmp_*.py`; included for reproducibility of the
+conclusions above without committing.
+
+---
+
 ## [Unreleased] · 2026-04-22 (deploy branch auto-sync with main)
 
 ### Fixed — index.html changes on main never reached Vercel
