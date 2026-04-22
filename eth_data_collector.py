@@ -68,7 +68,24 @@ DEFAULT_ETHERSCAN_ACTIONS = [
     "dailynetutilization",
     "dailynewaddress",
     "dailytxnfee",
+    "dailyavggasprice",
+    "dailyavggaslimit",
 ]
+# DefiLlama free endpoints (no API key required).
+# Chain slug in DefiLlama path format. Ethereum is the main crypto-native signal
+# source we care about for ETH forecasting.
+DEFAULT_DEFILLAMA_CHAIN = "Ethereum"
+# Glassnode core on-chain metrics. Most require Tier 2+ subscription; the free
+# tier only exposes a handful of Bitcoin-specific endpoints. Collector will skip
+# gracefully if the key is missing or the endpoint is not authorized.
+DEFAULT_GLASSNODE_METRICS = [
+    ("addresses/active_count",     "active_addresses"),
+    ("transactions/count",         "tx_count"),
+    ("transactions/transfers_volume_sum", "transfer_volume_usd"),
+    ("market/price_realized_usd",  "realized_price_usd"),
+    ("indicators/sopr",            "sopr"),
+]
+GLASSNODE_ASSET = "ETH"
 DEFAULT_FRED_SERIES = {
     "treasury_3m": "DGS3MO",
     "treasury_2y": "DGS2",
@@ -505,8 +522,225 @@ def collect_fear_greed_daily(
     return normalize_index(frame)
 
 
+def _timeseries_frame_from_records(
+    records: list[dict[str, Any]],
+    *,
+    date_key: str,
+    value_map: dict[str, str],
+    date_unit: str = "s",
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+) -> pd.DataFrame:
+    """Shared helper: turn [{date: ts, a: 1, b: 2}, ...] into daily-indexed frame."""
+    rows: list[dict[str, Any]] = []
+    for item in records:
+        raw_date = item.get(date_key)
+        if raw_date is None:
+            continue
+        try:
+            ts = pd.to_datetime(int(raw_date), unit=date_unit, utc=True).tz_convert(None).floor("D")
+        except (ValueError, TypeError):
+            try:
+                ts = pd.to_datetime(raw_date, utc=True).tz_convert(None).floor("D")
+            except Exception:
+                continue
+        row: dict[str, Any] = {"date": ts}
+        for source_key, target_col in value_map.items():
+            row[target_col] = pd.to_numeric(item.get(source_key), errors="coerce")
+        rows.append(row)
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows).dropna(subset=["date"]).drop_duplicates(subset=["date"], keep="last")
+    frame = frame.set_index("date").sort_index()
+    frame = frame.loc[(frame.index >= start_date.floor("D")) & (frame.index <= end_date.floor("D"))]
+    return normalize_index(frame)
+
+
+def collect_defillama_stablecoins(
+    chain: str,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+) -> pd.DataFrame:
+    """DefiLlama stablecoin market cap time-series for a chain.
+
+    Endpoint: https://stablecoins.llama.fi/stablecoincharts/<Chain>
+    Response: list of {date (unix s), totalCirculatingUSD: {peggedUSD: n, ...}}
+
+    Emits columns:
+      defillama_<chain>_stablecoin_total_usd
+      defillama_<chain>_stablecoin_pegged_usd (USD-pegged subset)
+    """
+    payload = request_json(
+        f"https://stablecoins.llama.fi/stablecoincharts/{chain}",
+        timeout=45,
+    )
+    if not isinstance(payload, list) or not payload:
+        return pd.DataFrame()
+    chain_slug = sanitize_feature_name(chain)
+    rows: list[dict[str, Any]] = []
+    for item in payload:
+        raw_date = item.get("date")
+        if raw_date is None:
+            continue
+        try:
+            ts = pd.to_datetime(int(raw_date), unit="s", utc=True).tz_convert(None).floor("D")
+        except (ValueError, TypeError):
+            continue
+        total_map = item.get("totalCirculatingUSD") or {}
+        if not isinstance(total_map, dict):
+            continue
+        pegged_usd = pd.to_numeric(total_map.get("peggedUSD"), errors="coerce")
+        total_any = sum(
+            pd.to_numeric(v, errors="coerce") if v is not None else 0.0
+            for v in total_map.values()
+        )
+        rows.append(
+            {
+                "date": ts,
+                f"defillama_{chain_slug}_stablecoin_total_usd": float(total_any) if pd.notna(total_any) else np.nan,
+                f"defillama_{chain_slug}_stablecoin_pegged_usd": pegged_usd,
+            }
+        )
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows).dropna(subset=["date"]).drop_duplicates(subset=["date"], keep="last")
+    frame = frame.set_index("date").sort_index()
+    frame = frame.loc[(frame.index >= start_date.floor("D")) & (frame.index <= end_date.floor("D"))]
+    return normalize_index(frame)
+
+
+def collect_defillama_chain_tvl(
+    chain: str,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+) -> pd.DataFrame:
+    """DefiLlama historical chain TVL.
+
+    Endpoint: https://api.llama.fi/v2/historicalChainTvl/<Chain>
+    Response: list of {date (unix s), tvl: usd_value}
+
+    Emits column: defillama_<chain>_chain_tvl_usd
+    """
+    payload = request_json(
+        f"https://api.llama.fi/v2/historicalChainTvl/{chain}",
+        timeout=45,
+    )
+    if not isinstance(payload, list) or not payload:
+        return pd.DataFrame()
+    chain_slug = sanitize_feature_name(chain)
+    return _timeseries_frame_from_records(
+        payload,
+        date_key="date",
+        value_map={"tvl": f"defillama_{chain_slug}_chain_tvl_usd"},
+        date_unit="s",
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+def collect_defillama_dex_volume(
+    chain: str,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+) -> pd.DataFrame:
+    """DefiLlama DEX aggregated daily volume for a chain.
+
+    Endpoint: https://api.llama.fi/overview/dexs/<chain>?excludeTotalDataChart=false
+    Response: totalDataChart is a list of [unix_s, volume_usd] pairs.
+
+    Emits column: defillama_<chain>_dex_volume_usd
+    """
+    payload = request_json(
+        f"https://api.llama.fi/overview/dexs/{chain.lower()}",
+        params={"excludeTotalDataChart": "false", "excludeTotalDataChartBreakdown": "true"},
+        timeout=45,
+    )
+    chart = payload.get("totalDataChart") if isinstance(payload, dict) else None
+    if not isinstance(chart, list) or not chart:
+        return pd.DataFrame()
+    chain_slug = sanitize_feature_name(chain)
+    rows: list[dict[str, Any]] = []
+    for entry in chart:
+        if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+            continue
+        raw_ts, volume = entry[0], entry[1]
+        try:
+            ts = pd.to_datetime(int(raw_ts), unit="s", utc=True).tz_convert(None).floor("D")
+        except (ValueError, TypeError):
+            continue
+        rows.append(
+            {
+                "date": ts,
+                f"defillama_{chain_slug}_dex_volume_usd": pd.to_numeric(volume, errors="coerce"),
+            }
+        )
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows).dropna(subset=["date"]).drop_duplicates(subset=["date"], keep="last")
+    frame = frame.set_index("date").sort_index()
+    frame = frame.loc[(frame.index >= start_date.floor("D")) & (frame.index <= end_date.floor("D"))]
+    return normalize_index(frame)
+
+
+def collect_glassnode_metric(
+    endpoint_path: str,
+    alias: str,
+    asset: str,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+    api_key: str,
+) -> pd.DataFrame:
+    """Glassnode v1 metric fetch. Most endpoints require Tier 2+ subscription;
+    a 401/403 is treated as 'endpoint not authorized on this tier' and skipped.
+    Free-tier tokens generally only serve Bitcoin endpoints, so ETH collection
+    may gracefully return an empty frame on most keys.
+    """
+    payload = request_json(
+        f"https://api.glassnode.com/v1/metrics/{endpoint_path}",
+        params={
+            "a": asset,
+            "s": int(start_date.timestamp()),
+            "u": int(end_date.timestamp()),
+            "i": "24h",
+            "f": "JSON",
+            "api_key": api_key,
+        },
+        timeout=45,
+    )
+    if not isinstance(payload, list) or not payload:
+        return pd.DataFrame()
+    rows: list[dict[str, Any]] = []
+    column = f"glassnode_{sanitize_feature_name(asset.lower())}_{sanitize_feature_name(alias)}"
+    for item in payload:
+        raw_ts = item.get("t")
+        if raw_ts is None:
+            continue
+        try:
+            ts = pd.to_datetime(int(raw_ts), unit="s", utc=True).tz_convert(None).floor("D")
+        except (ValueError, TypeError):
+            continue
+        rows.append({"date": ts, column: pd.to_numeric(item.get("v"), errors="coerce")})
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows).dropna(subset=["date"]).drop_duplicates(subset=["date"], keep="last")
+    frame = frame.set_index("date").sort_index()
+    frame = frame.loc[(frame.index >= start_date.floor("D")) & (frame.index <= end_date.floor("D"))]
+    return normalize_index(frame)
+
+
 def collect_binance_frame(path: str, params: dict[str, Any]) -> pd.DataFrame:
-    payload = request_json(f"https://fapi.binance.com{path}", params=params)
+    # fapi.binance.com 403's any non-browser-looking User-Agent (confirmed
+    # empirically 2026-04-21: default UA = 403, Mozilla UA = 200). The spot /
+    # data-api.binance.vision mirror doesn't care, but `/futures/data/*`
+    # endpoints have no public mirror so we pass a browser UA override. This
+    # is a trivial compatibility shim, not a ToS circumvention — Binance's
+    # public docs document these endpoints as unauthenticated public market
+    # data.
+    payload = request_json(
+        f"https://fapi.binance.com{path}",
+        params=params,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; eth-data-collector/1.0)"},
+    )
     if not isinstance(payload, list) or not payload:
         return pd.DataFrame()
     frame = pd.DataFrame(payload)
@@ -763,6 +997,10 @@ def build_master_schema(master_data: pd.DataFrame) -> pd.DataFrame:
             group = "deribit_derivatives"
         elif column.startswith("etherscan_"):
             group = "etherscan_onchain"
+        elif column.startswith("glassnode_"):
+            group = "glassnode_onchain"
+        elif column.startswith("defillama_"):
+            group = "defillama_onchain"
         elif column.startswith("fred_"):
             group = "fred_macro"
         elif column.startswith("sentiment_"):
@@ -895,12 +1133,15 @@ def collect_sources(
     coingecko_api_key: str | None,
     coingecko_use_pro: bool,
     etherscan_api_key: str | None,
+    glassnode_api_key: str | None,
     use_coingecko: bool,
     use_binance: bool,
     use_deribit: bool,
     use_etherscan: bool,
     use_fred: bool,
     use_fear_greed: bool,
+    use_defillama: bool,
+    use_glassnode: bool,
     cache_lookback_rows: int,
     overwrite_start: pd.Timestamp | None,
     verbose: bool,
@@ -1018,6 +1259,103 @@ def collect_sources(
     else:
         source_status.append(source_status_row("sentiment_fear_greed", pd.DataFrame(), "skipped", "Disabled by flag"))
 
+    # DefiLlama: crypto-native chain TVL, stablecoin supply, DEX volume.
+    # No API key required; all three endpoints are public and rate-limit friendly.
+    if use_defillama:
+        defillama_configs = [
+            (
+                "defillama_stablecoins",
+                collect_defillama_stablecoins,
+                f"defillama_{sanitize_feature_name(DEFAULT_DEFILLAMA_CHAIN)}_stablecoins_daily.csv",
+            ),
+            (
+                "defillama_chain_tvl",
+                collect_defillama_chain_tvl,
+                f"defillama_{sanitize_feature_name(DEFAULT_DEFILLAMA_CHAIN)}_chain_tvl_daily.csv",
+            ),
+            (
+                "defillama_dex_volume",
+                collect_defillama_dex_volume,
+                f"defillama_{sanitize_feature_name(DEFAULT_DEFILLAMA_CHAIN)}_dex_volume_daily.csv",
+            ),
+        ]
+        for source_name, fetch_fn, filename in defillama_configs:
+            cache_path = paths.raw_vendor_dir / filename
+            try:
+                frame = fetch_fn(DEFAULT_DEFILLAMA_CHAIN, start_date, end_date)
+                if not frame.empty:
+                    frame = append_history_csv(cache_path, frame, overwrite_start=overwrite_start)
+                    feature_frames.append(frame)
+                source_status.append(
+                    source_status_row(source_name, frame, "ok" if not frame.empty else "skipped")
+                )
+            except SOURCE_FETCH_EXCEPTIONS as exc:
+                cached = load_cached_history_window(cache_path, start_date=start_date, end_date=end_date)
+                if not cached.empty:
+                    feature_frames.append(cached)
+                    source_status.append(
+                        source_status_row(
+                            source_name,
+                            cached,
+                            "warning",
+                            f"live_fetch_failed_using_cached_data: {exc}",
+                        )
+                    )
+                else:
+                    source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
+    else:
+        source_status.append(source_status_row("defillama", pd.DataFrame(), "skipped", "Disabled by flag"))
+
+    # Glassnode: on-chain ETH metrics (active addresses, SOPR, realized price,
+    # transfer volume, tx count). Most endpoints require Tier 2+; a missing key
+    # or 401/403 response is skipped gracefully so the pipeline still completes.
+    if use_glassnode and glassnode_api_key:
+        for endpoint_path, alias in DEFAULT_GLASSNODE_METRICS:
+            source_name = f"glassnode_{sanitize_feature_name(alias)}"
+            cache_filename = f"glassnode_{sanitize_feature_name(GLASSNODE_ASSET.lower())}_{sanitize_feature_name(alias)}_daily.csv"
+            cache_path = paths.raw_vendor_dir / cache_filename
+            try:
+                frame = collect_glassnode_metric(
+                    endpoint_path=endpoint_path,
+                    alias=alias,
+                    asset=GLASSNODE_ASSET,
+                    start_date=start_date,
+                    end_date=end_date,
+                    api_key=glassnode_api_key,
+                )
+                if not frame.empty:
+                    frame = append_history_csv(cache_path, frame, overwrite_start=overwrite_start)
+                    feature_frames.append(frame)
+                note = "" if not frame.empty else "Endpoint returned empty (tier-gated or no data)"
+                source_status.append(
+                    source_status_row(source_name, frame, "ok" if not frame.empty else "skipped", note)
+                )
+            except SOURCE_FETCH_EXCEPTIONS as exc:
+                cached = load_cached_history_window(cache_path, start_date=start_date, end_date=end_date)
+                if not cached.empty:
+                    feature_frames.append(cached)
+                    source_status.append(
+                        source_status_row(
+                            source_name,
+                            cached,
+                            "warning",
+                            f"live_fetch_failed_using_cached_data: {exc}",
+                        )
+                    )
+                else:
+                    source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
+    elif use_glassnode:
+        source_status.append(
+            source_status_row(
+                "glassnode",
+                pd.DataFrame(),
+                "skipped",
+                "Glassnode API key missing; set GLASSNODE_API_KEY or pass --glassnode-api-key",
+            )
+        )
+    else:
+        source_status.append(source_status_row("glassnode", pd.DataFrame(), "skipped", "Disabled by flag"))
+
     if use_coingecko:
         for alias, coin_id in DEFAULT_COINGECKO_IDS.items():
             source_name = f"coingecko_{alias}"
@@ -1110,7 +1448,12 @@ def collect_sources(
         except SOURCE_FETCH_EXCEPTIONS as exc:
             source_status.append(source_status_row("binance_funding_history", pd.DataFrame(), "error", str(exc)))
 
-        recent_start = max(start_date, end_date - pd.Timedelta(days=45))
+        # Binance `/futures/data/*` endpoints enforce a ~30-day retention
+        # window: requests with startTime older than that silently 404 even
+        # though the surface response is HTTP 404 without a payload. Keep the
+        # window at 25 days to stay safely inside the retention and let the
+        # CSV cache cover the drift between daily runs.
+        recent_start = max(start_date, end_date - pd.Timedelta(days=25))
         recent_start_ms = int(recent_start.timestamp() * 1000)
         recent_end_ms = int((end_date + pd.Timedelta(days=1)).timestamp() * 1000)
         recent_configs = [
@@ -1144,8 +1487,12 @@ def collect_sources(
                 "Exchange exposes recent history only",
             ),
             (
+                # Binance renamed /futures/data/takerBuySellVol to
+                # /futures/data/takerlongshortRatio around 2024Q4 — old path
+                # now 404s. Response schema is identical ({buySellRatio,
+                # sellVol, buyVol}) so downstream column names are unchanged.
                 "binance_taker_buy_sell_volume",
-                "/futures/data/takerBuySellVol",
+                "/futures/data/takerlongshortRatio",
                 {
                     "symbol": DEFAULT_BINANCE_SYMBOL,
                     "period": "1d",
@@ -1332,6 +1679,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--coingecko-api-key", default=os.getenv("COINGECKO_API_KEY", ""))
     parser.add_argument("--coingecko-pro", action="store_true", help="Use CoinGecko Pro endpoints when the key supports them")
     parser.add_argument("--etherscan-api-key", default=os.getenv("ETHERSCAN_API_KEY", ""))
+    parser.add_argument(
+        "--glassnode-api-key",
+        default=os.getenv("GLASSNODE_API_KEY", ""),
+        help="Glassnode API key. Most ETH endpoints require Tier 2+.",
+    )
     parser.add_argument("--cache-lookback-rows", type=int, default=CACHE_UPDATE_LOOKBACK_ROWS)
     parser.add_argument(
         "--day-boundary-tz",
@@ -1356,6 +1708,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-etherscan", action="store_true")
     parser.add_argument("--no-fred", action="store_true")
     parser.add_argument("--no-fear-greed", action="store_true")
+    parser.add_argument(
+        "--no-defillama",
+        action="store_true",
+        help="Skip DefiLlama (chain TVL / stablecoin supply / DEX volume) collection.",
+    )
+    parser.add_argument(
+        "--no-glassnode",
+        action="store_true",
+        help="Skip Glassnode on-chain metric collection (no-op without --glassnode-api-key).",
+    )
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--json", action="store_true")
     args, unknown = parser.parse_known_args(argv)
@@ -1400,12 +1762,15 @@ def main(argv: list[str] | None = None) -> None:
         coingecko_api_key=(args.coingecko_api_key or None),
         coingecko_use_pro=args.coingecko_pro,
         etherscan_api_key=(args.etherscan_api_key or None),
+        glassnode_api_key=(args.glassnode_api_key or None),
         use_coingecko=not args.no_coingecko,
         use_binance=not args.no_binance,
         use_deribit=not args.no_deribit,
         use_etherscan=not args.no_etherscan,
         use_fred=not args.no_fred,
         use_fear_greed=not args.no_fear_greed,
+        use_defillama=not args.no_defillama,
+        use_glassnode=not args.no_glassnode,
         cache_lookback_rows=args.cache_lookback_rows,
         overwrite_start=start_date,
         verbose=verbose,

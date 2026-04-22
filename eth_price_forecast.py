@@ -117,6 +117,15 @@ GENERIC_VENDOR_PREFIXES = (
     "etherscan_",
     "fred_",
     "sentiment_",
+    # Phase 6 crypto-native on-chain depth. DefiLlama is free + no-key
+    # (stablecoin supply, chain TVL, DEX volume); Glassnode requires a paid
+    # tier for ETH endpoints and may be absent (skipped gracefully by the
+    # collector). Both emit daily columns that slot into the standard vendor
+    # transform pipeline (__asof / __age_days / _diff_7 / _pct_30 / _zscore_30).
+    # No named regime composite is added yet — gate that behind a LOO pass
+    # like we did for the Phase 5 macro re-add.
+    "defillama_",
+    "glassnode_",
 )
 CRYPTO_24_7_PREFIXES = ("eth_", "btc_", "sol_", "bnb_")
 TRADITIONAL_MARKET_PREFIXES = ("spy_", "qqq_", "gold_", "oil_", "dxy_", "vix_", "tnx_")
