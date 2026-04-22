@@ -150,7 +150,127 @@ CREATE INDEX IF NOT EXISTS idx_accuracy_horizon_window
     ON accuracy_snapshot(horizon_days, window_days, snapshot_utc DESC);
 
 -- ---------------------------------------------------------------------------
+-- backtest_runs: one row per frozen walk-forward CV run (freeze_phase*.py).
+-- Unlike forecast_runs (which captures live-cron predictions), this table
+-- archives the historical 3-year walk-forward evaluation for a given code
+-- version. Every version bump (phase1 -> phase2 -> ...) gets a fresh row so
+-- the UI can show "how did each version perform on the same 3 years".
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS backtest_runs (
+    backtest_run_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    frozen_utc            TEXT    NOT NULL,     -- freeze_*.py "frozen_at"
+    model_phase           TEXT    NOT NULL,     -- "baseline", "phase5_production", ...
+    mode                  TEXT,                 -- freeze-script mode string
+    code_bytes            INTEGER,              -- size of eth_price_forecast.py at freeze time
+    master_data_csv       TEXT,                 -- source dataset path
+    cv_test_size          INTEGER,
+    freeze_json_path      TEXT,                 -- original JSON for forensic drill-down
+    freeze_json_sha1      TEXT,                 -- content hash -> idempotent ingest
+    notes                 TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_backtest_runs_phase_hash
+    ON backtest_runs(model_phase, freeze_json_sha1);
+CREATE INDEX IF NOT EXISTS idx_backtest_runs_frozen
+    ON backtest_runs(frozen_utc DESC);
+
+-- ---------------------------------------------------------------------------
+-- backtest_metrics: per-(run, horizon, head, model) leaderboard entry.
+-- One row per leaderboard cell across both regression + classification heads.
+-- Scales to ~20 rows per freeze JSON (2 horizons × 2 heads × ~5 models).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS backtest_metrics (
+    backtest_run_id       INTEGER NOT NULL
+        REFERENCES backtest_runs(backtest_run_id) ON DELETE CASCADE,
+    horizon_days          INTEGER NOT NULL,
+    head                  TEXT    NOT NULL,     -- "regression" | "classification"
+    model                 TEXT    NOT NULL,
+
+    -- Regression-side metrics (NULL on classification rows).
+    return_mae            REAL,
+    price_mae             REAL,
+    price_rmse            REAL,
+    price_mape_percent    REAL,
+
+    -- Classification-side metrics (NULL on regression rows).
+    accuracy              REAL,
+    balanced_accuracy     REAL,
+    precision_score       REAL,
+    recall_score          REAL,
+    f1                    REAL,
+    roc_auc               REAL,
+    brier_score           REAL,
+    signal_threshold      REAL,
+
+    -- Shared.
+    directional_accuracy  REAL,                  -- regression-side direction hit-rate
+    folds                 REAL,
+    component_models      TEXT,                  -- "|" separated ensemble roster
+    threshold_validation_scheme TEXT,
+    validation_leakage_safe     INTEGER,
+
+    PRIMARY KEY (backtest_run_id, horizon_days, head, model)
+);
+
+CREATE INDEX IF NOT EXISTS idx_backtest_metrics_phase_horizon
+    ON backtest_metrics(backtest_run_id, horizon_days, head);
+
+-- ---------------------------------------------------------------------------
+-- backtest_predictions: per-date out-of-fold prediction for every
+-- (run, horizon, head, model, date) combination. Populated by longrun_oof
+-- freezes that store the full walk-forward trace (not just summary metrics).
+--
+-- One row = one model's honest OOF prediction for one target date in one fold.
+-- Because splits are purely a function of (n_samples, n_splits, test_size,
+-- gap, embargo), the fold_index is deterministic and lets us resume an
+-- interrupted run without duplicating work.
+--
+-- Leakage guarantees (inherited from walk_forward_*):
+--   1. Temporal split — test_date always > max(train_dates).
+--   2. Purged gap — last `horizon` rows of train dropped so target labels
+--      (close.shift(-horizon)) never bleed into test.
+--   3. Embargo — additional buffer between train end and test start.
+--   4. Fold-internal feature selection — features chosen using train rows
+--      only (select_fold_features, min_feature_coverage).
+--   5. Purged-temporal threshold (classification) — signal_threshold
+--      picked on a held-out purged portion of OOF, not the evaluated set.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS backtest_predictions (
+    backtest_run_id   INTEGER NOT NULL
+        REFERENCES backtest_runs(backtest_run_id) ON DELETE CASCADE,
+    horizon_days      INTEGER NOT NULL,
+    head              TEXT    NOT NULL,     -- "regression" | "classification"
+    model             TEXT    NOT NULL,
+    prediction_date   TEXT    NOT NULL,     -- forecast origin (training cutoff)
+    target_date       TEXT    NOT NULL,     -- prediction_date + horizon_days
+    fold_index        INTEGER NOT NULL,     -- 0-based walk-forward fold
+
+    -- Anchor + realised truth (populated for every row).
+    reference_close   REAL,                  -- eth_close at prediction_date
+    actual_close      REAL,                  -- eth_close at target_date
+    actual_return     REAL,                  -- (actual_close - reference_close) / reference_close
+    actual_label      INTEGER,               -- 1 if actual_return > 0 else 0
+
+    -- Regression payload (NULL on classification rows).
+    predicted_return  REAL,
+    predicted_close   REAL,
+
+    -- Classification payload (NULL on regression rows).
+    probability_up    REAL,
+    predicted_label   INTEGER,               -- 1/0 after signal_threshold
+
+    PRIMARY KEY (backtest_run_id, horizon_days, head, model, prediction_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_backtest_predictions_lookup
+    ON backtest_predictions(backtest_run_id, horizon_days, head, prediction_date);
+CREATE INDEX IF NOT EXISTS idx_backtest_predictions_model_date
+    ON backtest_predictions(model, prediction_date);
+
+-- ---------------------------------------------------------------------------
 -- schema_version: single-row table used by db.init_schema to detect upgrades.
+-- v2 added backtest_runs + backtest_metrics tables (2026-04-21).
+-- v3 added backtest_predictions table for per-date OOF (2026-04-21).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS schema_version (
     version      INTEGER PRIMARY KEY,
@@ -158,3 +278,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 INSERT OR IGNORE INTO schema_version (version, applied_utc)
     VALUES (1, CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO schema_version (version, applied_utc)
+    VALUES (2, CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO schema_version (version, applied_utc)
+    VALUES (3, CURRENT_TIMESTAMP);
