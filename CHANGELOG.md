@@ -8,6 +8,37 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-04-22 (deploy branch auto-sync with main)
+
+### Fixed — index.html changes on main never reached Vercel
+
+Structural CI bug: `.github/workflows/daily_forecast.yml` committed
+JSON updates to `data/daily-forecast` (the branch Vercel deploys
+from) but never merged main's code changes onto it. Result: the
+deploy branch's `index.html` was frozen at 2026-04-20 (587 lines)
+while main had 1584 lines of new frontend work. Everything added
+this session — methodology card, regime grid, version timeline,
+A/B diff, worst-cases, mobile responsive, the 3-yr main-chart
+history merge — was invisible to users visiting etherforecast.live.
+
+**Immediate rescue** (commit `67a2a84` + `55c51c8` on
+`data/daily-forecast`): manually merged main → data/daily-forecast
+and force-added the backtest JSONs
+(`backtest.json`, `backtest_versions.json`,
+ `backtest_longrun_history.json`,
+ `backtest_predictions_*.json`) that are gitignored on main.
+
+**Permanent fix** (this commit, on main):
+`daily_forecast.yml` now runs `git merge origin/main --no-edit`
+after checking out the data branch, before staging the new JSON
+blobs. A 3-way merge works cleanly because main's `.gitignore`
+keeps the tracked-on-data-only JSONs out of main's history entirely.
+If the merge ever conflicts (shouldn't, but defensively) the step
+logs a warning, aborts the merge, and continues with a data-only
+update so the cron doesn't red-light.
+
+---
+
 ## [Unreleased] · 2026-04-22 (main-chart 3-year history fix)
 
 ### Fixed — Predicted-vs-actual cards were showing only ~2 months

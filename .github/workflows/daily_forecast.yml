@@ -151,6 +151,19 @@ jobs:
           branch="data/daily-forecast"
           git fetch origin "$branch" || true
           git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout -B "$branch"
+          # Pull main's code changes (index.html, backend, schema, workflow
+          # itself) onto the deploy branch. Without this step the data
+          # branch diverges from main — every cron adds JSON updates but
+          # code fixes like the Predicted-vs-actual 3-yr history merge
+          # never reach Vercel. Merge strategy is 'ours'-biased for the
+          # tracked JSON blobs (they're authored here) and 'theirs' for
+          # everything else. A clean 3-way merge works because main's
+          # .gitignore keeps those JSONs out of main history entirely.
+          git fetch origin main
+          git merge origin/main --no-edit -m "chore(deploy): sync main $(date -u +%Y-%m-%d)" || {
+            echo "::warning::data/daily-forecast diverged from main and can't auto-merge; aborting merge and continuing with data-only update"
+            git merge --abort || true
+          }
           # The JSON blobs are gitignored locally (regenerated every run) but
           # Vercel needs them on this branch, so force-add for the deploy.
           git add forecast_site/predictions.db lake/gold/eth_master_daily.csv || true
