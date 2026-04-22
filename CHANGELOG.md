@@ -8,6 +8,169 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-04-22 (backtest archive + track-record site)
+
+Two-goal release: (1) give a skeptical viewer an auditable "this is
+what we actually achieved" track record, (2) let A/B phase comparisons
+feed back into model improvement.
+
+### Added — Backtest archive DB layer (schema v2 + v3)
+
+- **`forecast_site/schema.sql`** gains three new tables:
+  - `backtest_runs`       — one row per ingested freeze (model_phase,
+                            frozen_utc, mode, freeze_json_sha1).
+  - `backtest_metrics`    — long-form leaderboard rows
+                            (per phase × horizon × head × model).
+  - `backtest_predictions` — per-date OOF predictions (longrun only;
+                             ~2000 rows per phase for the 36 × 30 grid).
+  UNIQUE (`model_phase`, `freeze_json_sha1`) drives idempotent ingest;
+  `ON DELETE CASCADE` lets the longrun-refresh path (DELETE+INSERT)
+  atomically replace a phase's rows without orphaning children.
+  `schema_version` now records `(1, 2, 3)` so future migrations can
+  detect which step a DB is at.
+
+### Added — Backtest ingest + export pipeline
+
+- **`forecast_site/persist_backtest.py`** — reads
+  `tests/phase0/*_metrics.json` freezes into the DB.
+  - Idempotent: a re-run of the same (phase, sha1) is a no-op.
+  - Longrun detection fires on EITHER `mode.startswith("longrun_")`
+    OR filename `*_longrun_oof_metrics.json` — the two signals are
+    independent on purpose (no hard coupling between filename and mode).
+  - Longrun refresh uses `BEGIN IMMEDIATE` + DELETE+INSERT so concurrent
+    readers (the webserver) never see a half-updated row set.
+  - NaN floats in leaderboards (ensemble `component_models` etc.)
+    coerce to SQL NULL — the SQL aggregates the frontend reads would
+    otherwise collapse to the string `"nan"`.
+- **`forecast_site/export_backtest_json.py`** — DB → JSON, split so the
+  frontend only downloads what's visible:
+  - `backtest.json`                  — headline (best reg/cls per
+                                        phase × horizon) + flat matrix.
+  - `backtest_versions.json`         — run metadata for the version
+                                        timeline chart.
+  - `backtest_longrun_history.json`  — ensemble-only predicted-vs-actual
+                                        points for the 3-yr chart +
+                                        regime grid.
+  - `backtest_predictions_<phase>.json` (lazy-loaded) — full per-phase
+                                        OOF rows for the A/B diff card
+                                        and worst-case drill-down.
+  Empty-DB safe: every export returns an empty container, not an error,
+  so the frontend's fallback "not yet available" states are reached.
+- **`forecast_site/persist_and_export_longrun.py`** — thin driver that
+  stitches `persist_backtest` + `export_backtest_json` for local reruns
+  after a phase finishes (the CI workflow does the same two steps).
+
+### Added — Frontend backtest UI (`public/index.html`)
+
+Single-file, vanilla-JS, Chart.js via CDN. All cards render empty-state
+fallbacks when the DB is cold, so the page never hard-errors on a fresh
+deploy.
+
+- **Methodology card** — one-paragraph explanation of walk-forward
+  + purged + embargoed CV. Sits directly above the metrics so a
+  skeptical viewer reads the contract before the numbers.
+- **Regime breakdown card** — bucket the 36-fold longrun OOF points
+  into bull / bear / chop by realised actual_return, show bucket-level
+  directional accuracy + mean absolute return error. Driven purely
+  client-side from `backtest_longrun_history.json`; no server changes
+  to add regimes.
+- **Version timeline** — Chart.js overlay of RMSE (regression head) +
+  Brier (classification head) per phase, read from
+  `backtest_versions.json` + `backtest.json` headline. A hover surfaces
+  the full freeze metadata (mode, cv_test_size, master_data_csv).
+- **3-yr ensemble chart + horizon selector** — predicted-vs-actual
+  dashed line with horizon (7 / 30) toggle. Wired directly to
+  `backtest_longrun_history.json`.
+- **A/B diff card** — auto-activates when two phases are present; shows
+  ensemble-only RMSE / MAE / directional-accuracy deltas plus a
+  Wilcoxon signed-rank p-value pill (styled `.significant` when p<0.05).
+  Short-circuits gracefully when we only have one phase or the two
+  picked phases match.
+- **Worst-case anecdotes panel** — top-k miss predictions (|pred-actual|
+  / actual) per horizon, rendered as a grid of cards. Surfaces the
+  2026-02 drawdown as the single worst h=30 miss (~96% over-estimate),
+  which doubles as honest disclosure of the model's bull bias.
+- **Mobile responsive** — `@media (max-width: 600px)` block collapses
+  all multi-column grids to `minmax(0, 1fr)`, shrinks the hero price
+  font, and wraps all tables in `.table-wrap` for horizontal scroll
+  instead of layout-breaking overflow.
+
+### Added — CI wiring
+
+`.github/workflows/daily_forecast.yml`:
+
+- **`Persist backtest archive`** step — runs `persist_backtest.py`
+  against the full `tests/phase0/*_metrics.json` glob. Idempotent, so
+  the cron safely ingests both existing and newly-committed freeze
+  JSONs on every tick.
+- **`Export backtest JSON`** now runs `export_backtest_json` after
+  `export_json`, producing the four new frontend blobs.
+- **`Commit updated DB`** force-adds the new `backtest*.json` family
+  (including the large per-phase `backtest_predictions_*.json`) on the
+  `data/daily-forecast` branch so the Vercel deploy picks them up.
+
+### Added — Pytest coverage (22 tests)
+
+- **`tests/test_db_schema.py`** (5 tests) — all expected tables
+  created, `schema_version == 3`, reconnect is idempotent, FK CASCADE
+  works, (phase, sha1) UNIQUE raises `IntegrityError`.
+- **`tests/test_persist_backtest.py`** (9 tests) — basic ingest,
+  re-ingest is a no-op, different sha creates a new run, longrun
+  DELETE+INSERT replaces metrics + predictions, longrun detected by
+  mode OR filename, NaN → NULL coercion, smoke test against the real
+  baseline fixture.
+- **`tests/test_export_backtest_json.py`** (8 tests) — every export
+  function's shape contract, "pick best model" logic, longrun-only
+  filter, empty-DB safety, and `main()` writes all expected files
+  when invoked with `--output-dir`.
+- **`tests/conftest.py`** — shared fixtures: `temp_db_path`, `temp_db`
+  (connection, yields + closes), and a `tiny_freeze_json` factory that
+  produces configurable freeze JSONs (longrun yes/no, predictions,
+  n_models, frozen_at) without coupling to the real freeze pipeline.
+
+### Added — Phase 6 onchain depth (feature wiring, no model change yet)
+
+- **`eth_data_collector.py`** — pulls DefiLlama (free, no key:
+  stablecoin supply, chain TVL, DEX volume) and Glassnode (optional,
+  paid tier) endpoints through the standard vendor-transform pipeline.
+  Both emit `__asof / __age_days / _diff_7 / _pct_30 / _zscore_30`
+  columns that feed directly into the existing feature builder — no
+  special-casing. Graceful skip on 401/404 so a missing Glassnode key
+  doesn't red-light the cron.
+- **`eth_price_forecast.py`** — adds `defillama_` and `glassnode_` to
+  `GENERIC_VENDOR_PREFIXES`. No named regime composite added yet: that
+  is deliberately gated behind a LOO ablation (same bar Phase 5 used
+  to re-add the macro features).
+
+### Added — Phase 5 / Phase 6 freeze + longrun scripts
+
+- **`tests/phase0/freeze_phase6_production.py`** — Phase 6 production
+  freeze with the onchain block unlocked. Serialises `phase6_production
+  _metrics.json` for the archive pipeline.
+- **`tests/phase0/longrun_oof_common.py`** — shared 36-fold × 30-day
+  OOF harness (walk-forward with purge + embargo) used by the three
+  longrun drivers below. Each fold emits per-date predictions the
+  frontend's 3-yr chart + worst-case panel read.
+- **`tests/phase0/longrun_oof_phase5_production.py`**,
+  **`…_phase5_nodefi.py`**, **`…_phase6_production.py`** — the three
+  heads of the A/B decision: stock phase5 (macro re-added),
+  phase5 with DeFi/onchain removed, and phase6 with onchain unlocked.
+- **`tests/phase0/diff_longrun_oof.py`** — pairwise Wilcoxon on two
+  longrun OOF metric files; prints deltas and a p-value. Drives the
+  Go/No-Go decision for each phase re-add.
+
+### Changed
+
+- `forecast_site/schema.sql` v2/v3 DDL runs under the same
+  `CREATE TABLE IF NOT EXISTS` / `INSERT OR IGNORE` contract as v1, so
+  existing production DBs auto-migrate on the next `connect()`. No
+  manual migration needed.
+- `.gitignore` now excludes the auto-regenerated
+  `forecast_site/public/backtest*.json` family (the DB + phase0 JSONs
+  are the sources of truth). CI force-adds them on the deploy branch.
+
+---
+
 ## [Unreleased] · 2026-04-20 (staleness feedback)
 
 ### Added — Forecast staleness banner
