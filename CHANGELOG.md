@@ -8,6 +8,34 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-04-22 (main-chart 3-year history fix)
+
+### Fixed — Predicted-vs-actual cards were showing only ~2 months
+
+The two "Predicted vs actual · h=N" cards on `public/index.html` were
+wired to `history.json` (daily cron resolved forecasts), which only
+has data since the cron came online in Feb 2026. Users visiting the
+site saw a sparse chart starting Feb 2026 and asked where the
+historical backtest predictions were. The 3-year OOF data was
+already present in `backtest_longrun_history.json` but only fed the
+separate "3-year backtest · leakage-safe" cards.
+
+`renderChart()` now accepts an optional `oofBundle` and merges it
+with the live rows:
+
+- OOF walk-forward points (1080 × 2 horizons, 2023-05 → yesterday)
+  are the primary source — they're the leakage-safe reconstruction
+  the Methodology card describes.
+- Live cron resolved forecasts top up the tail beyond the OOF end.
+- Dedup by target date; OOF wins on overlap.
+- Dense timelines (>200 points) render as thin lines without per-point
+  dots so 1000+ points don't collapse into a visual blob.
+
+Subtitles updated to reflect the new scope
+("3-year walk-forward OOF backtest + live resolved daily runs").
+
+---
+
 ## [Unreleased] · 2026-04-22 (backtest archive + track-record site)
 
 Two-goal release: (1) give a skeptical viewer an auditable "this is

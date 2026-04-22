@@ -386,13 +386,13 @@
 
   <div class="card chart-card">
     <h2>Predicted vs actual · h=7</h2>
-    <div class="subtitle">Each point = one resolved forecast. Lines: ML prediction and realised close on the target date.</div>
+    <div class="subtitle">3-year walk-forward OOF backtest (2023 →) + live resolved daily runs, merged on target date. Predicted line = what the ensemble said 7 days before; actual line = realised close.</div>
     <div class="chart-wrap"><canvas id="chart-h7"></canvas></div>
   </div>
 
   <div class="card chart-card">
     <h2>Predicted vs actual · h=30</h2>
-    <div class="subtitle">The harder horizon: direction accuracy usually drops here, scenario bands widen.</div>
+    <div class="subtitle">Same merged view at the harder 30-day horizon — direction accuracy drops and scenario bands widen here.</div>
     <div class="chart-wrap"><canvas id="chart-h30"></canvas></div>
   </div>
 
@@ -805,23 +805,65 @@ function renderHistory(rows) {
   `).join("");
 }
 
-function renderChart(canvasId, rows, horizon) {
+function renderChart(canvasId, liveRows, horizon, oofBundle) {
+  // Data sources for the main "Predicted vs actual · h=N" chart:
+  //   (1) OOF walk-forward backtest (backtest_longrun_history.json) —
+  //       2023+ reconstruction where every point uses only information
+  //       that would have been available at prediction_date. This is
+  //       the 3-year track record; without it the chart would only
+  //       start the day the live daily cron came online.
+  //   (2) Live cron resolved forecasts (history.json) — daily runs
+  //       whose target_date has passed; tops up the tail beyond the
+  //       OOF end date.
+  // On date overlap OOF wins (it's the leakage-safe reconstruction
+  // that matches the Methodology card's description).
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
 
-  // Filter to this horizon, sort chronologically for proper line rendering.
-  const series = (rows || [])
-    .filter(r => +r.horizon_days === horizon)
-    .sort((a, b) => new Date(a.forecast_target_timestamp_utc) - new Date(b.forecast_target_timestamp_utc));
+  // (1) OOF points for this horizon.
+  const oofPoints = (oofBundle && oofBundle.points && oofBundle.points[String(horizon)]) || [];
+  const oofSeries = oofPoints
+    .filter(p => p && p.target_date && p.predicted_close != null && p.actual_close != null)
+    .map(p => ({
+      date_key: p.target_date,
+      predicted_close: p.predicted_close,
+      actual_close: p.actual_close,
+      source: "oof",
+    }));
 
-  if (!series.length) {
+  // (2) Live resolved forecasts for this horizon.
+  const liveSeries = (liveRows || [])
+    .filter(r => +r.horizon_days === horizon
+                 && r.regression_predicted_close != null
+                 && r.actual_close != null)
+    .map(r => ({
+      date_key: fmtDate(r.forecast_target_timestamp_utc),
+      predicted_close: r.regression_predicted_close,
+      actual_close: r.actual_close,
+      source: "live",
+    }));
+
+  // Merge + dedup by target date; OOF overrides live on overlap.
+  const byDate = new Map();
+  for (const p of liveSeries) byDate.set(p.date_key, p);
+  for (const p of oofSeries)  byDate.set(p.date_key, p);
+  const merged = Array.from(byDate.values())
+    .sort((a, b) => new Date(a.date_key) - new Date(b.date_key));
+
+  if (!merged.length) {
     ctx.parentElement.innerHTML = `<div class="empty">No resolved h=${horizon} forecasts yet.</div>`;
     return;
   }
 
-  const labels = series.map(r => fmtDate(r.forecast_target_timestamp_utc));
-  const predicted = series.map(r => r.regression_predicted_close);
-  const actual = series.map(r => r.actual_close);
+  // Dense timelines (1000+ points for the 3-year OOF) need thinner
+  // strokes and no point markers — otherwise the lines become a solid
+  // blob. Under ~200 points we keep the per-point dots so the live
+  // resolve cadence stays legible.
+  const isDense = merged.length > 200;
+
+  const labels    = merged.map(p => p.date_key);
+  const predicted = merged.map(p => p.predicted_close);
+  const actual    = merged.map(p => p.actual_close);
 
   // eslint-disable-next-line no-undef
   new Chart(ctx, {
@@ -834,9 +876,9 @@ function renderChart(canvasId, rows, horizon) {
           data: predicted,
           borderColor: "#4fd1c5",
           backgroundColor: "rgba(79,209,197,0.15)",
-          borderWidth: 2,
-          pointRadius: 3,
-          tension: 0.2,
+          borderWidth: isDense ? 1.5 : 2,
+          pointRadius: isDense ? 0 : 3,
+          tension: 0.15,
         },
         {
           label: "Actual close",
@@ -844,10 +886,10 @@ function renderChart(canvasId, rows, horizon) {
           borderColor: "#e4e6eb",
           backgroundColor: "rgba(228,230,235,0.35)",
           borderDash: [4, 4],
-          borderWidth: 2,
-          pointRadius: 4,
+          borderWidth: isDense ? 1.5 : 2,
+          pointRadius: isDense ? 0 : 4,
           pointStyle: "rectRot",
-          tension: 0.2,
+          tension: 0.15,
         },
       ],
     },
@@ -1478,10 +1520,13 @@ function renderAbDiff(diff) {
   renderLatest(latest);
   renderAccuracy(accuracy);
   renderHistory(history);
-  renderChart("chart-h7", history, 7);
-  renderChart("chart-h30", history, 30);
 
+  // Resolve the OOF bundle first so we can feed its 3-year history into
+  // the main h=7/h=30 charts. Without it those charts would only show
+  // the ~2-month window the live daily cron has been running.
   const picked = longrun ? pickLongrunPhase(longrun.phases) : null;
+  renderChart("chart-h7",  history, 7,  picked && picked.bundle);
+  renderChart("chart-h30", history, 30, picked && picked.bundle);
   if (picked) {
     renderLongrunChart("chart-longrun-h7",  picked.bundle, 7,  "chart-longrun-h7-subtitle");
     renderLongrunChart("chart-longrun-h30", picked.bundle, 30, "chart-longrun-h30-subtitle");
