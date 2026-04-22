@@ -138,7 +138,221 @@
     color: var(--muted); font-size: 12px; margin-bottom: 12px;
   }
   .chart-wrap { position: relative; height: 260px; }
-  @media (max-width: 600px) { .chart-wrap { height: 200px; } }
+  /* Responsive table wrapper — wrap <table> in <div class="table-wrap"> so
+     wide columns horizontally scroll instead of blowing the card wider
+     than the viewport. Applied to both history and diff tables. */
+  .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .method-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+  }
+  .method-item {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .method-item .term {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+    letter-spacing: 0.01em;
+  }
+  .method-item .body {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .method-footer {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .method-footer a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--accent);
+  }
+  .method-footer a:hover { opacity: 0.8; }
+  .regime-grid {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    gap: 0;
+    margin-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .regime-grid > div {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .regime-grid .header {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: rgba(42,47,62,0.3);
+  }
+  .regime-grid .regime-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .regime-grid .regime-name .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    animation: none;
+  }
+  .regime-grid .regime-name .dot.bull { background: var(--up); }
+  .regime-grid .regime-name .dot.bear { background: var(--down); }
+  .regime-grid .regime-name .dot.chop { background: var(--flat); }
+  .regime-grid .value .big {
+    font-size: 22px; font-weight: 700; color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .regime-grid .value .big.strong { color: var(--up); }
+  .regime-grid .value .big.ok     { color: #fbbf24; }
+  .regime-grid .value .big.weak   { color: var(--down); }
+  .regime-grid .value .sub {
+    font-size: 11px; color: var(--muted); margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .diff-table th, .diff-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+  .diff-table th {
+    color: var(--muted); font-weight: 500;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .diff-table td.num   { text-align: right; }
+  .diff-table td.metric { color: var(--text); font-weight: 500; }
+  .diff-table .delta-better { color: var(--up); font-weight: 600; }
+  .diff-table .delta-worse  { color: var(--down); font-weight: 600; }
+  .diff-table .delta-same   { color: var(--muted); }
+  .diff-pvalue {
+    display: inline-block; font-size: 11px; color: var(--muted);
+    background: var(--panel-2); padding: 2px 8px; border-radius: 999px;
+    margin-left: 6px;
+  }
+  .diff-pvalue.significant { color: var(--accent); }
+
+  /* Worst-case anecdotes — compact list of the 5 days where the model
+     missed by the largest %. Honest disclosure, paired with the regime
+     card's "known weakness" note. Lives in two side-by-side columns
+     on desktop (h=7 + h=30), stacks vertically on mobile via the
+     shared media-query block below. */
+  .worst-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .worst-col {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .worst-col .head {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 8px;
+  }
+  .worst-row {
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 10px; align-items: baseline;
+    padding: 6px 0;
+    border-top: 1px dashed var(--border);
+    font-size: 12px; font-variant-numeric: tabular-nums;
+  }
+  .worst-row:first-of-type { border-top: none; }
+  .worst-row .date  { color: var(--text); font-weight: 500; }
+  .worst-row .price { color: var(--muted); font-size: 11px; }
+  .worst-row .err   { font-weight: 600; }
+  .worst-row .err.up   { color: var(--down); }  /* predicted too high → underestimate drop */
+  .worst-row .err.down { color: var(--down); }  /* we always color errors red; direction in tooltip */
+
+  /* Mobile (≤600px): consolidated responsive rules. The desktop layout
+     was built with 360px-minimum card grid tracks, which overflows on
+     narrow viewports (375px iPhone, 360px budget Android). This block
+     collapses those tracks, trims padding, and lets tables scroll
+     horizontally instead of breaking the card width. */
+  @media (max-width: 600px) {
+    /* Trim gutters — 32px × 2 steals 64px of a 375px screen. */
+    header          { padding: 16px 16px; }
+    header h1       { font-size: 18px; }
+    main            { padding: 16px; }
+
+    /* Card grid: force single column. minmax(0, 1fr) is defensive —
+       without the 0 minimum, a card with long inline content (like the
+       version timeline) would still push wider than the viewport. */
+    .grid           { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .card           { padding: 16px; }
+
+    /* Chart height was already reduced in an earlier media query — keep
+       that value by re-stating it here so all mobile rules are grouped. */
+    .chart-wrap     { height: 200px; }
+
+    /* Tighten oversized hero numbers. 34px on a 375px screen with 48px
+       live-price + tag + percent tried to render on one line and wrapped
+       awkwardly; 26px fits. */
+    .reference .price   { font-size: 24px; }
+    .live-price .price  { font-size: 26px; }
+    .card .predicted    { font-size: 22px; }
+
+    /* Tables: wrap in .table-wrap for horizontal scroll. Also reduce
+       cell padding so more columns fit before scroll kicks in. */
+    table th, table td                  { padding: 8px 6px; font-size: 12px; }
+    .diff-table th, .diff-table td      { padding: 8px 8px; font-size: 12px; }
+
+    /* Regime grid: drop the "≥ +2%" description spans on narrow screens
+       (they wrap ugly next to the regime dot). The color-coded dot +
+       "Bull"/"Chop"/"Bear" name carries the meaning; the threshold
+       legend is still visible in the methodology card above. */
+    .regime-grid                        { grid-template-columns: auto 1fr 1fr; }
+    .regime-grid > div                  { padding: 10px 8px; }
+    .regime-grid .regime-name           { font-size: 13px; gap: 6px; }
+    .regime-grid .regime-name > span > span { display: none; }  /* hide the "≥ +2%" caption */
+    .regime-grid .value .big            { font-size: 18px; }
+    .regime-grid .value .sub            { font-size: 10px; }
+    .regime-grid .header                { font-size: 10px; padding: 8px 6px; }
+
+    /* Method grid: already auto-fit minmax(220px), which collapses to
+       1 col naturally on ≤600px. Just tighten padding. */
+    .method-grid                        { gap: 10px; }
+    .method-item                        { padding: 12px 14px; }
+
+    /* A/B card: keep heading compact, table handled by .table-wrap. */
+    #ab-diff-card h2                    { font-size: 12px; }
+    #ab-diff-title                      { font-size: 15px; }
+    #ab-diff-subtitle                   { font-size: 12px; }
+
+    /* Worst-case anecdotes: stack h=7 + h=30 columns vertically. */
+    .worst-grid                         { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .worst-col                          { padding: 10px 12px; }
+    .worst-row                          { font-size: 11px; gap: 8px; }
+
+    /* Disclaimer gets squeezed without this. */
+    .disclaimer                         { padding: 12px; font-size: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -183,9 +397,121 @@
   </div>
 
   <div class="card">
+    <h2 style="font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px;">How we measure</h2>
+    <div style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px;">3-year leakage-safe backtest</div>
+    <div style="color: var(--muted); font-size: 13px;">
+      The charts below show what the model <i>would have predicted</i> if you had asked it every day for the past ~3 years — using only information available at that moment. Four invariants make this honest:
+    </div>
+    <div class="method-grid">
+      <div class="method-item">
+        <span class="term">1 · Walk-forward</span>
+        <div class="body">36 retraining rounds, each producing 30 days of fresh predictions on data the model has never seen. No peeking at the future.</div>
+      </div>
+      <div class="method-item">
+        <span class="term">2 · Purged</span>
+        <div class="body">Training rows whose target window overlaps the test fold are dropped. A 30-day forecast made on day T cannot learn from day T+5's actual move.</div>
+      </div>
+      <div class="method-item">
+        <span class="term">3 · Embargoed</span>
+        <div class="body">Extra gap days between train and test (half the horizon) prevent leakage via autocorrelation — overnight price moves bleeding into the "training" window.</div>
+      </div>
+      <div class="method-item">
+        <span class="term">4 · Per-fold feature selection</span>
+        <div class="body">Features are re-ranked on every fold using <b>training-only</b> rows. We never pick features that happen to work because they saw the test answer.</div>
+      </div>
+    </div>
+    <div class="method-footer">
+      All four invariants have pytest tests that fail-the-build if violated · <a href="https://github.com/" target="_blank" rel="noopener">source on GitHub</a> · see <code style="color: var(--text);">tests/phase0/test_leakage_audit.py</code>
+    </div>
+  </div>
+
+  <div class="card chart-card">
+    <h2>3-year backtest · h=7 · leakage-safe</h2>
+    <div class="subtitle" id="chart-longrun-h7-subtitle">Walk-forward OOF ensemble (36 folds × 30-day chunks, purged + embargoed). Each point is a prediction the model made using only data available at that moment.</div>
+    <div class="chart-wrap"><canvas id="chart-longrun-h7"></canvas></div>
+  </div>
+
+  <div class="card chart-card">
+    <h2>3-year backtest · h=30 · leakage-safe</h2>
+    <div class="subtitle" id="chart-longrun-h30-subtitle">Same walk-forward OOF methodology at the harder 30-day horizon.</div>
+    <div class="chart-wrap"><canvas id="chart-longrun-h30"></canvas></div>
+  </div>
+
+  <div class="card chart-card">
+    <h2>Model version timeline · regression RMSE</h2>
+    <div class="subtitle">
+      How each frozen model version performed in its own 3-fold CV. <b>Lower = better.</b>
+      <br>⚠️ Phase 1 introduced strict leakage-safe CV (purged + embargoed + per-fold feature selection). Earlier "baseline" numbers were optimistic by comparison — the jump at p1 is the honest reset, not a regression.
+    </div>
+    <div class="chart-wrap"><canvas id="chart-version-rmse"></canvas></div>
+  </div>
+
+  <div class="card chart-card">
+    <h2>Model version timeline · classification Brier</h2>
+    <div class="subtitle">
+      Brier score = calibration of "will ETH be up or down?" probabilities. <b>Lower = better.</b>
+      Perfect confident hit = 0, coin-flip on hard problems ≈ 0.25.
+    </div>
+    <div class="chart-wrap"><canvas id="chart-version-brier"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px;">Regime breakdown</h2>
+    <div style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px;">How the model handled different market conditions</div>
+    <div style="color: var(--muted); font-size: 13px;">
+      Days are bucketed by realised return over the forecast horizon:
+      <b style="color: var(--up);">bull</b> = +2% or more,
+      <b style="color: var(--down);">bear</b> = −2% or worse,
+      <b style="color: var(--flat);">chop</b> = in between.
+      Directional accuracy = fraction of days where the model's up/down call was right.
+    </div>
+    <div class="regime-grid" id="regime-grid">
+      <!-- populated by JS -->
+    </div>
+    <div class="method-footer" id="regime-footer" style="margin-top: 12px; padding-top: 10px;">
+      Computed live from the 3-year OOF backtest · same data as the charts above.
+      <br><b style="color: #fbbf24;">Known weakness:</b> the current ensemble is bull-biased — it performs strongly when the market rises but substantially worse than a coin flip during bear moves. Fixing this is the next-phase priority.
+    </div>
+  </div>
+
+  <!-- Worst-case anecdotes: named-and-shamed days where the forecast
+       missed hardest. Paired with the regime card's "known weakness"
+       note as a concrete trust signal — "we can tell you the exact
+       dates we got it wrong" beats "our accuracy is 54%". -->
+  <div class="card" id="worst-cases-card">
+    <h2 style="font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px;">Biggest misses</h2>
+    <div style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px;">Where the model was most wrong</div>
+    <div style="color: var(--muted); font-size: 13px;">
+      Top 5 OOF days by |predicted − actual| / actual across the 3-year backtest. Surfaces regime transitions
+      and liquidity shocks that the ensemble couldn't see coming — useful context for interpreting the
+      live forecast.
+    </div>
+    <div class="worst-grid" id="worst-grid">
+      <!-- populated by JS -->
+    </div>
+    <div class="method-footer" style="margin-top: 14px; padding-top: 10px;">
+      Computed client-side from the same ensemble-OOF data the long-run chart uses · no selection bias.
+    </div>
+  </div>
+
+  <div class="card" id="ab-diff-card" style="display: none;">
+    <h2 style="font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px;">A/B test</h2>
+    <div style="font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 4px;" id="ab-diff-title">Model comparison</div>
+    <div style="color: var(--muted); font-size: 13px;" id="ab-diff-subtitle">
+      Paired comparison across the full 3-year OOF backtest. Same prediction dates, same reference closes — only the underlying model differs.
+    </div>
+    <div id="ab-diff-body">
+      <!-- populated by JS -->
+    </div>
+    <div class="method-footer" style="margin-top: 14px; padding-top: 10px;" id="ab-diff-footer">
+      Δ = new − old. <b style="color: var(--up);">Green</b> = improvement, <b style="color: var(--down);">red</b> = regression, grey = within floating-point noise. Wilcoxon p &lt; 0.05 = paired improvement statistically significant.
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Track record</h2>
     <div id="accuracy" class="accuracy"></div>
-    <div style="margin-top: 16px;">
+    <div class="table-wrap" style="margin-top: 16px;">
       <table id="history-table">
         <thead>
           <tr>
@@ -558,14 +884,595 @@ function renderChart(canvasId, rows, horizon) {
   });
 }
 
+// Same regime thresholds as tests/phase0/diff_longrun_oof.py so frontend and
+// Go/No-Go analyses use identical buckets.
+const REGIME_BULL_THRESHOLD = 0.02;
+const REGIME_BEAR_THRESHOLD = -0.02;
+
+function classifyRegime(actualReturn) {
+  if (actualReturn == null || Number.isNaN(actualReturn)) return null;
+  if (actualReturn >=  REGIME_BULL_THRESHOLD) return "bull";
+  if (actualReturn <=  REGIME_BEAR_THRESHOLD) return "bear";
+  return "chop";
+}
+
+function computeRegimeStats(points) {
+  // Returns {bull:{n, dirAcc, mape}, chop:{...}, bear:{...}} for one horizon.
+  const buckets = { bull: [], chop: [], bear: [] };
+  for (const p of points) {
+    const regime = classifyRegime(p.actual_return);
+    if (regime) buckets[regime].push(p);
+  }
+  const out = {};
+  for (const [name, rows] of Object.entries(buckets)) {
+    const n = rows.length;
+    if (!n) { out[name] = { n: 0, dirAcc: null, mape: null }; continue; }
+    let correct = 0;
+    let absPctErr = 0;
+    for (const r of rows) {
+      // Directional accuracy: sign match between predicted and actual return.
+      // predicted_return and actual_return are both non-null because we only
+      // emit rows with both populated.
+      const pred = r.predicted_return;
+      const act  = r.actual_return;
+      if (pred != null && act != null) {
+        if ((pred >= 0) === (act >= 0)) correct++;
+      }
+      // Price MAPE: |pred_close - actual_close| / actual_close.
+      if (r.predicted_close != null && r.actual_close != null && r.actual_close !== 0) {
+        absPctErr += Math.abs(r.predicted_close - r.actual_close) / Math.abs(r.actual_close);
+      }
+    }
+    out[name] = {
+      n:      n,
+      dirAcc: correct / n,
+      mape:   (absPctErr / n) * 100,
+    };
+  }
+  return out;
+}
+
+function renderRegimeGrid(gridId, phaseBundle) {
+  const el = document.getElementById(gridId);
+  if (!el) return;
+  if (!phaseBundle || !phaseBundle.points) {
+    el.innerHTML = `<div style="padding: 14px; color: var(--muted);">Regime breakdown not available — backtest payload missing.</div>`;
+    return;
+  }
+
+  const h7  = computeRegimeStats(phaseBundle.points["7"]  || []);
+  const h30 = computeRegimeStats(phaseBundle.points["30"] || []);
+
+  const pct = (v) => v == null ? "—" : `${(v * 100).toFixed(1)}%`;
+  const mape = (v) => v == null ? "—" : `${v.toFixed(1)}% MAPE`;
+  // Color code the directional-accuracy cell so visitors see at a glance
+  // where the model wins and where it struggles. 65%+ green, 50-65% amber,
+  // <50% red (worse than a coin flip).
+  const accClass = (v) => v == null ? "" : v >= 0.65 ? "strong" : v >= 0.5 ? "ok" : "weak";
+
+  const rows = [
+    { name: "Bull", key: "bull", desc: "≥ +2%"   },
+    { name: "Chop", key: "chop", desc: "−2% to +2%" },
+    { name: "Bear", key: "bear", desc: "≤ −2%"   },
+  ];
+  el.innerHTML = `
+    <div class="header"></div>
+    <div class="header">h=7 days</div>
+    <div class="header">h=30 days</div>
+    ${rows.map(r => {
+      const s7  = h7[r.key]  || { n: 0 };
+      const s30 = h30[r.key] || { n: 0 };
+      return `
+        <div class="regime-name"><span class="dot ${r.key}"></span><span>${r.name} <span style="color: var(--muted); font-weight: 400; font-size: 12px;">${r.desc}</span></span></div>
+        <div class="value"><span class="big ${accClass(s7.dirAcc)}">${pct(s7.dirAcc)}</span><span class="sub">${s7.n.toLocaleString()} days · ${mape(s7.mape)}</span></div>
+        <div class="value"><span class="big ${accClass(s30.dirAcc)}">${pct(s30.dirAcc)}</span><span class="sub">${s30.n.toLocaleString()} days · ${mape(s30.mape)}</span></div>
+      `;
+    }).join("")}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Worst-case anecdotes.
+//
+// Pulls the 5 days per horizon where the ensemble's OOF predicted_close was
+// furthest from actual_close in percent terms. Deliberately ranks by |err|
+// rather than signed — a +15% overestimate and a −15% underestimate are
+// both equally "wrong" for trust purposes, and showing both sides prevents
+// the list from being monopolised by one-directional bias.
+//
+// No filtering, no cherry-picking — this is the raw tail of the OOF
+// distribution, which is the whole point (consumers can see exactly how
+// bad the worst days get).
+// ---------------------------------------------------------------------------
+function computeWorstCases(points, k = 5) {
+  if (!Array.isArray(points) || !points.length) return [];
+  const rows = points
+    .filter(p => p && p.predicted_close != null && p.actual_close != null && p.actual_close !== 0)
+    .map(p => {
+      const err = p.predicted_close - p.actual_close;   // signed $ error
+      const errPct = err / p.actual_close;              // signed ratio
+      return {
+        target_date:     p.target_date,
+        prediction_date: p.prediction_date,
+        predicted_close: p.predicted_close,
+        actual_close:    p.actual_close,
+        err, errPct,
+        absErrPct: Math.abs(errPct),
+      };
+    });
+  rows.sort((a, b) => b.absErrPct - a.absErrPct);
+  return rows.slice(0, k);
+}
+
+function renderWorstCases(gridId, phaseBundle) {
+  const el = document.getElementById(gridId);
+  if (!el) return;
+  if (!phaseBundle || !phaseBundle.points) {
+    el.innerHTML = `<div style="padding: 14px; color: var(--muted);">Worst-case breakdown not available — backtest payload missing.</div>`;
+    return;
+  }
+  const horizons = [
+    { key: "7",  label: "h=7 days"  },
+    { key: "30", label: "h=30 days" },
+  ];
+  const fmtUSD = (v) => "$" + Math.round(v).toLocaleString();
+  const fmtPct = (v) => (v * 100).toFixed(1) + "%";
+
+  el.innerHTML = horizons.map(h => {
+    const worst = computeWorstCases(phaseBundle.points[h.key] || [], 5);
+    if (!worst.length) {
+      return `<div class="worst-col"><div class="head">${h.label}</div><div style="color: var(--muted); font-size: 12px;">No data.</div></div>`;
+    }
+    // Sign of error tells the story: positive = we overestimated (predicted > actual),
+    // negative = underestimated. Both coloured red — they're all misses. The arrow
+    // lets the reader see WHICH direction we got wrong at a glance.
+    const rows = worst.map(r => {
+      const arrow = r.err > 0 ? "↑" : "↓";
+      const title = r.err > 0
+        ? "Predicted too high (overestimated)"
+        : "Predicted too low (underestimated)";
+      return `
+        <div class="worst-row" title="${title}  prediction_date=${r.prediction_date}">
+          <span class="date">${r.target_date}</span>
+          <span class="price">${fmtUSD(r.predicted_close)} → ${fmtUSD(r.actual_close)}</span>
+          <span class="err">${arrow} ${fmtPct(r.absErrPct)}</span>
+        </div>
+      `;
+    }).join("");
+    return `
+      <div class="worst-col">
+        <div class="head">${h.label}</div>
+        ${rows}
+      </div>
+    `;
+  }).join("");
+}
+
+// Map model_phase DB names to compact chart-x-axis labels. Keeps the
+// timeline readable (13 phases would turn into mush with full names).
+const PHASE_SHORT_NAMES = {
+  "baseline":                        "baseline",
+  "phase1_1_only":                   "p1.1",
+  "phase1_2_only":                   "p1.2",
+  "phase1":                          "p1",
+  "phase2":                          "p2",
+  "phase2_5":                        "p2.5",
+  "phase3":                          "p3",
+  "phase3_final":                    "p3_final",
+  "phase3b_ablation":                "p3b_abl",
+  "phase4":                          "p4",
+  "phase4b_production":              "p4b",
+  "phase5_loo":                      "p5_loo",
+  "phase5_production":               "p5",
+  "phase6_production":               "p6",
+  // Longrun phases are on a different CV regime (36×30 vs 3×60) so we
+  // deliberately exclude them from the version timeline — direct comparison
+  // would be misleading.
+};
+
+function shortenPhaseName(phase) {
+  return PHASE_SHORT_NAMES[phase] || phase;
+}
+
+function renderVersionTimeline(canvasId, headline, metricConfig) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  if (!headline || !headline.length) {
+    ctx.parentElement.innerHTML = `<div class="empty">Backtest version history not available.</div>`;
+    return;
+  }
+
+  // Build one row per phase per horizon. Exclude longrun variants (different
+  // CV regime). Sort by frozen_utc so the x-axis reflects chronological
+  // iteration, not alphabetical chaos.
+  const filtered = headline
+    .filter(r => !String(r.model_phase || "").includes("longrun"))
+    .filter(r => r.model_phase in PHASE_SHORT_NAMES)
+    .sort((a, b) => new Date(a.frozen_utc) - new Date(b.frozen_utc));
+
+  // Unique phases in chronological order.
+  const phases = [];
+  const seen = new Set();
+  for (const r of filtered) {
+    if (!seen.has(r.model_phase)) {
+      seen.add(r.model_phase);
+      phases.push(r.model_phase);
+    }
+  }
+  const labels = phases.map(shortenPhaseName);
+
+  // Two series: h=7 and h=30. Key each by phase+horizon for fast lookup.
+  const byKey = new Map();
+  for (const r of filtered) byKey.set(`${r.model_phase}|${r.horizon_days}`, r);
+  const h7  = phases.map(p => byKey.get(`${p}|7`)?.[metricConfig.field]  ?? null);
+  const h30 = phases.map(p => byKey.get(`${p}|30`)?.[metricConfig.field] ?? null);
+
+  // eslint-disable-next-line no-undef
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "h=7 days",
+          data: h7,
+          borderColor: "#4fd1c5",
+          backgroundColor: "rgba(79,209,197,0.15)",
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          tension: 0.15,
+          spanGaps: true,
+        },
+        {
+          label: "h=30 days",
+          data: h30,
+          borderColor: "#fbbf24",
+          backgroundColor: "rgba(251,191,36,0.12)",
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          tension: 0.15,
+          spanGaps: true,
+          yAxisID: metricConfig.separateAxis ? "y2" : "y",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      animation: false,
+      plugins: {
+        legend: { labels: { color: "#e4e6eb", boxWidth: 14, font: { size: 12 } } },
+        tooltip: {
+          backgroundColor: "#1d2130",
+          titleColor: "#e4e6eb",
+          bodyColor: "#e4e6eb",
+          borderColor: "#2a2f3e",
+          borderWidth: 1,
+          callbacks: {
+            label: (c) => {
+              const v = c.parsed.y;
+              return v == null ? `${c.dataset.label}: —` : `${c.dataset.label}: ${metricConfig.fmt(v)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: "#8a8f9c", font: { size: 11 } },
+          grid:  { color: "rgba(42,47,62,0.5)" },
+        },
+        y: {
+          ticks: { color: "#8a8f9c", font: { size: 11 }, callback: (v) => metricConfig.fmt(v) },
+          grid:  { color: "rgba(42,47,62,0.5)" },
+          title: { display: true, text: metricConfig.yLabel || "", color: "#8a8f9c", font: { size: 11 } },
+        },
+        ...(metricConfig.separateAxis ? {
+          y2: {
+            position: "right",
+            ticks: { color: "#fbbf24", font: { size: 11 }, callback: (v) => metricConfig.fmt(v) },
+            grid: { display: false },
+            title: { display: true, text: "h=30", color: "#fbbf24", font: { size: 11 } },
+          },
+        } : {}),
+      },
+    },
+  });
+}
+
+// Prefer the most "production-like" phase when multiple longrun variants are
+// available. The phase5_nodefi variant is a strict subset of phase6 (same
+// model, fewer features) — if phase6 exists we show that; otherwise fall back
+// to whichever phase is present. This keeps the chart stable while parallel
+// experiments accumulate in the DB.
+const LONGRUN_PHASE_PRIORITY = [
+  "phase6_production_longrun_oof",
+  "phase5_nodefi_longrun_oof",
+  "phase5_production_longrun_oof",
+];
+
+function pickLongrunPhase(phases) {
+  if (!phases) return null;
+  for (const name of LONGRUN_PHASE_PRIORITY) {
+    if (phases[name]) return { name, bundle: phases[name] };
+  }
+  // Fallback: first key alphabetically.
+  const keys = Object.keys(phases).sort();
+  return keys.length ? { name: keys[0], bundle: phases[keys[0]] } : null;
+}
+
+function renderLongrunChart(canvasId, phaseBundle, horizon, subtitleId) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+
+  const points = (phaseBundle && phaseBundle.points && phaseBundle.points[String(horizon)]) || [];
+  if (!points.length) {
+    ctx.parentElement.innerHTML = `<div class="empty">Backtest h=${horizon} payload not yet available.</div>`;
+    return;
+  }
+
+  // Payload is already sorted ascending by target_date on the server side.
+  const labels    = points.map(p => fmtDate(p.target_date));
+  const predicted = points.map(p => p.predicted_close);
+  const actual    = points.map(p => p.actual_close);
+
+  // Update subtitle with per-phase provenance (frozen date, model).
+  if (subtitleId) {
+    const el = document.getElementById(subtitleId);
+    if (el && phaseBundle) {
+      const frozen = phaseBundle.frozen_utc ? fmtDate(phaseBundle.frozen_utc) : "—";
+      const n = points.length;
+      el.innerHTML = `${el.innerHTML}<br><span style="color: var(--muted); font-size: 11px;">${n.toLocaleString()} predictions · ensemble model · frozen ${frozen}</span>`;
+    }
+  }
+
+  // eslint-disable-next-line no-undef
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Predicted close (OOF)",
+          data: predicted,
+          borderColor: "#4fd1c5",
+          backgroundColor: "rgba(79,209,197,0.10)",
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.1,
+        },
+        {
+          label: "Actual close",
+          data: actual,
+          borderColor: "#e4e6eb",
+          backgroundColor: "rgba(228,230,235,0.05)",
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      // 1,080 points × 2 lines is fine for Chart.js, but disable animation
+      // on initial draw so it doesn't feel sluggish on older laptops.
+      animation: false,
+      plugins: {
+        legend: { labels: { color: "#e4e6eb", boxWidth: 14, font: { size: 12 } } },
+        tooltip: {
+          backgroundColor: "#1d2130",
+          titleColor: "#e4e6eb",
+          bodyColor: "#e4e6eb",
+          borderColor: "#2a2f3e",
+          borderWidth: 1,
+          callbacks: { label: (c) => `${c.dataset.label}: ${fmtUSD(c.parsed.y)}` },
+        },
+        decimation: {
+          enabled: true,
+          algorithm: "min-max",
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: "#8a8f9c", font: { size: 11 }, maxRotation: 0, autoSkipPadding: 40 },
+          grid:  { color: "rgba(42,47,62,0.5)" },
+        },
+        y: {
+          ticks: { color: "#8a8f9c", font: { size: 11 }, callback: (v) => fmtUSD(v) },
+          grid:  { color: "rgba(42,47,62,0.5)" },
+        },
+      },
+    },
+  });
+}
+
+// A/B diff card — renders backtest_diff_latest.json written by
+// persist_and_export_longrun.py. Stays hidden when (a) no diff file is
+// present, or (b) the diff is same-phase-vs-same-phase (a no-op that
+// would show all zeros). The "production ensembles only" filter is
+// deliberate: the diff file has ~20 rows per horizon across every
+// individual model, but the headline the user cares about is the
+// trimmed ensemble that actually gets served. Showing 4 rows keeps the
+// card scannable.
+const AB_DIFF_MODELS = [
+  "trimmed_regression_ensemble_equal",
+  "trimmed_classification_ensemble_equal",
+];
+
+function _abDeltaClass(delta, lowerIsBetter, eps) {
+  if (delta == null || Number.isNaN(delta)) return "delta-same";
+  if (Math.abs(delta) < eps) return "delta-same";
+  // For lower-is-better metrics (RMSE, Brier), negative delta = improvement.
+  // For higher-is-better (accuracy, dir_acc), positive delta = improvement.
+  const better = lowerIsBetter ? delta < 0 : delta > 0;
+  return better ? "delta-better" : "delta-worse";
+}
+
+function _abFmtDelta(delta, precision, eps) {
+  if (delta == null || Number.isNaN(delta)) return "—";
+  if (Math.abs(delta) < eps) return "±0";
+  const sign = delta >= 0 ? "+" : "";
+  return `${sign}${delta.toFixed(precision)}`;
+}
+
+function _abMetricRow(label, horizon, oldVal, newVal, fmt, lowerIsBetter, precision, eps, pValue) {
+  if (oldVal == null && newVal == null) return "";
+  const delta = (oldVal != null && newVal != null) ? (newVal - oldVal) : null;
+  const dClass = _abDeltaClass(delta, lowerIsBetter, eps);
+  const dStr   = _abFmtDelta(delta, precision, eps);
+  const oldS   = oldVal == null ? "—" : fmt(oldVal);
+  const newS   = newVal == null ? "—" : fmt(newVal);
+  // Wilcoxon tests the paired-error distribution, so it only makes sense on
+  // the *primary* metric row (RMSE for regression, Brier for classification).
+  // We only render the pill when a p_value was passed in.
+  let pCell = "";
+  if (pValue != null && !Number.isNaN(pValue)) {
+    const sig = pValue < 0.05 ? "significant" : "";
+    pCell = `<span class="diff-pvalue ${sig}" title="Wilcoxon signed-rank p-value">p=${pValue < 0.001 ? pValue.toExponential(1) : pValue.toFixed(3)}</span>`;
+  }
+  return `
+    <tr>
+      <td class="metric">${label}</td>
+      <td>h=${horizon}</td>
+      <td class="num">${oldS}</td>
+      <td class="num">${newS}</td>
+      <td class="num ${dClass}">${dStr}${pCell}</td>
+    </tr>
+  `;
+}
+
+function renderAbDiff(diff) {
+  const card = document.getElementById("ab-diff-card");
+  if (!card) return;
+
+  // Fall-through: no diff file / malformed payload / same-phase noop.
+  // In all cases we just keep the card hidden — visitors shouldn't see an
+  // A/B card that has nothing meaningful to compare.
+  if (!diff || !Array.isArray(diff.per_model)) return;
+  const meta = diff.meta || {};
+  const newPhase = meta.new_phase || "";
+  const oldPhase = meta.old_phase || "";
+  if (!newPhase || !oldPhase || newPhase === oldPhase) return;
+
+  const rows = diff.per_model.filter(r => AB_DIFF_MODELS.includes(r.model));
+  if (!rows.length) return;
+
+  // Group by horizon so we can interleave regression + classification rows
+  // (h=7 together, then h=30 together).
+  const horizons = Array.from(new Set(rows.map(r => r.horizon))).sort((a, b) => a - b);
+
+  const fmtUsd   = (v) => "$" + v.toFixed(2);
+  const fmtPct   = (v) => (v * 100).toFixed(1) + "%";
+  const fmtBrier = (v) => v.toFixed(4);
+  const fmtMape  = (v) => v.toFixed(2) + "%";
+
+  let bodyHtml = "";
+  for (const h of horizons) {
+    const reg = rows.find(r => r.horizon === h && r.head === "regression");
+    const cls = rows.find(r => r.horizon === h && r.head === "classification");
+
+    if (reg) {
+      bodyHtml += _abMetricRow(
+        "Price RMSE", h,
+        reg.rmse_close_old, reg.rmse_close_new,
+        fmtUsd, true, 2, 0.01, reg.wilcoxon_p_value,
+      );
+      bodyHtml += _abMetricRow(
+        "Price MAPE", h,
+        reg.mape_close_old, reg.mape_close_new,
+        fmtMape, true, 2, 0.01, null,
+      );
+      bodyHtml += _abMetricRow(
+        "Directional acc.", h,
+        reg.dir_acc_old, reg.dir_acc_new,
+        fmtPct, false, 4, 0.0005, null,
+      );
+    }
+    if (cls) {
+      bodyHtml += _abMetricRow(
+        "Brier score", h,
+        cls.brier_old, cls.brier_new,
+        fmtBrier, true, 4, 0.0005, cls.wilcoxon_p_value,
+      );
+      bodyHtml += _abMetricRow(
+        "Classifier acc.", h,
+        cls.accuracy_old, cls.accuracy_new,
+        fmtPct, false, 4, 0.0005, null,
+      );
+    }
+  }
+
+  if (!bodyHtml) return;  // nothing to show for these models — stay hidden
+
+  // Set headline. Keep it terse; the subtitle already says "paired comparison".
+  // Strip the "_36x30" CV-regime suffix before shortening — it's uniform
+  // across both sides of the diff so surfacing it adds noise. Then fall
+  // back to shortenPhaseName (which maps e.g. "phase6_production" → "p6").
+  const titleEl = document.getElementById("ab-diff-title");
+  if (titleEl) {
+    const strip = (p) => shortenPhaseName(String(p).replace(/_\d+x\d+$/, ""));
+    titleEl.textContent = `${strip(newPhase)} vs ${strip(oldPhase)}`;
+  }
+
+  // Coverage hint for the subtitle — visitors should see how many dates
+  // this is actually paired over. We take the max n_dates across rows
+  // (usually uniform per horizon; take max to be robust to partial coverage).
+  const coverage = diff.coverage || {};
+  const common = coverage.common_keys;
+  const subtitleEl = document.getElementById("ab-diff-subtitle");
+  if (subtitleEl && common != null) {
+    subtitleEl.innerHTML = `Paired comparison across the full 3-year OOF backtest · <b>${common.toLocaleString()}</b> shared (date × model × horizon) keys. Same prediction dates, same reference closes — only the underlying model differs.`;
+  }
+
+  const body = document.getElementById("ab-diff-body");
+  if (body) {
+    const stripCV = (p) => shortenPhaseName(String(p).replace(/_\d+x\d+$/, ""));
+    body.innerHTML = `
+      <div class="table-wrap">
+        <table class="diff-table">
+          <thead>
+            <tr>
+              <th>metric</th>
+              <th>horizon</th>
+              <th class="num">${stripCV(oldPhase)}</th>
+              <th class="num">${stripCV(newPhase)}</th>
+              <th class="num">Δ</th>
+            </tr>
+          </thead>
+          <tbody>${bodyHtml}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  card.style.display = "block";
+}
+
 (async () => {
   // Fire JSON loads and the first live-price fetch in parallel for a snappier
-  // first paint. The live price often beats the 3 local-HTTP JSON fetches so
+  // first paint. The live price often beats the 4 local-HTTP JSON fetches so
   // the hero card renders with the correct % from the start.
-  const [latest, accuracy, history] = await Promise.all([
+  //
+  // backtest_longrun_history.json is allowed to 404 — it's only present once
+  // a longrun OOF has been persisted + exported. Fall back to null in that
+  // case so the page still renders without the 3-year chart.
+  //
+  // backtest_diff_latest.json is likewise optional — only present after
+  // persist_and_export_longrun.py has been run with --diff-against. No
+  // file = card stays hidden (renderAbDiff handles null gracefully).
+  const [latest, accuracy, history, longrun, backtest, diff] = await Promise.all([
     loadJSON("latest.json"),
     loadJSON("accuracy.json"),
     loadJSON("history.json"),
+    loadJSON("backtest_longrun_history.json").catch(() => null),
+    loadJSON("backtest.json").catch(() => null),
+    loadJSON("backtest_diff_latest.json").catch(() => null),
     tickLivePrice(),  // populates LIVE_PRICE / LIVE_PRICE_AT
   ]);
   renderLatest(latest);
@@ -573,6 +1480,51 @@ function renderChart(canvasId, rows, horizon) {
   renderHistory(history);
   renderChart("chart-h7", history, 7);
   renderChart("chart-h30", history, 30);
+
+  const picked = longrun ? pickLongrunPhase(longrun.phases) : null;
+  if (picked) {
+    renderLongrunChart("chart-longrun-h7",  picked.bundle, 7,  "chart-longrun-h7-subtitle");
+    renderLongrunChart("chart-longrun-h30", picked.bundle, 30, "chart-longrun-h30-subtitle");
+    renderRegimeGrid("regime-grid", picked.bundle);
+    renderWorstCases("worst-grid", picked.bundle);
+  } else {
+    for (const id of ["chart-longrun-h7", "chart-longrun-h30"]) {
+      const el = document.getElementById(id);
+      if (el) el.parentElement.innerHTML = `<div class="empty">Backtest payload not yet available.</div>`;
+    }
+    const regimeEl = document.getElementById("regime-grid");
+    if (regimeEl) regimeEl.innerHTML = `<div style="padding: 14px; color: var(--muted);">Regime breakdown not available — backtest payload missing.</div>`;
+    const worstEl = document.getElementById("worst-grid");
+    if (worstEl) worstEl.innerHTML = `<div style="padding: 14px; color: var(--muted);">Worst-case breakdown not available — backtest payload missing.</div>`;
+  }
+
+  // Version timeline: one line per horizon across the frozen phases.
+  // RMSE (dollars) and Brier (0-1) live on separate cards because mixing
+  // them on one y-axis would crush one series flat.
+  if (backtest && Array.isArray(backtest.headline)) {
+    renderVersionTimeline("chart-version-rmse", backtest.headline, {
+      field:          "reg_price_rmse",
+      fmt:            (v) => "$" + Math.round(v).toLocaleString(),
+      yLabel:         "RMSE (USD)",
+      separateAxis:   true,   // h=30 is 3-5x h=7, use right axis
+    });
+    renderVersionTimeline("chart-version-brier", backtest.headline, {
+      field:          "cls_brier",
+      fmt:            (v) => v.toFixed(3),
+      yLabel:         "Brier score",
+      separateAxis:   false,  // h=7 and h=30 brier scores are on similar scale
+    });
+  } else {
+    for (const id of ["chart-version-rmse", "chart-version-brier"]) {
+      const el = document.getElementById(id);
+      if (el) el.parentElement.innerHTML = `<div class="empty">Version history not available.</div>`;
+    }
+  }
+
+  // A/B diff card — only surfaces if persist_and_export_longrun.py wrote
+  // backtest_diff_latest.json AND the diff isn't same-phase-vs-same-phase.
+  // In all other cases the card remains hidden (renderAbDiff is a no-op).
+  renderAbDiff(diff);
 
   // Cheap "seconds ago" updater — keeps the subtitle honest without a
   // network call. Runs independently of the price fetch.
