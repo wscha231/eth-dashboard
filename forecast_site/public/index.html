@@ -6,6 +6,9 @@
 <title>ETH Forecast</title>
 <!-- Chart.js: tiny CDN-hosted plotting lib. No build step. -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- qrcode.js: client-side QR generation for the donation footer.
+     Entirely local — no per-visitor calls to a QR-generation service. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
   :root {
     --bg: #0f1117;
@@ -353,6 +356,252 @@
     /* Disclaimer gets squeezed without this. */
     .disclaimer                         { padding: 12px; font-size: 12px; }
   }
+
+  /* =====================================================================
+     Site footer — donation wallets + research roadmap milestones.
+     Kept visually distinct from the main content via a top border + a
+     subtle tonal shift, but still within the overall dark theme.
+     Intentionally no dollar amounts exposed — only milestone badges.
+     ===================================================================== */
+  .site-footer {
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+    padding: 48px 32px 32px;
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .site-footer h2 {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0 0 6px;
+    font-weight: 600;
+  }
+  .site-footer .tagline {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 640px;
+    margin: 0 0 24px;
+    line-height: 1.5;
+  }
+  .site-footer .support,
+  .site-footer .roadmap {
+    margin-bottom: 48px;
+  }
+
+  /* ---------- Wallet grid ---------- */
+  .wallet-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .wallet-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .wallet-card .qr-wrap {
+    flex: 0 0 96px;
+    width: 96px;
+    height: 96px;
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wallet-card .qr-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+    image-rendering: pixelated;
+  }
+  .wallet-card .wallet-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .wallet-card .net {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .wallet-card .sub {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .wallet-card .accepts {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .wallet-card .accepts b { color: var(--text); font-weight: 500; }
+  .wallet-card .addr-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .wallet-card .addr {
+    flex: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--panel-2);
+    padding: 6px 8px;
+    border-radius: 6px;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+    line-height: 1.4;
+  }
+  .copy-btn {
+    flex: 0 0 auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .copy-btn:hover {
+    background: var(--border);
+    color: var(--accent);
+  }
+  .copy-btn.copied {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.35);
+    color: var(--up);
+  }
+  .network-warn {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(250, 204, 21, 0.06);
+    border: 1px solid rgba(250, 204, 21, 0.2);
+    border-radius: 8px;
+    color: #fef3c7;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .network-warn .icon { margin-right: 6px; }
+
+  /* ---------- Milestone roadmap ---------- */
+  .milestone-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .milestone {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+  }
+  .milestone.in-progress { opacity: 1; border-color: rgba(79, 209, 197, 0.35); }
+  .milestone.reached {
+    opacity: 1;
+    border-color: rgba(34, 197, 94, 0.45);
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.04), var(--panel));
+  }
+  .milestone .ml-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .milestone .ml-roman {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.05em;
+  }
+  .milestone.reached .ml-roman { color: var(--up); }
+  .milestone.in-progress .ml-roman { color: var(--accent); }
+  .milestone .ml-status {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+  .milestone.in-progress .ml-status {
+    background: rgba(79, 209, 197, 0.12);
+    color: var(--accent);
+  }
+  .milestone.reached .ml-status {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--up);
+  }
+  .milestone h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .milestone p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .milestone .unlocks {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .milestone .unlocks b { color: var(--text); font-weight: 500; }
+
+  /* ---------- Footer bottom ---------- */
+  .footer-bottom {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    align-items: center;
+  }
+  .footer-bottom a { color: var(--accent); text-decoration: none; }
+  .footer-bottom a:hover { opacity: 0.8; }
+
+  /* ---------- Mobile tweaks for footer ---------- */
+  @media (max-width: 600px) {
+    .site-footer                     { padding: 32px 16px 24px; margin-top: 40px; }
+    .wallet-grid,
+    .milestone-grid                  { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .wallet-card                     { padding: 14px; gap: 12px; }
+    .wallet-card .qr-wrap            { flex: 0 0 80px; width: 80px; height: 80px; }
+    .wallet-card .addr               { font-size: 10px; }
+    .milestone                       { padding: 16px; }
+    .milestone h3                    { font-size: 14px; }
+    .milestone p                     { font-size: 12px; }
+    .footer-bottom                   { font-size: 11px; gap: 6px; }
+  }
 </style>
 </head>
 <body>
@@ -536,6 +785,169 @@
     not guarantee future performance. Always do your own research.
   </div>
 </main>
+
+<footer class="site-footer">
+  <!-- =========================================================
+       Support section: 4 wallet cards (BTC → ETH → SOL → TRON)
+       ========================================================= -->
+  <section class="support">
+    <h2>Support the project</h2>
+    <p class="support-intro">
+      Donations fund paid data APIs and research infrastructure that
+      make better forecasts possible. No dollar amounts are exposed —
+      only the research milestones unlocked so far. Every chain below
+      accepts its native coin; ETH and TRON cards also accept the
+      listed stablecoins on the <em>same</em> address.
+    </p>
+
+    <div class="wallet-grid">
+      <!-- Bitcoin -->
+      <div class="wallet-card" data-chain="BTC">
+        <div class="qr-wrap"><canvas data-qr="bc1q08ysyps6umuelea33tm2ce0dqs3ek7588wkcne"></canvas></div>
+        <div class="wallet-body">
+          <div class="wallet-head">
+            <span class="chain-name">Bitcoin</span>
+            <span class="chain-ticker">BTC</span>
+          </div>
+          <div class="addr-row">
+            <code class="addr" data-addr="bc1q08ysyps6umuelea33tm2ce0dqs3ek7588wkcne">bc1q08ysyps6umuelea33tm2ce0dqs3ek7588wkcne</code>
+            <button class="copy-btn" data-copy="bc1q08ysyps6umuelea33tm2ce0dqs3ek7588wkcne" aria-label="Copy Bitcoin address">Copy</button>
+          </div>
+          <div class="accepted">Accepts: <b>BTC</b> (native SegWit)</div>
+          <div class="network-warn">Send on the Bitcoin network only.</div>
+        </div>
+      </div>
+
+      <!-- Ethereum -->
+      <div class="wallet-card" data-chain="ETH">
+        <div class="qr-wrap"><canvas data-qr="0x16e5a022Ec8e24d06f1705d6F5540f3Ec416623E"></canvas></div>
+        <div class="wallet-body">
+          <div class="wallet-head">
+            <span class="chain-name">Ethereum</span>
+            <span class="chain-ticker">ETH</span>
+          </div>
+          <div class="addr-row">
+            <code class="addr" data-addr="0x16e5a022Ec8e24d06f1705d6F5540f3Ec416623E">0x16e5a022Ec8e24d06f1705d6F5540f3Ec416623E</code>
+            <button class="copy-btn" data-copy="0x16e5a022Ec8e24d06f1705d6F5540f3Ec416623E" aria-label="Copy Ethereum address">Copy</button>
+          </div>
+          <div class="accepted">Accepts: <b>ETH</b>, <b>USDT</b>, <b>USDC</b>, <b>DAI</b></div>
+          <div class="network-warn">ERC-20 only. Do <u>not</u> send from Tron/BSC/Solana.</div>
+        </div>
+      </div>
+
+      <!-- Solana -->
+      <div class="wallet-card" data-chain="SOL">
+        <div class="qr-wrap"><canvas data-qr="HvLvwzizLKmyAk179YzJBLN7ZKbymUQi9wxZ5uA1Ccg8"></canvas></div>
+        <div class="wallet-body">
+          <div class="wallet-head">
+            <span class="chain-name">Solana</span>
+            <span class="chain-ticker">SOL</span>
+          </div>
+          <div class="addr-row">
+            <code class="addr" data-addr="HvLvwzizLKmyAk179YzJBLN7ZKbymUQi9wxZ5uA1Ccg8">HvLvwzizLKmyAk179YzJBLN7ZKbymUQi9wxZ5uA1Ccg8</code>
+            <button class="copy-btn" data-copy="HvLvwzizLKmyAk179YzJBLN7ZKbymUQi9wxZ5uA1Ccg8" aria-label="Copy Solana address">Copy</button>
+          </div>
+          <div class="accepted">Accepts: <b>SOL</b>, <b>USDC</b>, <b>USDT</b> (SPL)</div>
+          <div class="network-warn">Solana mainnet only.</div>
+        </div>
+      </div>
+
+      <!-- Tron -->
+      <div class="wallet-card" data-chain="TRX">
+        <div class="qr-wrap"><canvas data-qr="TAh4E1C8b28CZVNQ8tmfhQjyo8zJmvGNF8"></canvas></div>
+        <div class="wallet-body">
+          <div class="wallet-head">
+            <span class="chain-name">Tron</span>
+            <span class="chain-ticker">TRX</span>
+          </div>
+          <div class="addr-row">
+            <code class="addr" data-addr="TAh4E1C8b28CZVNQ8tmfhQjyo8zJmvGNF8">TAh4E1C8b28CZVNQ8tmfhQjyo8zJmvGNF8</code>
+            <button class="copy-btn" data-copy="TAh4E1C8b28CZVNQ8tmfhQjyo8zJmvGNF8" aria-label="Copy Tron address">Copy</button>
+          </div>
+          <div class="accepted">Accepts: <b>TRX</b>, <b>USDT</b>, <b>USDC</b> (TRC-20)</div>
+          <div class="network-warn">TRC-20 only — cheapest fees for USDT.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       Roadmap — 3 research milestones (I, II, III)
+       Dollar amounts intentionally hidden; progress shown as
+       reached / in-progress / locked via donations.json.
+       ========================================================= -->
+  <section class="roadmap">
+    <h2>Research roadmap</h2>
+    <p class="roadmap-intro">
+      Each milestone unlocks a tier of paid data services that are
+      otherwise out of reach for an independent forecaster. Progress
+      reflects cumulative on-chain donations across the four wallets
+      above, aggregated daily.
+    </p>
+
+    <div class="milestone-grid">
+      <!-- Milestone I -->
+      <article class="milestone" data-milestone="I">
+        <div class="ml-head">
+          <span class="ml-roman">I</span>
+          <span class="ml-status">Locked</span>
+        </div>
+        <h3>Pro on-chain metrics</h3>
+        <p>
+          Glassnode or CryptoQuant paid tier for SOPR, realized cap,
+          MVRV, exchange flows. Adds high-signal on-chain features
+          to the daily model.
+        </p>
+        <div class="unlocks">
+          Unlocks: <b>Glassnode Advanced</b> · <b>CryptoQuant Premium</b>
+        </div>
+      </article>
+
+      <!-- Milestone II -->
+      <article class="milestone" data-milestone="II">
+        <div class="ml-head">
+          <span class="ml-roman">II</span>
+          <span class="ml-status">Locked</span>
+        </div>
+        <h3>Research-grade signal stack</h3>
+        <p>
+          Kaiko order-book depth, Santiment social sentiment, and
+          Anthropic Claude credits for an always-on LLM news analyst.
+          Enables regime-aware ensemble weighting.
+        </p>
+        <div class="unlocks">
+          Unlocks: <b>Kaiko</b> · <b>Santiment</b> · <b>LLM analyst</b>
+        </div>
+      </article>
+
+      <!-- Milestone III -->
+      <article class="milestone" data-milestone="III">
+        <div class="ml-head">
+          <span class="ml-roman">III</span>
+          <span class="ml-status">Locked</span>
+        </div>
+        <h3>Institutional grade</h3>
+        <p>
+          Bloomberg / Refinitiv equivalents, multi-exchange L2 feeds,
+          and dedicated GPU training for deep sequence models.
+          The site becomes a fully independent research shop.
+        </p>
+        <div class="unlocks">
+          Unlocks: <b>Institutional data</b> · <b>GPU training</b>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <div class="footer-bottom">
+    <div>© <span id="footer-year"></span> etherforecast.live · Independent research, not financial advice.</div>
+    <div class="footer-note">
+      Donation progress is computed on-chain from public transactions.
+      A share of each milestone covers the maintainer's living costs so
+      this site stays independent; the majority funds the services listed above.
+    </div>
+  </div>
+</footer>
 
 <script>
 const fmtUSD = (v) => v == null ? "—" :
@@ -1578,6 +1990,90 @@ function renderAbDiff(diff) {
   // Full price refresh on a 60-second cadence — within Coinbase/CoinGecko
   // free-tier limits with plenty of headroom.
   setInterval(tickLivePrice, 60 * 1000);
+})();
+
+/* ===========================================================
+   Footer: QR codes + copy buttons + milestone progress.
+   Isolated IIFE so it can't break the main forecast rendering
+   if qrcode.js fails to load or donations.json is missing.
+   =========================================================== */
+(function initDonationFooter() {
+  // ---- Footer year (trivial, but keeps HTML static) --------
+  const yearEl = document.getElementById("footer-year");
+  if (yearEl) yearEl.textContent = String(new Date().getFullYear());
+
+  // ---- QR codes --------------------------------------------
+  // qrcode.js is loaded from the CDN in <head>. If it failed
+  // to load we skip silently — copy buttons still work.
+  if (typeof QRCode !== "undefined") {
+    document.querySelectorAll("canvas[data-qr]").forEach((canvas) => {
+      const addr = canvas.getAttribute("data-qr");
+      if (!addr) return;
+      QRCode.toCanvas(canvas, addr, {
+        width: 112,
+        margin: 1,
+        color: { dark: "#e4e6eb", light: "#171a24" },
+        errorCorrectionLevel: "M",
+      }, (err) => {
+        if (err) console.warn("QR render failed for", addr, err);
+      });
+    });
+  }
+
+  // ---- Copy-to-clipboard handlers --------------------------
+  document.querySelectorAll(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const addr = btn.getAttribute("data-copy");
+      if (!addr) return;
+      try {
+        await navigator.clipboard.writeText(addr);
+      } catch (_) {
+        // Fallback for older browsers / insecure contexts
+        const ta = document.createElement("textarea");
+        ta.value = addr;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+      const orig = btn.textContent;
+      btn.textContent = "Copied!";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove("copied");
+      }, 1400);
+    });
+  });
+
+  // ---- Milestone progress (public donations.json) ----------
+  // Public payload is intentionally minimal:
+  //   { milestones_reached: ["I", ...], next_milestone: "II" | null, generated_at_utc: "..." }
+  // No dollar amounts are ever surfaced to the browser.
+  fetch("donations.json", { cache: "no-store" })
+    .then((r) => r.ok ? r.json() : null)
+    .then((data) => {
+      if (!data) return;
+      const reached = Array.isArray(data.milestones_reached) ? data.milestones_reached : [];
+      const next = data.next_milestone || null;
+      document.querySelectorAll(".milestone[data-milestone]").forEach((card) => {
+        const id = card.getAttribute("data-milestone");
+        const statusEl = card.querySelector(".ml-status");
+        if (reached.includes(id)) {
+          card.classList.add("reached");
+          card.classList.remove("in-progress");
+          if (statusEl) statusEl.textContent = "Reached";
+        } else if (id === next) {
+          card.classList.add("in-progress");
+          card.classList.remove("reached");
+          if (statusEl) statusEl.textContent = "In progress";
+        } else {
+          card.classList.remove("reached", "in-progress");
+          if (statusEl) statusEl.textContent = "Locked";
+        }
+      });
+    })
+    .catch(() => { /* donations.json not deployed yet — leave all Locked */ });
 })();
 </script>
 </body>

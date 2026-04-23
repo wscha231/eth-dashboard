@@ -49,6 +49,14 @@ jobs:
       # Optional: Telegram alert. If unset, the notify step no-ops.
       TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Donation tracker — Etherscan key is required for ERC-20 scanning;
+      # the 4 wallet addresses are public but kept as secrets so the workflow
+      # file stays clean and the addresses can be rotated without a code push.
+      ETHERSCAN_API_KEY:        ${{ secrets.ETHERSCAN_API_KEY }}
+      DONATION_BTC_ADDRESS:     ${{ secrets.DONATION_BTC_ADDRESS }}
+      DONATION_ETH_ADDRESS:     ${{ secrets.DONATION_ETH_ADDRESS }}
+      DONATION_SOL_ADDRESS:     ${{ secrets.DONATION_SOL_ADDRESS }}
+      DONATION_TRX_ADDRESS:     ${{ secrets.DONATION_TRX_ADDRESS }}
       # Non-secret tuning knobs.
       MODEL_PHASE:   ${{ inputs.model_phase || 'phase5_production' }}
       FAST_MODE_FLAG: ${{ inputs.fast_mode == true && '--fast-mode' || '' }}
@@ -121,6 +129,15 @@ jobs:
           python -m forecast_site.export_backtest_json \
               --db forecast_site/predictions.db
 
+      - name: Refresh donation milestones
+        # Rewrites forecast_site/public/donations.json (milestones_reached
+        # + next_milestone; NO dollar amounts) from on-chain scans of the
+        # 4 donation wallets. Non-fatal: if an explorer is rate-limited,
+        # keep the previous day's donations.json on the deploy branch.
+        continue-on-error: true
+        run: |
+          python donation_tracker.py --quiet
+
       - name: Send Telegram notification
         # Best-effort; the script itself no-ops if tokens are missing and
         # swallows transient failures.
@@ -141,50 +158,74 @@ jobs:
           retention-days: 14
 
       - name: Commit updated DB
-        # The DB + master CSV move every day; traditional output CSVs would
-        # cause merge conflicts so keep them out of this branch.
+        # -----------------------------------------------------------------
+        # Deploy-branch pattern: data/daily-forecast is REBUILT from main's
+        # tip on every cron run, with generated artifacts (DB + JSON blobs)
+        # layered on top as a single commit, then force-pushed.
+        #
+        # Why force-push:
+        #   1. Vercel only reads the tip commit -- history on this branch
+        #      has no value.
+        #   2. The previous "merge main into data branch" approach silently
+        #      broke under shallow-clone (fetch-depth: 1) because Git's
+        #      merge-base calculation would report "Already up to date"
+        #      even when main had moved forward, then push would be
+        #      rejected as non-fast-forward. Rebuilding from main sidesteps
+        #      this class of bug entirely.
+        #   3. Safe: the concurrency group (daily-forecast) guarantees only
+        #      one workflow writes to this branch at a time.
+        #
+        # Every `git add` uses `-f` because most of the paths we deploy
+        # (predictions.db, public/*.json) are listed in main's .gitignore.
+        # -----------------------------------------------------------------
         run: |
+          set -o pipefail
           git config user.name  "eth-forecast-bot"
           git config user.email "eth-forecast-bot@users.noreply.github.com"
-          # Dedicated branch keeps main/master clean; the website can track
-          # this branch directly.
           branch="data/daily-forecast"
-          git fetch origin "$branch" || true
-          git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout -B "$branch"
-          # Pull main's code changes (index.html, backend, schema, workflow
-          # itself) onto the deploy branch. Without this step the data
-          # branch diverges from main — every cron adds JSON updates but
-          # code fixes like the Predicted-vs-actual 3-yr history merge
-          # never reach Vercel. Merge strategy is 'ours'-biased for the
-          # tracked JSON blobs (they're authored here) and 'theirs' for
-          # everything else. A clean 3-way merge works because main's
-          # .gitignore keeps those JSONs out of main history entirely.
+
+          # Start fresh from main's tip every run. This is what guarantees
+          # that code fixes on main (index.html, backend, workflow itself)
+          # always reach Vercel — no merge drift possible.
           git fetch origin main
-          git merge origin/main --no-edit -m "chore(deploy): sync main $(date -u +%Y-%m-%d)" || {
-            echo "::warning::data/daily-forecast diverged from main and can't auto-merge; aborting merge and continuing with data-only update"
-            git merge --abort || true
-          }
-          # The JSON blobs are gitignored locally (regenerated every run) but
-          # Vercel needs them on this branch, so force-add for the deploy.
-          git add forecast_site/predictions.db lake/gold/eth_master_daily.csv || true
-          git add --force \
+          git checkout -B "$branch" origin/main
+
+          # Force-add generated artifacts. -f bypasses .gitignore which
+          # blocks predictions.db / public/*.json on main.
+          git add -f forecast_site/predictions.db || true
+          git add -f lake/gold/eth_master_daily.csv || true
+          git add -f \
               forecast_site/public/latest.json \
               forecast_site/public/accuracy.json \
               forecast_site/public/history.json || true
-          # Backtest artifacts (regenerated by export_backtest_json). The
-          # predictions_*.json files are large (~15MB for phase6 longrun) —
-          # include them so the frontend's lazy-loaded drill-downs work on
-          # the deploy branch.
-          git add --force \
+          # Donation milestones — tiny public payload (milestones_reached +
+          # next_milestone); full USD ledger stays in forecast_site/private/
+          # which is hard-gitignored and never reaches the deploy branch.
+          git add -f forecast_site/public/donations.json || true
+          # Backtest artifacts (regenerated by export_backtest_json).
+          git add -f \
               forecast_site/public/backtest.json \
               forecast_site/public/backtest_versions.json \
               forecast_site/public/backtest_longrun_history.json || true
-          git add --force forecast_site/public/backtest_predictions_*.json || true
-          git add --force forecast_site/public/backtest_diff_*.json || true
+          # Glob paths: git add with a pathspec that matches zero files is
+          # a fatal error. Expand via shell with nullglob so empty globs
+          # become no-ops rather than literal "backtest_diff_*.json".
+          shopt -s nullglob
+          backtest_pred=(forecast_site/public/backtest_predictions_*.json)
+          backtest_diff=(forecast_site/public/backtest_diff_*.json)
+          if [ ${#backtest_pred[@]} -gt 0 ]; then
+            git add -f "${backtest_pred[@]}" || true
+          fi
+          if [ ${#backtest_diff[@]} -gt 0 ]; then
+            git add -f "${backtest_diff[@]}" || true
+          fi
+
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
           fi
           git commit -m "chore(forecast): daily run $(date -u +%Y-%m-%d)" \
-            -m "model_phase=$MODEL_PHASE"
-          git push origin "$branch"
+                     -m "model_phase=$MODEL_PHASE"
+          # Force-push: see header comment. Concurrency group ensures no
+          # concurrent writer can be clobbered.
+          git push --force origin "$branch"
