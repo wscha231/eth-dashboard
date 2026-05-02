@@ -760,10 +760,18 @@ def _finalize_and_save(
 ) -> dict[str, Any]:
     state["last_checkpoint_utc"] = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
     if not completed_all_horizons:
-        _flush_checkpoint(
-            checkpoint_path, state, predictions_by_horizon,
-            horizon_payloads, partial=True,
-        )
+        state["partial"] = True
+        state["horizons"] = {}
+        for horizon, runner in runners.items():
+            rows = predictions_by_horizon.get(horizon, [])
+            horizon_payload: dict[str, Any] = {
+                **horizon_payloads[horizon].get("extras", {}),
+            }
+            if rows:
+                horizon_payload.update(finalize_run(runner, predictions_by_horizon))
+            horizon_payload["predictions"] = rows
+            state["horizons"][str(horizon)] = horizon_payload
+        atomic_save_checkpoint(checkpoint_path, state)
         return state
     # Fully done — compute leaderboards + ensembles + thresholds per horizon.
     state["partial"] = False

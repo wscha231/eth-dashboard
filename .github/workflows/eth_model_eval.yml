@@ -65,7 +65,7 @@ jobs:
             echo "EVAL_PROFILE=smoke" >> "$GITHUB_ENV"
             python tests/phase0/longrun_oof_phase6_production.py \
               --master-data-csv lake/gold/eth_master_daily.csv \
-              --max-folds 3
+              --max-folds 6
           fi
 
       - name: Threshold sweep
