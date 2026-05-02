@@ -1,0 +1,109 @@
+name: ETH model evaluation
+
+on:
+  pull_request:
+    paths:
+      - "eth_price_forecast.py"
+      - "eth_data_collector.py"
+      - "requirements.txt"
+      - "scripts/evaluate_eth_candidate.py"
+      - "tests/phase0/**"
+      - ".github/workflows/eth_model_eval.yml"
+  workflow_dispatch:
+    inputs:
+      full_run:
+        description: "Run the full 36-fold OOF gate instead of the PR smoke gate"
+        type: boolean
+        default: false
+  schedule:
+    # Weekly full gate after the Sunday UTC close, Monday 03:00 KST.
+    - cron: "0 18 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eth-model-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      FULL_RUN: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run == 'true')) && 'true' || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Static leakage and feature tests
+        run: |
+          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py -q
+
+      - name: Long-run OOF candidate
+        run: |
+          if [ "$FULL_RUN" = "true" ]; then
+            echo "EVAL_PROFILE=full" >> "$GITHUB_ENV"
+            python tests/phase0/longrun_oof_phase6_production.py \
+              --master-data-csv lake/gold/eth_master_daily.csv
+          else
+            echo "EVAL_PROFILE=smoke" >> "$GITHUB_ENV"
+            python tests/phase0/longrun_oof_phase6_production.py \
+              --master-data-csv lake/gold/eth_master_daily.csv \
+              --max-folds 3
+          fi
+
+      - name: Threshold sweep
+        run: |
+          if [ "$EVAL_PROFILE" = "full" ]; then
+            python tests/phase0/threshold_sweep.py
+          else
+            echo "Skipping threshold sweep for smoke profile"
+          fi
+
+      - name: Candidate evaluation gate
+        run: |
+          status=0
+          if [ "$EVAL_PROFILE" = "full" ]; then
+            python scripts/evaluate_eth_candidate.py \
+              --baseline tests/phase0/model_baseline_manifest.json \
+              --candidate tests/phase0/phase6_production_longrun_oof_metrics.json \
+              --threshold-sweep tests/phase0/threshold_sweep_results.json \
+              --profile full || status=$?
+          else
+            python scripts/evaluate_eth_candidate.py \
+              --baseline tests/phase0/model_baseline_manifest.json \
+              --candidate tests/phase0/phase6_production_longrun_oof_metrics.json \
+              --profile smoke || status=$?
+          fi
+          if [ -f tests/phase0/model_eval_report.md ]; then
+            cat tests/phase0/model_eval_report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: Upload model evaluation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eth-model-eval-${{ github.run_id }}
+          path: |
+            tests/phase0/model_eval_report.json
+            tests/phase0/model_eval_report.md
+            tests/phase0/phase6_production_longrun_oof_metrics.json
+            tests/phase0/threshold_sweep_results.json
+          retention-days: 21

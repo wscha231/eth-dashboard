@@ -4298,12 +4298,21 @@ def evaluate_direction_classification(
     probability_up: np.ndarray,
 ) -> dict[str, float]:
     probability_up = np.clip(probability_up, 1e-6, 1 - 1e-6)
+    labels = [0, 1]
     metrics = {
         "accuracy": float(accuracy_score(actual_label, predicted_label)),
-        "balanced_accuracy": float(balanced_accuracy_score(actual_label, predicted_label)),
-        "precision": float(precision_score(actual_label, predicted_label, zero_division=0)),
-        "recall": float(recall_score(actual_label, predicted_label, zero_division=0)),
-        "f1": float(f1_score(actual_label, predicted_label, zero_division=0)),
+        "balanced_accuracy": float(
+            recall_score(actual_label, predicted_label, labels=labels, average="macro", zero_division=0)
+        ),
+        "precision": float(
+            precision_score(actual_label, predicted_label, labels=labels, average="binary", zero_division=0)
+        ),
+        "recall": float(
+            recall_score(actual_label, predicted_label, labels=labels, average="binary", zero_division=0)
+        ),
+        "f1": float(
+            f1_score(actual_label, predicted_label, labels=labels, average="binary", zero_division=0)
+        ),
         "brier_score": float(brier_score_loss(actual_label, probability_up)),
     }
     if len(np.unique(actual_label)) > 1:
@@ -4622,66 +4631,27 @@ def choose_threshold_via_nested_backtest(
             selection_candidates.append((float(threshold), metrics))
 
     if not selection_candidates:
-        selection_index = pd.Index(reference_index)
-        evaluation_index = pd.Index(reference_index)
-        embargo_rows = 0
-        scheme = "full_sample"
-        for threshold in threshold_candidates:
-            signal = signal_builder(float(threshold))
-            metrics, curve = run_signal_backtest(
-                signal.reindex(selection_index),
-                market_data=market_data,
-                horizon=horizon,
-                interval=interval,
-            )
-            total_return = pd.to_numeric(metrics.get("total_return"), errors="coerce")
-            if pd.notna(total_return):
-                annotated = annotate_threshold_validation_metrics(
-                    metrics,
-                    scheme=scheme,
-                    selection_rows=len(selection_index),
-                    evaluation_rows=len(evaluation_index),
-                    embargo_rows=embargo_rows,
-                )
-                annotated["signal_threshold"] = float(threshold_labeler(float(threshold)))
-                selection_candidates.append((float(threshold), annotated))
-        if not selection_candidates:
-            return float(threshold_candidates[0]), annotate_threshold_validation_metrics(
-                {
-                    "total_return": float("nan"),
-                    "benchmark_return": float("nan"),
-                    "annual_return": float("nan"),
-                    "annual_volatility": float("nan"),
-                    "sharpe": float("nan"),
-                    "max_drawdown": float("nan"),
-                    "avg_exposure": float("nan"),
-                    "hit_rate": float("nan"),
-                    "signal_count": 0.0,
-                    "turnover": float("nan"),
-                    "signal_threshold": float(threshold_labeler(float(threshold_candidates[0]))),
-                },
-                scheme="full_sample",
-                selection_rows=len(selection_index),
-                evaluation_rows=len(evaluation_index),
-                embargo_rows=0,
-            ), pd.DataFrame()
-        best_threshold, best_metrics = max(selection_candidates, key=lambda item: backtest_sort_key(item[1]))
-        signal = signal_builder(float(best_threshold))
+        # Do not fall back to a full-sample threshold search. If the purged
+        # selection window produces no tradable signals, keep the validation
+        # window intact and report the default threshold as a no-selection case.
+        fallback_threshold = float(threshold_candidates[0])
+        evaluation_signal = signal_builder(fallback_threshold).reindex(evaluation_index)
         evaluation_metrics, evaluation_curve = run_signal_backtest(
-            signal.reindex(evaluation_index),
+            evaluation_signal,
             market_data=market_data,
             horizon=horizon,
             interval=interval,
         )
+        safe_scheme = f"{scheme}_no_selection_signal" if str(scheme).startswith("nested_purged") else scheme
         evaluation_metrics = annotate_threshold_validation_metrics(
             evaluation_metrics,
-            scheme=scheme,
+            scheme=safe_scheme,
             selection_rows=len(selection_index),
             evaluation_rows=len(evaluation_index),
             embargo_rows=embargo_rows,
         )
-        evaluation_metrics["signal_threshold"] = float(threshold_labeler(float(best_threshold)))
-        return float(best_threshold), evaluation_metrics, evaluation_curve
+        evaluation_metrics["signal_threshold"] = float(threshold_labeler(fallback_threshold))
+        return fallback_threshold, evaluation_metrics, evaluation_curve
 
     best_threshold, _ = max(selection_candidates, key=lambda item: backtest_sort_key(item[1]))
     evaluation_signal = signal_builder(float(best_threshold)).reindex(evaluation_index)
@@ -8250,6 +8220,195 @@ def build_blended_regression_oof(
     return blended / total_weight
 
 
+def fit_oof_return_calibration(
+    oof_prediction: pd.Series | None,
+    actual_return: pd.Series,
+    horizon: int,
+) -> dict[str, Any]:
+    if oof_prediction is None:
+        return {"applied": False, "reason": "missing_oof_prediction"}
+
+    aligned = pd.concat(
+        [
+            pd.to_numeric(oof_prediction, errors="coerce").rename("predicted"),
+            pd.to_numeric(actual_return, errors="coerce").rename("actual"),
+        ],
+        axis=1,
+    ).replace([np.inf, -np.inf], np.nan).dropna()
+
+    minimum_rows = max(80, int(horizon) * 4 if horizon else 80)
+    if aligned.shape[0] < minimum_rows:
+        return {
+            "applied": False,
+            "reason": "insufficient_oof_rows",
+            "rows": int(aligned.shape[0]),
+        }
+
+    window_rows = min(aligned.shape[0], max(DEFAULT_RECENT_HOLDOUT_ROWS * 2, 240))
+    calibration_window = aligned.tail(window_rows).copy()
+
+    eval_min_rows = max(30, int(horizon) if horizon else 30)
+    split_at = int(calibration_window.shape[0] * 0.70)
+    if calibration_window.shape[0] - split_at >= eval_min_rows and split_at >= eval_min_rows:
+        fit_frame = calibration_window.iloc[:split_at]
+        eval_frame = calibration_window.iloc[split_at:]
+    else:
+        fit_frame = calibration_window
+        eval_frame = calibration_window
+
+    def _weighted_linear_params(frame: pd.DataFrame) -> tuple[float, float, float, float]:
+        x = frame["predicted"].to_numpy(dtype=float)
+        y = frame["actual"].to_numpy(dtype=float)
+        if x.size < 2 or np.nanstd(x) <= 1e-10:
+            raise ValueError("oof calibration prediction variance is too small")
+
+        if x.size >= 40:
+            x_low, x_high = np.nanquantile(x, [0.02, 0.98])
+            y_low, y_high = np.nanquantile(y, [0.02, 0.98])
+            x = np.clip(x, x_low, x_high)
+            y = np.clip(y, y_low, y_high)
+
+        ages = np.arange(x.size - 1, -1, -1, dtype=float)
+        half_life = max(x.size / 2.0, 60.0)
+        weights = np.power(0.5, ages / half_life)
+        weights = weights / max(float(weights.sum()), 1e-12)
+
+        x_mean = float(np.average(x, weights=weights))
+        y_mean = float(np.average(y, weights=weights))
+        x_centered = x - x_mean
+        y_centered = y - y_mean
+        variance = float(np.average(np.square(x_centered), weights=weights))
+        if variance <= 1e-10:
+            raise ValueError("oof calibration prediction variance is too small")
+
+        covariance = float(np.average(x_centered * y_centered, weights=weights))
+        raw_slope = covariance / variance
+        correlation = (
+            float(np.corrcoef(x, y)[0, 1])
+            if np.nanstd(x) > 1e-10 and np.nanstd(y) > 1e-10
+            else 0.0
+        )
+        directional_accuracy = float(np.mean(np.sign(x) == np.sign(y)))
+
+        slope_low = 0.12 if horizon <= 7 else 0.08
+        slope_high = 1.10 if horizon <= 7 else 0.90
+        slope = float(np.clip(raw_slope, slope_low, slope_high))
+        if not np.isfinite(correlation) or correlation < 0.05:
+            slope *= 0.50
+        elif correlation < 0.15:
+            slope *= 0.75
+        if directional_accuracy < 0.48:
+            slope *= 0.70
+        elif horizon > 7 and directional_accuracy < 0.52:
+            slope *= 0.85
+
+        intercept_cap = 0.018 if horizon <= 7 else 0.045
+        intercept = float(np.clip(y_mean - slope * x_mean, -intercept_cap, intercept_cap))
+        return slope, intercept, correlation, directional_accuracy
+
+    def _score(frame: pd.DataFrame, slope: float, intercept: float) -> dict[str, float]:
+        predicted = frame["predicted"].to_numpy(dtype=float)
+        actual = frame["actual"].to_numpy(dtype=float)
+        calibrated = predicted * slope + intercept
+        base_error = actual - predicted
+        calibrated_error = actual - calibrated
+        return {
+            "base_mae": float(np.nanmean(np.abs(base_error))),
+            "calibrated_mae": float(np.nanmean(np.abs(calibrated_error))),
+            "base_rmse": float(np.sqrt(np.nanmean(np.square(base_error)))),
+            "calibrated_rmse": float(np.sqrt(np.nanmean(np.square(calibrated_error)))),
+            "base_directional_accuracy": float(np.mean(np.sign(predicted) == np.sign(actual))),
+            "calibrated_directional_accuracy": float(np.mean(np.sign(calibrated) == np.sign(actual))),
+        }
+
+    try:
+        slope, intercept, correlation, directional_accuracy = _weighted_linear_params(fit_frame)
+    except ValueError as exc:
+        return {
+            "applied": False,
+            "reason": str(exc),
+            "rows": int(calibration_window.shape[0]),
+        }
+
+    validation_score = _score(eval_frame, slope, intercept)
+    mae_ok = validation_score["calibrated_mae"] <= validation_score["base_mae"] * (1.015 if horizon <= 7 else 1.025)
+    rmse_ok = validation_score["calibrated_rmse"] <= validation_score["base_rmse"] * (1.035 if horizon <= 7 else 1.055)
+    direction_ok = (
+        validation_score["calibrated_directional_accuracy"]
+        >= validation_score["base_directional_accuracy"] - 0.035
+    )
+    if not (mae_ok and rmse_ok and direction_ok):
+        return {
+            "applied": False,
+            "reason": "validation_gate_rejected",
+            "rows": int(calibration_window.shape[0]),
+            "slope": float(slope),
+            "intercept": float(intercept),
+            "correlation": float(correlation),
+            "directional_accuracy": float(directional_accuracy),
+            **validation_score,
+        }
+
+    # Refit on the full recent calibration window after the temporal validation
+    # gate passes. This keeps the final transform recent while avoiding a blind
+    # in-sample calibration tweak.
+    try:
+        slope, intercept, correlation, directional_accuracy = _weighted_linear_params(calibration_window)
+    except ValueError:
+        pass
+    validation_score = _score(eval_frame, slope, intercept)
+    return {
+        "applied": True,
+        "reason": "temporal_oof_validation_passed",
+        "rows": int(calibration_window.shape[0]),
+        "slope": float(slope),
+        "intercept": float(intercept),
+        "correlation": float(correlation),
+        "directional_accuracy": float(directional_accuracy),
+        **validation_score,
+    }
+
+
+def apply_oof_return_calibration(
+    predicted_return: float,
+    residual_oof_prediction: pd.Series | None,
+    training_dataset: pd.DataFrame,
+    horizon: int,
+) -> tuple[float, pd.Series | None, dict[str, Any]]:
+    if "target_return" not in training_dataset.columns:
+        return predicted_return, residual_oof_prediction, {"applied": False, "reason": "missing_target_return"}
+
+    calibration = fit_oof_return_calibration(
+        residual_oof_prediction,
+        pd.to_numeric(training_dataset["target_return"], errors="coerce"),
+        horizon=horizon,
+    )
+    if not bool(calibration.get("applied")):
+        return predicted_return, residual_oof_prediction, calibration
+
+    slope = float(calibration.get("slope", 1.0))
+    intercept = float(calibration.get("intercept", 0.0))
+    calibrated_prediction = float(predicted_return * slope + intercept)
+
+    recent_target = pd.to_numeric(training_dataset["target_return"], errors="coerce").dropna()
+    recent_target = recent_target.tail(min(len(recent_target), max(DEFAULT_RECENT_HOLDOUT_ROWS * 2, 240)))
+    if not recent_target.empty:
+        target_low = float(np.nanquantile(recent_target.to_numpy(dtype=float), 0.01))
+        target_high = float(np.nanquantile(recent_target.to_numpy(dtype=float), 0.99))
+        fallback_cap = 0.22 if horizon <= 7 else 0.55
+        fallback_floor = 0.05 if horizon <= 7 else 0.12
+        clip_low = min(max(target_low * 1.25, -fallback_cap), -fallback_floor)
+        clip_high = max(min(target_high * 1.25, fallback_cap), fallback_floor)
+        calibrated_prediction = float(np.clip(calibrated_prediction, clip_low, clip_high))
+
+    calibrated_oof = (
+        pd.to_numeric(residual_oof_prediction, errors="coerce") * slope + intercept
+        if residual_oof_prediction is not None
+        else None
+    )
+    return calibrated_prediction, calibrated_oof, calibration
+
+
 def strengthen_classification_threshold(
     base_threshold: float,
     classification_backtest: pd.DataFrame,
@@ -9594,6 +9753,28 @@ def forecast_next_step(
             regression_oof_predictions,
             component_weights,
         )
+
+    calibration_oof_prediction = blended_oof_prediction
+    if (
+        calibration_oof_prediction is None
+        and regression_oof_predictions is not None
+        and f"{model_name}_pred_return" in regression_oof_predictions.columns
+    ):
+        calibration_oof_prediction = pd.to_numeric(
+            regression_oof_predictions[f"{model_name}_pred_return"],
+            errors="coerce",
+        )
+    predicted_return, calibrated_oof_prediction, calibration_meta = apply_oof_return_calibration(
+        predicted_return=predicted_return,
+        residual_oof_prediction=calibration_oof_prediction,
+        training_dataset=training_dataset,
+        horizon=horizon,
+    )
+    if bool(calibration_meta.get("applied")):
+        selection_basis_text = (
+            f"{selection_basis_text}+oof_calibrated[slope={float(calibration_meta.get('slope', 1.0)):.2f}]"
+        )
+        blended_oof_prediction = calibrated_oof_prediction
 
     lower_offset, upper_offset = estimate_prediction_interval_from_residuals(
         training_dataset=training_dataset,

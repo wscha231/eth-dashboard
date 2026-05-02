@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "name": "eth_phase6_production_gate",
+  "source_metrics": "tests/phase0/phase6_production_longrun_oof_metrics.json",
+  "notes": "Baseline gate for ETH 7d/30d forecast candidates. Smoke is intended for PR checks; full is intended for manual or scheduled promotion runs.",
+  "profiles": {
+    "smoke": {
+      "require_complete": false,
+      "require_leakage_safe": true,
+      "min_folds_completed": {
+        "7": 3,
+        "30": 3
+      },
+      "horizons": {
+        "7": {
+          "regression": {
+            "severity": "warn",
+            "max_best_price_rmse": 420.0,
+            "max_best_return_mae": 0.11,
+            "min_best_directional_accuracy": 0.42
+          },
+          "classification": {
+            "severity": "warn",
+            "min_best_balanced_accuracy": 0.47,
+            "max_best_brier_score": 0.34,
+            "min_best_roc_auc": 0.42
+          },
+          "threshold_sweep": {
+            "severity": "warn",
+            "min_signal_pct_days": 2.0,
+            "min_n_signal": 10,
+            "min_accuracy_on_signals": 52.0
+          }
+        },
+        "30": {
+          "regression": {
+            "severity": "warn",
+            "max_best_price_rmse": 950.0,
+            "max_best_return_mae": 0.25,
+            "min_best_directional_accuracy": 0.40
+          },
+          "classification": {
+            "severity": "warn",
+            "min_best_balanced_accuracy": 0.47,
+            "max_best_brier_score": 0.36,
+            "min_best_roc_auc": 0.35
+          },
+          "threshold_sweep": {
+            "severity": "warn",
+            "min_signal_pct_days": 5.0,
+            "min_n_signal": 20,
+            "min_accuracy_on_signals": 55.0
+          }
+        }
+      }
+    },
+    "full": {
+      "require_complete": true,
+      "require_leakage_safe": true,
+      "min_folds_completed": {
+        "7": 36,
+        "30": 36
+      },
+      "horizons": {
+        "7": {
+          "regression": {
+            "severity": "fail",
+            "max_best_price_rmse": 292.0,
+            "max_best_return_mae": 0.085,
+            "min_best_directional_accuracy": 0.47
+          },
+          "classification": {
+            "severity": "fail",
+            "min_best_balanced_accuracy": 0.505,
+            "max_best_brier_score": 0.31,
+            "min_best_roc_auc": 0.50
+          },
+          "threshold_sweep": {
+            "severity": "warn",
+            "min_signal_pct_days": 9.0,
+            "min_n_signal": 50,
+            "min_accuracy_on_signals": 54.0
+          }
+        },
+        "30": {
+          "regression": {
+            "severity": "fail",
+            "max_best_price_rmse": 650.0,
+            "max_best_return_mae": 0.18,
+            "min_best_directional_accuracy": 0.43
+          },
+          "classification": {
+            "severity": "fail",
+            "min_best_balanced_accuracy": 0.50,
+            "max_best_brier_score": 0.30,
+            "min_best_roc_auc": 0.45
+          },
+          "threshold_sweep": {
+            "severity": "warn",
+            "min_signal_pct_days": 10.0,
+            "min_n_signal": 80,
+            "min_accuracy_on_signals": 60.0
+          }
+        }
+      }
+    }
+  }
+}
