@@ -1,0 +1,69 @@
+{
+  "profile": "full",
+  "candidate_mode": "longrun_oof_phase6_production_36x30",
+  "partial": false,
+  "horizons": {
+    "7": {
+      "folds_completed": 36,
+      "regression": {
+        "best_price_rmse": 274.5105654246046,
+        "best_price_mae": 195.45280382594405,
+        "best_return_mae": 0.06944612465877911,
+        "best_directional_accuracy": 0.5074074074074074
+      },
+      "classification": {
+        "best_balanced_accuracy": 0.524,
+        "best_brier_score": 0.24647944639293642,
+        "best_roc_auc": 0.540027972027972,
+        "leakage_safe": true
+      },
+      "threshold_sweep": {
+        "horizon": 7,
+        "model": "knn_clf",
+        "threshold": 0.7,
+        "n_total": 1080,
+        "n_signal": 113,
+        "n_up_signals": 93,
+        "n_down_signals": 20,
+        "signal_pct_days": 10.46,
+        "accuracy_on_signals": 59.29,
+        "up_signal_accuracy": 61.29,
+        "down_signal_accuracy": 50.0,
+        "base_up_rate_full_oof": 49.81,
+        "signals_per_year_extrapolated": 38.2
+      }
+    },
+    "30": {
+      "folds_completed": 36,
+      "regression": {
+        "best_price_rmse": 617.1929065216101,
+        "best_price_mae": 464.21164452786405,
+        "best_return_mae": 0.16467399729152996,
+        "best_directional_accuracy": 0.49074074074074076
+      },
+      "classification": {
+        "best_balanced_accuracy": 0.5168067226890757,
+        "best_brier_score": 0.26769685596436876,
+        "best_roc_auc": 0.4824587177528354,
+        "leakage_safe": true
+      },
+      "threshold_sweep": {
+        "horizon": 30,
+        "model": "trimmed_classification_ensemble_equal",
+        "threshold": 0.9,
+        "n_total": 1080,
+        "n_signal": 111,
+        "n_up_signals": 111,
+        "n_down_signals": 0,
+        "signal_pct_days": 10.28,
+        "accuracy_on_signals": 74.77,
+        "up_signal_accuracy": 74.77,
+        "down_signal_accuracy": null,
+        "base_up_rate_full_oof": 45.93,
+        "signals_per_year_extrapolated": 37.5
+      }
+    }
+  },
+  "failures": [],
+  "warnings": []
+}
