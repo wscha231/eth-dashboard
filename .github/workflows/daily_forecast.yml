@@ -23,7 +23,7 @@ on:
       model_phase:
         description: "Model phase label written into forecast_runs"
         type: string
-        default: "phase5_production"
+        default: "phase6_production"
 
 concurrency:
   group: daily-forecast
@@ -33,7 +33,67 @@ permissions:
   contents: write  # required to push the updated DB back to the repo
 
 jobs:
+  model-eval:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.model_phase == 'eval_oof_smoke' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    env:
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install numpy pandas scikit-learn scipy catboost \
+                        lightgbm xgboost yfinance requests beautifulsoup4 \
+                        python-dateutil pytest
+          fi
+          pip install pytest
+
+      - name: Static leakage and feature tests
+        run: |
+          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py -q
+
+      - name: Long-run OOF smoke
+        run: |
+          python tests/phase0/longrun_oof_phase6_production.py \
+            --master-data-csv lake/gold/eth_master_daily.csv \
+            --max-folds 3
+
+      - name: Candidate evaluation gate
+        run: |
+          python scripts/evaluate_eth_candidate.py \
+            --baseline tests/phase0/model_baseline_manifest.json \
+            --candidate tests/phase0/phase6_production_longrun_oof_metrics.json \
+            --profile smoke
+          cat tests/phase0/model_eval_report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload model evaluation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eth-model-eval-${{ github.run_id }}
+          path: |
+            tests/phase0/model_eval_report.json
+            tests/phase0/model_eval_report.md
+            tests/phase0/phase6_production_longrun_oof_metrics.json
+          retention-days: 21
+
   forecast:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.model_phase != 'eval_oof_smoke' }}
     # Free-tier runner has 7GB RAM + 2 cores.
     # Phase 5 full run (CatBoost + MLP + 3-fold CV) takes ~50-70 min on 2 cores.
     # Timeout bumped to 90 min; pip cache (requirements.txt) saves ~10 min on repeat runs.
@@ -58,7 +118,7 @@ jobs:
       DONATION_SOL_ADDRESS:     ${{ secrets.DONATION_SOL_ADDRESS }}
       DONATION_TRX_ADDRESS:     ${{ secrets.DONATION_TRX_ADDRESS }}
       # Non-secret tuning knobs.
-      MODEL_PHASE:   ${{ inputs.model_phase || 'phase5_production' }}
+      MODEL_PHASE:   ${{ inputs.model_phase || 'phase6_production' }}
       FAST_MODE_FLAG: ${{ inputs.fast_mode == true && '--fast-mode' || '' }}
       PYTHONUNBUFFERED: "1"
 

@@ -690,24 +690,22 @@ def run_longrun(
             print(f"  h={h}: restored {len(preds)} rows, folds_completed={done}")
 
     # Folds are per-horizon independent; iterate each horizon's folds sequentially.
-    # (Running h=7 and h=30 in tandem would be cleaner but makes resume bookkeeping
-    # complex; keeping them sequential means we always know exactly which
-    # (horizon, fold_index) we're on.)
-    fold_budget = max_folds if max_folds is not None else 10**9
-    folds_used = 0
+    # For smoke runs, --max-folds is intentionally interpreted per horizon so
+    # h=7 and h=30 both get coverage instead of h=7 consuming the whole budget.
+    fold_budget_per_horizon = max_folds if max_folds is not None else 10**9
+    stopped_by_budget = False
 
     for horizon, payload in horizon_payloads.items():
         runner = runners[horizon]
         start_fold = int(state["folds_completed"].get(horizon, 0))
         total_folds = runner.n_splits
         print(f"[longrun] horizon={horizon}: start_fold={start_fold}/{total_folds}")
+        folds_used_this_horizon = 0
         for fold_idx in range(start_fold, total_folds):
-            if folds_used >= fold_budget:
-                print(f"[longrun] hit --max-folds budget={max_folds}; stopping clean")
-                return _finalize_and_save(
-                    checkpoint_path, state, runners, predictions_by_horizon,
-                    horizon_payloads, completed_all_horizons=False,
-                )
+            if folds_used_this_horizon >= fold_budget_per_horizon:
+                print(f"[longrun] horizon={horizon}: hit --max-folds per-horizon budget={max_folds}")
+                stopped_by_budget = True
+                break
             t0 = time.time()
             rows = runner.run_fold(fold_idx)
             predictions_by_horizon[horizon].extend(rows)
@@ -717,7 +715,7 @@ def run_longrun(
                 f"[longrun]   h={horizon} fold {fold_idx+1:>2}/{total_folds}: "
                 f"{len(rows)} rows in {elapsed:.1f}s"
             )
-            folds_used += 1
+            folds_used_this_horizon += 1
             if ((fold_idx + 1) % flush_every == 0) or (fold_idx + 1 == total_folds):
                 _flush_checkpoint(
                     checkpoint_path, state, predictions_by_horizon,
@@ -725,9 +723,13 @@ def run_longrun(
                 )
 
     # All folds done — finalize (leaderboard + ensembles + thresholds).
+    completed_all = (not stopped_by_budget) and all(
+        int(state["folds_completed"].get(horizon, 0)) >= runners[horizon].n_splits
+        for horizon in horizon_payloads
+    )
     return _finalize_and_save(
         checkpoint_path, state, runners, predictions_by_horizon,
-        horizon_payloads, completed_all_horizons=True,
+        horizon_payloads, completed_all_horizons=completed_all,
     )
 
 
@@ -760,10 +762,18 @@ def _finalize_and_save(
 ) -> dict[str, Any]:
     state["last_checkpoint_utc"] = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
     if not completed_all_horizons:
-        _flush_checkpoint(
-            checkpoint_path, state, predictions_by_horizon,
-            horizon_payloads, partial=True,
-        )
+        state["partial"] = True
+        state["horizons"] = {}
+        for horizon, runner in runners.items():
+            rows = predictions_by_horizon.get(horizon, [])
+            horizon_payload: dict[str, Any] = {
+                **horizon_payloads[horizon].get("extras", {}),
+            }
+            if rows:
+                horizon_payload.update(finalize_run(runner, predictions_by_horizon))
+            horizon_payload["predictions"] = rows
+            state["horizons"][str(horizon)] = horizon_payload
+        atomic_save_checkpoint(checkpoint_path, state)
         return state
     # Fully done — compute leaderboards + ensembles + thresholds per horizon.
     state["partial"] = False

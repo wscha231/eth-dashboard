@@ -32,6 +32,25 @@ N_SPLITS = 36
 TEST_SIZE = 30
 
 
+def parse_horizons(raw: str) -> tuple[int, ...]:
+    horizons: list[int] = []
+    for part in str(raw).split(","):
+        value = part.strip()
+        if not value:
+            continue
+        try:
+            horizon = int(value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(f"invalid horizon '{value}'") from exc
+        if horizon not in {7, 30}:
+            raise argparse.ArgumentTypeError("supported horizons are 7 and 30")
+        if horizon not in horizons:
+            horizons.append(horizon)
+    if not horizons:
+        raise argparse.ArgumentTypeError("at least one horizon is required")
+    return tuple(horizons)
+
+
 def build_horizon_payload(market_data, horizon: int) -> dict:
     embargo = max(1, horizon // 2)
     feature_frame, raw_candidates = efp.build_features(market_data, horizon=horizon)
@@ -83,6 +102,18 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--flush-every", type=int, default=1)
     parser.add_argument("--max-folds", type=int, default=None)
+    parser.add_argument(
+        "--horizons",
+        type=parse_horizons,
+        default=parse_horizons("7,30"),
+        help="Comma-separated horizons to run. Supported: 7,30.",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        default=OUTPUT_JSON,
+        help="Checkpoint/output JSON path.",
+    )
     args = parser.parse_args(argv)
 
     market_data = efp.load_market_data_csv(Path(args.master_data_csv))
@@ -91,15 +122,16 @@ def main(argv: list[str] | None = None) -> None:
 
     horizon_payloads = {
         horizon: build_horizon_payload(market_data, horizon)
-        for horizon in (7, 30)
+        for horizon in args.horizons
     }
 
     state = run_longrun(
-        checkpoint_path=OUTPUT_JSON,
+        checkpoint_path=args.output_json,
         horizon_payloads=horizon_payloads,
         run_metadata={
             "mode":            "longrun_oof_phase6_production_36x30",
             "master_data_csv": str(args.master_data_csv),
+            "horizons_requested": ",".join(str(h) for h in args.horizons),
         },
         resume=args.resume,
         flush_every=args.flush_every,
@@ -108,7 +140,7 @@ def main(argv: list[str] | None = None) -> None:
 
     done = state.get("folds_completed", {})
     target = state.get("folds_target", {})
-    print(f"[longrun_oof_phase6_production] wrote {OUTPUT_JSON}")
+    print(f"[longrun_oof_phase6_production] wrote {args.output_json}")
     for h in sorted(target.keys(), key=lambda x: int(x) if isinstance(x, (int, str)) else 0):
         print(f"  h={h}: folds {done.get(h, 0)}/{target.get(h, '?')} "
               f"({'partial' if state.get('partial') else 'complete'})")

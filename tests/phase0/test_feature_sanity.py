@@ -43,3 +43,27 @@ def test_time_series_splitter_respects_gap() -> None:
         assert test_idx.min() - train_idx.max() > 7, (
             f"Gap violated: train_max={train_idx.max()} test_min={test_idx.min()}"
         )
+
+
+def test_oof_return_calibration_shrinks_overconfident_regression() -> None:
+    index = pd.date_range("2020-01-01", periods=320, freq="D")
+    raw_oof = pd.Series(
+        np.linspace(-0.18, 0.18, len(index)) + 0.025 * np.sin(np.arange(len(index)) / 9.0),
+        index=index,
+    )
+    actual = raw_oof * 0.45 + 0.006
+    metadata = efp.fit_oof_return_calibration(raw_oof, actual, horizon=30)
+
+    assert metadata["applied"] is True
+    assert 0.0 < metadata["slope"] < 0.75
+
+    training = pd.DataFrame({"target_return": actual}, index=index)
+    adjusted, calibrated_oof, applied_metadata = efp.apply_oof_return_calibration(
+        predicted_return=0.18,
+        residual_oof_prediction=raw_oof,
+        training_dataset=training,
+        horizon=30,
+    )
+    assert applied_metadata["applied"] is True
+    assert calibrated_oof is not None
+    assert abs(adjusted) < 0.18
