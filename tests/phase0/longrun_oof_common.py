@@ -631,6 +631,7 @@ def run_longrun(
     resume: bool,
     flush_every: int = 1,
     max_folds: int | None = None,
+    fold_start: int = 0,
 ) -> dict[str, Any]:
     """Execute per-fold walk-forward across multiple horizons with resume.
 
@@ -663,6 +664,8 @@ def run_longrun(
         "cv_test_size": max(p["test_size"] for p in horizon_payloads.values()),
         "n_splits": max(p["n_splits"] for p in horizon_payloads.values()),
         "partial": True,
+        "fold_start": int(max(fold_start, 0)),
+        "max_folds_requested": max_folds,
         "folds_completed": {},  # per-horizon
         "folds_target":    {h: p["n_splits"] for h, p in horizon_payloads.items()},
         "horizons": {},          # per-horizon predictions + summary
@@ -697,7 +700,7 @@ def run_longrun(
 
     for horizon, payload in horizon_payloads.items():
         runner = runners[horizon]
-        start_fold = int(state["folds_completed"].get(horizon, 0))
+        start_fold = max(int(state["folds_completed"].get(horizon, 0)), int(max(fold_start, 0)))
         total_folds = runner.n_splits
         print(f"[longrun] horizon={horizon}: start_fold={start_fold}/{total_folds}")
         folds_used_this_horizon = 0

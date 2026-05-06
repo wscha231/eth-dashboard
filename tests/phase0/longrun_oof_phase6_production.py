@@ -103,6 +103,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--flush-every", type=int, default=1)
     parser.add_argument("--max-folds", type=int, default=None)
     parser.add_argument(
+        "--fold-start",
+        type=int,
+        default=0,
+        help="Zero-based first fold to run. Used by GitHub Actions chunked full evaluation.",
+    )
+    parser.add_argument(
         "--horizons",
         type=parse_horizons,
         default=parse_horizons("7,30"),
@@ -132,10 +138,13 @@ def main(argv: list[str] | None = None) -> None:
             "mode":            "longrun_oof_phase6_production_36x30",
             "master_data_csv": str(args.master_data_csv),
             "horizons_requested": ",".join(str(h) for h in args.horizons),
+            "fold_start":      int(max(args.fold_start, 0)),
+            "max_folds":       args.max_folds,
         },
         resume=args.resume,
         flush_every=args.flush_every,
         max_folds=args.max_folds,
+        fold_start=args.fold_start,
     )
 
     done = state.get("folds_completed", {})

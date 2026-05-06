@@ -112,11 +112,15 @@ jobs:
   evaluate-full-horizon:
     if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run == 'true') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         horizon: [7, 30]
+        chunk: [0, 1, 2, 3, 4, 5]
+    env:
+      PYTHONUNBUFFERED: "1"
+      FOLDS_PER_CHUNK: "6"
 
     steps:
       - name: Checkout
@@ -140,18 +144,21 @@ jobs:
 
       - name: Long-run OOF horizon
         run: |
+          fold_start=$(( ${{ matrix.chunk }} * FOLDS_PER_CHUNK ))
           python tests/phase0/longrun_oof_phase6_production.py \
             --master-data-csv lake/gold/eth_master_daily.csv \
             --horizons ${{ matrix.horizon }} \
-            --output-json tests/phase0/phase6_production_longrun_oof_metrics_h${{ matrix.horizon }}.json
+            --fold-start "$fold_start" \
+            --max-folds "$FOLDS_PER_CHUNK" \
+            --output-json tests/phase0/phase6_production_longrun_oof_metrics_h${{ matrix.horizon }}_c${{ matrix.chunk }}.json
 
       - name: Upload horizon artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: eth-model-eval-h${{ matrix.horizon }}-${{ github.run_id }}
+          name: eth-model-eval-h${{ matrix.horizon }}-c${{ matrix.chunk }}-${{ github.run_id }}
           path: |
-            tests/phase0/phase6_production_longrun_oof_metrics_h${{ matrix.horizon }}.json
+            tests/phase0/phase6_production_longrun_oof_metrics_h${{ matrix.horizon }}_c${{ matrix.chunk }}.json
           retention-days: 21
 
   evaluate-full-gate:
@@ -178,16 +185,16 @@ jobs:
       - name: Download horizon artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: eth-model-eval-h*-${{ github.run_id }}
+          pattern: eth-model-eval-h*-c*-${{ github.run_id }}
           path: tests/phase0/full_horizon_artifacts
           merge-multiple: true
 
       - name: Merge horizon metrics
         run: |
           python tests/phase0/merge_longrun_oof_metrics.py \
-            tests/phase0/full_horizon_artifacts/phase6_production_longrun_oof_metrics_h7.json \
-            tests/phase0/full_horizon_artifacts/phase6_production_longrun_oof_metrics_h30.json \
-            --output tests/phase0/phase6_production_longrun_oof_metrics.json
+            tests/phase0/full_horizon_artifacts/phase6_production_longrun_oof_metrics_h*_c*.json \
+            --output tests/phase0/phase6_production_longrun_oof_metrics.json \
+            --finalize-master-data-csv lake/gold/eth_master_daily.csv
 
       - name: Threshold sweep
         run: |
