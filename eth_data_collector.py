@@ -16,6 +16,36 @@ from urllib.request import Request, urlopen
 import numpy as np
 import pandas as pd
 
+
+def _autoload_dotenv() -> None:
+    """Populate os.environ from H:/codex/.env (or project-root .env) if present.
+
+    Zero-dependency loader. Does NOT overwrite variables already set in the
+    environment — so GitHub Actions secrets still win. Silently no-ops if the
+    file is absent or malformed.
+    """
+    candidates = [Path(__file__).resolve().parent / ".env", Path.cwd() / ".env"]
+    for env_path in candidates:
+        if not env_path.exists():
+            continue
+        try:
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        except OSError:
+            continue
+        break
+
+
+_autoload_dotenv()
+
+
 from eth_price_forecast import (
     CACHE_UPDATE_LOOKBACK_ROWS,
     DEFAULT_MASTER_DATA_CSV,
@@ -71,6 +101,15 @@ DEFAULT_ETHERSCAN_ACTIONS = [
     "dailyavggasprice",
     "dailyavggaslimit",
 ]
+# Alchemy JSON-RPC snapshot config. Alchemy's free tier (300M CU/month) exposes
+# real-time block + fee-history endpoints, enough for a once-daily snapshot of
+# current Ethereum chain activity. This is a SNAPSHOT feed (latest state at run
+# time), not a historical backfill — the features only densify as the collector
+# runs day after day. feeHistory has a hard cap of 1024 blocks per call (~3.4h
+# of mainnet data). The percentiles fetch priority-fee quantiles for each block.
+DEFAULT_ALCHEMY_BLOCK_COUNT = 1024
+DEFAULT_ALCHEMY_REWARD_PERCENTILES = [25, 50, 75]
+DEFAULT_ALCHEMY_BASE_URL = "https://eth-mainnet.g.alchemy.com/v2"
 # DefiLlama free endpoints (no API key required).
 # Chain slug in DefiLlama path format. Ethereum is the main crypto-native signal
 # source we care about for ETH forecasting.
@@ -144,6 +183,8 @@ class CollectorPaths:
     external_feature_summary_csv: Path
     source_status_csv: Path
     collector_summary_json: Path
+    data_quality_audit_json: Path
+    data_quality_audit_csv: Path
 
 
 def log_progress(enabled: bool, message: str) -> None:
@@ -323,6 +364,41 @@ def request_json(
     if last_error is not None:
         raise last_error
     raise RuntimeError(f"Request failed without a captured error: {final_url}")
+
+
+def request_json_post(
+    url: str,
+    body: dict[str, Any] | list[Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: int = 30,
+    retries: int = DEFAULT_HTTP_RETRIES,
+    backoff_seconds: float = DEFAULT_HTTP_BACKOFF_SECONDS,
+) -> Any:
+    """POST a JSON body and decode the JSON response.
+
+    Mirrors ``request_json`` retry semantics (transient 408/425/429/5xx are
+    retried with linear backoff). Primarily used for JSON-RPC endpoints like
+    Alchemy. Accepts either a dict (single call) or list (batch).
+    """
+    merged_headers = {"Content-Type": "application/json", **DEFAULT_HTTP_HEADERS, **(headers or {})}
+    payload = json.dumps(body if body is not None else {}).encode("utf-8")
+    last_error: Exception | None = None
+    attempts = max(int(retries), 1)
+    for attempt in range(attempts):
+        request = Request(url, data=payload, headers=merged_headers, method="POST")
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except SOURCE_FETCH_EXCEPTIONS as exc:
+            last_error = exc
+            if isinstance(exc, HTTPError) and exc.code not in {408, 425, 429, 500, 502, 503, 504}:
+                raise
+            if attempt >= attempts - 1:
+                break
+            time.sleep(float(backoff_seconds) * float(attempt + 1))
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError(f"POST request failed without a captured error: {url}")
 
 
 def request_text(
@@ -926,6 +1002,148 @@ def collect_etherscan_action(
     return normalize_index(frame.rename(columns=renamed))
 
 
+def _hex_to_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        text = str(value)
+        if text.lower().startswith("0x"):
+            return int(text, 16)
+        return int(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def collect_alchemy_eth_snapshot(
+    api_key: str,
+    block_count: int = DEFAULT_ALCHEMY_BLOCK_COUNT,
+    reward_percentiles: list[int] | None = None,
+    snapshot_date: pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    """Capture a once-per-run snapshot of Ethereum chain activity via Alchemy RPC.
+
+    Returns a single-row DataFrame indexed by today's UTC date with the following
+    columns (all prefixed ``alchemy_eth_``):
+
+    Latest block (point-in-time at collector run):
+        ``latest_block``          - Block height.
+        ``latest_tx_count``       - Number of transactions in the latest block.
+        ``latest_gas_used_pct``   - gasUsed / gasLimit for the latest block.
+        ``latest_base_fee_gwei``  - EIP-1559 base fee of the latest block (gwei).
+        ``latest_block_size``    - RLP-encoded block size in bytes.
+
+    feeHistory aggregate (rolling window of last ``block_count`` blocks,
+    ~3.4 hours of activity for the default 1024):
+        ``recent_base_fee_gwei_mean|p50|p90`` - Base fee distribution (gwei).
+        ``recent_gas_utilization_mean``      - Avg gasUsedRatio across window.
+        ``recent_priority_fee_gwei_p50``     - Median 50th-percentile tip (gwei).
+        ``recent_priority_fee_gwei_p75``     - Median 75th-percentile tip (gwei).
+        ``recent_blob_base_fee_gwei_mean``   - Avg EIP-4844 blob base fee (gwei).
+        ``recent_blob_gas_utilization_mean`` - Avg blobGasUsedRatio (L2 DA usage).
+
+    The snapshot is intentionally SINGLE-ROW. Historical densification comes
+    from the collector running repeatedly; the features are then forward-filled
+    (naturally, in the master join) or used as current-state regressors.
+    """
+    if not api_key:
+        return pd.DataFrame()
+
+    percentiles = list(reward_percentiles) if reward_percentiles else list(DEFAULT_ALCHEMY_REWARD_PERCENTILES)
+    url = f"{DEFAULT_ALCHEMY_BASE_URL}/{api_key}"
+
+    batch = [
+        {"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []},
+        {"jsonrpc": "2.0", "id": 2, "method": "eth_getBlockByNumber", "params": ["latest", False]},
+        {"jsonrpc": "2.0", "id": 3, "method": "eth_feeHistory", "params": [hex(int(block_count)), "latest", percentiles]},
+    ]
+    response = request_json_post(url, body=batch)
+
+    if not isinstance(response, list):
+        return pd.DataFrame()
+
+    by_id: dict[int, Any] = {}
+    for entry in response:
+        if not isinstance(entry, dict):
+            continue
+        if "error" in entry and entry["error"]:
+            # Hard-fail silently — caller records this as a source error.
+            raise RuntimeError(f"alchemy error: {entry['error']}")
+        try:
+            by_id[int(entry.get("id"))] = entry.get("result")
+        except (TypeError, ValueError):
+            continue
+
+    latest_block_hex = by_id.get(1)
+    latest_block = by_id.get(2) or {}
+    fee_history = by_id.get(3) or {}
+
+    row: dict[str, float] = {}
+
+    # Latest-block stats
+    row["alchemy_eth_latest_block"] = float(_hex_to_int(latest_block_hex) or _hex_to_int(latest_block.get("number")) or 0)
+    transactions = latest_block.get("transactions") or []
+    row["alchemy_eth_latest_tx_count"] = float(len(transactions)) if isinstance(transactions, list) else float("nan")
+    gas_used = _hex_to_int(latest_block.get("gasUsed"))
+    gas_limit = _hex_to_int(latest_block.get("gasLimit"))
+    if gas_used is not None and gas_limit and gas_limit > 0:
+        row["alchemy_eth_latest_gas_used_pct"] = gas_used / gas_limit
+    else:
+        row["alchemy_eth_latest_gas_used_pct"] = float("nan")
+    latest_base_fee = _hex_to_int(latest_block.get("baseFeePerGas"))
+    row["alchemy_eth_latest_base_fee_gwei"] = (latest_base_fee / 1e9) if latest_base_fee is not None else float("nan")
+    block_size = _hex_to_int(latest_block.get("size"))
+    row["alchemy_eth_latest_block_size"] = float(block_size) if block_size is not None else float("nan")
+
+    # feeHistory aggregates
+    base_fees_hex = fee_history.get("baseFeePerGas") or []
+    base_fees = np.array([_hex_to_int(v) for v in base_fees_hex if _hex_to_int(v) is not None], dtype=float)
+    if base_fees.size > 0:
+        base_fees_gwei = base_fees / 1e9
+        row["alchemy_eth_recent_base_fee_gwei_mean"] = float(np.mean(base_fees_gwei))
+        row["alchemy_eth_recent_base_fee_gwei_p50"] = float(np.percentile(base_fees_gwei, 50))
+        row["alchemy_eth_recent_base_fee_gwei_p90"] = float(np.percentile(base_fees_gwei, 90))
+    else:
+        row["alchemy_eth_recent_base_fee_gwei_mean"] = float("nan")
+        row["alchemy_eth_recent_base_fee_gwei_p50"] = float("nan")
+        row["alchemy_eth_recent_base_fee_gwei_p90"] = float("nan")
+
+    gas_ratios = fee_history.get("gasUsedRatio") or []
+    gas_ratios_arr = np.array([float(v) for v in gas_ratios if v is not None], dtype=float)
+    row["alchemy_eth_recent_gas_utilization_mean"] = float(np.mean(gas_ratios_arr)) if gas_ratios_arr.size > 0 else float("nan")
+
+    # reward is a 2D list: [block][percentile_idx] -> hex priority fee in wei
+    reward = fee_history.get("reward") or []
+    if reward and isinstance(reward, list):
+        reward_matrix = []
+        for block_rewards in reward:
+            if not isinstance(block_rewards, list):
+                continue
+            decoded = [_hex_to_int(v) for v in block_rewards]
+            if any(v is None for v in decoded):
+                continue
+            reward_matrix.append(decoded)
+        if reward_matrix:
+            arr = np.array(reward_matrix, dtype=float) / 1e9  # gwei
+            for idx, pct in enumerate(percentiles):
+                if idx < arr.shape[1]:
+                    col = f"alchemy_eth_recent_priority_fee_gwei_p{int(pct)}"
+                    row[col] = float(np.median(arr[:, idx]))
+
+    # EIP-4844 blob gas (available post-Dencun, March 2024)
+    blob_base_fees_hex = fee_history.get("baseFeePerBlobGas") or []
+    blob_base_fees = np.array([_hex_to_int(v) for v in blob_base_fees_hex if _hex_to_int(v) is not None], dtype=float)
+    if blob_base_fees.size > 0:
+        row["alchemy_eth_recent_blob_base_fee_gwei_mean"] = float(np.mean(blob_base_fees) / 1e9)
+    blob_ratios = fee_history.get("blobGasUsedRatio") or []
+    blob_ratios_arr = np.array([float(v) for v in blob_ratios if v is not None], dtype=float)
+    if blob_ratios_arr.size > 0:
+        row["alchemy_eth_recent_blob_gas_utilization_mean"] = float(np.mean(blob_ratios_arr))
+
+    snapshot_ts = pd.Timestamp(snapshot_date).floor("D") if snapshot_date is not None else pd.Timestamp(utc_today()).floor("D")
+    frame = pd.DataFrame([row], index=pd.DatetimeIndex([snapshot_ts], name="Date"))
+    return normalize_index(frame)
+
+
 def resolve_collector_paths(
     drive_root: str | Path | None,
     market_cache_csv: str | Path | None,
@@ -957,6 +1175,8 @@ def resolve_collector_paths(
         external_feature_summary_csv=gold_dir / "external_feature_summary.csv",
         source_status_csv=reports_dir / "collector_source_status.csv",
         collector_summary_json=reports_dir / "collector_summary.json",
+        data_quality_audit_json=reports_dir / "collector_data_quality_audit.json",
+        data_quality_audit_csv=reports_dir / "collector_data_quality_audit.csv",
     )
 
 
@@ -1090,6 +1310,167 @@ def build_macro_selection_readiness(master_data: pd.DataFrame) -> dict[str, Any]
     }
 
 
+def _audit_column_stats(master_data: pd.DataFrame, columns: list[str]) -> dict[str, Any]:
+    available = [column for column in columns if column in master_data.columns]
+    if master_data.empty or not available:
+        return {
+            "column_count": int(len(available)),
+            "coverage_ratio": 0.0,
+            "ready_column_count": 0,
+            "latest_age_days_max": None,
+            "history_span_days_max": 0,
+        }
+
+    max_index = master_data.index.max()
+    coverages: list[float] = []
+    latest_ages: list[int] = []
+    spans: list[int] = []
+    ready_count = 0
+    for column in available:
+        series = master_data[column].dropna()
+        coverage = float(len(series) / len(master_data.index)) if len(master_data.index) else 0.0
+        coverages.append(coverage)
+        if series.empty:
+            continue
+        latest_age = int((max_index - series.index.max()).days)
+        span_days = int((series.index.max() - series.index.min()).days)
+        latest_ages.append(latest_age)
+        spans.append(span_days)
+        if latest_age <= 7 and span_days >= 180 and coverage >= 0.15:
+            ready_count += 1
+
+    return {
+        "column_count": int(len(available)),
+        "coverage_ratio": float(np.nanmean(coverages)) if coverages else 0.0,
+        "ready_column_count": int(ready_count),
+        "latest_age_days_max": int(max(latest_ages)) if latest_ages else None,
+        "history_span_days_max": int(max(spans)) if spans else 0,
+    }
+
+
+def build_data_quality_audit(
+    master_data: pd.DataFrame,
+    source_status: pd.DataFrame,
+    external_summary: pd.DataFrame,
+) -> dict[str, Any]:
+    """Summarize whether collected data can support tail-event forecasting.
+
+    The normal freshness report answers "did the latest pull work?". This audit
+    answers a stricter question: "do we have enough point-in-time history for
+    the model to learn pre-spike/pre-crash conditions?".
+    """
+    max_date = master_data.index.max() if not master_data.empty else pd.NaT
+    column_groups = {
+        "core_market": [
+            column for column in master_data.columns
+            if any(column.startswith(prefix) for prefix in ("eth_", "btc_", "spy_", "qqq_", "vix_", "dxy_", "tnx_"))
+        ],
+        "macro_liquidity_credit": [column for column in master_data.columns if column.startswith("fred_")],
+        "crypto_native": [
+            column for column in master_data.columns
+            if column.startswith(("cg_", "defillama_", "sentiment_"))
+        ],
+        "derivatives_tail": [
+            column for column in master_data.columns
+            if column.startswith(("binance_", "deribit_"))
+        ],
+        "onchain_activity": [
+            column for column in master_data.columns
+            if column.startswith(("etherscan_", "glassnode_", "alchemy_"))
+        ],
+        "manual_external": [
+            column for column in master_data.columns
+            if column.startswith(("artemis_", "manual_"))
+        ],
+    }
+
+    group_rows: list[dict[str, Any]] = []
+    for group_name, columns in column_groups.items():
+        stats = _audit_column_stats(master_data, columns)
+        status = "ok"
+        if group_name in {"derivatives_tail", "onchain_activity"} and stats["ready_column_count"] == 0:
+            status = "weak"
+        elif stats["column_count"] == 0 or stats["coverage_ratio"] < 0.05:
+            status = "weak"
+        elif stats["ready_column_count"] == 0:
+            status = "partial"
+        group_rows.append(
+            {
+                "group": group_name,
+                "status": status,
+                **stats,
+            }
+        )
+
+    status_counts = (
+        source_status["status"].astype(str).value_counts().to_dict()
+        if source_status is not None and not source_status.empty and "status" in source_status.columns
+        else {}
+    )
+    source_errors = []
+    if source_status is not None and not source_status.empty:
+        mask = source_status.get("status", pd.Series(dtype=str)).astype(str).isin(["error", "warning"])
+        source_errors = source_status.loc[mask].to_dict(orient="records")
+
+    short_history_count = 0
+    stale_count = 0
+    if external_summary is not None and not external_summary.empty:
+        if "short_history_excluded" in external_summary.columns:
+            short_history_count = int(external_summary["short_history_excluded"].fillna(False).astype(bool).sum())
+        if "latest_age_days" in external_summary.columns:
+            ages = pd.to_numeric(external_summary["latest_age_days"], errors="coerce")
+            stale_count = int((ages > float(DEFAULT_STALE_VENDOR_MAX_AGE_DAYS)).sum())
+
+    group_index = {row["group"]: row for row in group_rows}
+    derivatives_ready = int(group_index.get("derivatives_tail", {}).get("ready_column_count", 0))
+    onchain_ready = int(group_index.get("onchain_activity", {}).get("ready_column_count", 0))
+    crypto_native_ready = int(group_index.get("crypto_native", {}).get("ready_column_count", 0))
+    macro_ready = int(group_index.get("macro_liquidity_credit", {}).get("ready_column_count", 0))
+
+    if derivatives_ready >= 4 and onchain_ready >= 2:
+        tail_event_readiness = "ok"
+    elif derivatives_ready >= 2 or (crypto_native_ready >= 4 and macro_ready >= 4):
+        tail_event_readiness = "partial"
+    else:
+        tail_event_readiness = "weak"
+
+    recommendations: list[str] = []
+    if derivatives_ready < 4:
+        recommendations.append(
+            "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data "
+            "(Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short)."
+        )
+    if onchain_ready < 2:
+        recommendations.append(
+            "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, "
+            "and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources)."
+        )
+    if short_history_count:
+        recommendations.append(
+            f"{short_history_count} vendor columns are too short for fold training; keep collecting but do not rely on them yet."
+        )
+    if stale_count:
+        recommendations.append(
+            f"{stale_count} vendor columns are stale beyond {DEFAULT_STALE_VENDOR_MAX_AGE_DAYS} days."
+        )
+    if not recommendations:
+        recommendations.append("No critical collector gaps detected by the automatic audit.")
+
+    return {
+        "generated_at": pd.Timestamp.utcnow().isoformat(),
+        "dataset_end": format_timestamp(max_date) if pd.notna(max_date) else "",
+        "row_count": int(len(master_data.index)) if master_data is not None else 0,
+        "column_count": int(len(master_data.columns)) if master_data is not None else 0,
+        "source_status_counts": {str(k): int(v) for k, v in status_counts.items()},
+        "source_errors": source_errors,
+        "short_history_vendor_column_count": int(short_history_count),
+        "stale_vendor_column_count": int(stale_count),
+        "tail_event_readiness": tail_event_readiness,
+        "group_summary": group_rows,
+        "recommendations": recommendations,
+    }
+
+
 def apply_stale_vendor_guardrail(
     master_data: pd.DataFrame,
     max_age_days: int = DEFAULT_STALE_VENDOR_MAX_AGE_DAYS,
@@ -1134,6 +1515,7 @@ def collect_sources(
     coingecko_use_pro: bool,
     etherscan_api_key: str | None,
     glassnode_api_key: str | None,
+    alchemy_api_key: str | None,
     use_coingecko: bool,
     use_binance: bool,
     use_deribit: bool,
@@ -1142,6 +1524,7 @@ def collect_sources(
     use_fear_greed: bool,
     use_defillama: bool,
     use_glassnode: bool,
+    use_alchemy: bool,
     cache_lookback_rows: int,
     overwrite_start: pd.Timestamp | None,
     verbose: bool,
@@ -1624,6 +2007,49 @@ def collect_sources(
     else:
         source_status.append(source_status_row("etherscan", pd.DataFrame(), "skipped", "Disabled by flag"))
 
+    # --- Alchemy snapshot (EIP-1559 base fee + EIP-4844 blob gas) ------------
+    # Single-row point-in-time snapshot per run. Historical density only grows
+    # with repeated runs, so this is designed to be idempotent and additive.
+    if use_alchemy and alchemy_api_key:
+        try:
+            snapshot = collect_alchemy_eth_snapshot(alchemy_api_key)
+            output_path = paths.raw_vendor_dir / "alchemy_eth_snapshot.csv"
+            snapshot = (
+                append_history_csv(output_path, snapshot, overwrite_start=overwrite_start)
+                if not snapshot.empty
+                else pd.DataFrame()
+            )
+            if not snapshot.empty:
+                feature_frames.append(snapshot)
+            source_status.append(
+                source_status_row(
+                    "alchemy_eth_snapshot",
+                    snapshot,
+                    "ok" if not snapshot.empty else "skipped",
+                )
+            )
+        except SOURCE_FETCH_EXCEPTIONS as exc:
+            source_status.append(
+                source_status_row("alchemy_eth_snapshot", pd.DataFrame(), "error", str(exc))
+            )
+        except RuntimeError as exc:
+            source_status.append(
+                source_status_row("alchemy_eth_snapshot", pd.DataFrame(), "error", str(exc))
+            )
+    elif use_alchemy:
+        source_status.append(
+            source_status_row(
+                "alchemy_eth_snapshot",
+                pd.DataFrame(),
+                "skipped",
+                "Alchemy API key missing; set ALCHEMY_API_KEY or pass --alchemy-api-key",
+            )
+        )
+    else:
+        source_status.append(
+            source_status_row("alchemy_eth_snapshot", pd.DataFrame(), "skipped", "Disabled by flag")
+        )
+
     master_data = market_data.copy()
     for frame in feature_frames[1:]:
         if frame.empty:
@@ -1684,6 +2110,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=os.getenv("GLASSNODE_API_KEY", ""),
         help="Glassnode API key. Most ETH endpoints require Tier 2+.",
     )
+    parser.add_argument(
+        "--alchemy-api-key",
+        default=os.getenv("ALCHEMY_API_KEY", ""),
+        help="Alchemy API key. Free tier (300M CU/month) is sufficient for a daily snapshot.",
+    )
     parser.add_argument("--cache-lookback-rows", type=int, default=CACHE_UPDATE_LOOKBACK_ROWS)
     parser.add_argument(
         "--day-boundary-tz",
@@ -1717,6 +2148,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--no-glassnode",
         action="store_true",
         help="Skip Glassnode on-chain metric collection (no-op without --glassnode-api-key).",
+    )
+    parser.add_argument(
+        "--no-alchemy",
+        action="store_true",
+        help="Skip Alchemy JSON-RPC snapshot (no-op without --alchemy-api-key).",
     )
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -1763,6 +2199,7 @@ def main(argv: list[str] | None = None) -> None:
         coingecko_use_pro=args.coingecko_pro,
         etherscan_api_key=(args.etherscan_api_key or None),
         glassnode_api_key=(args.glassnode_api_key or None),
+        alchemy_api_key=(args.alchemy_api_key or None),
         use_coingecko=not args.no_coingecko,
         use_binance=not args.no_binance,
         use_deribit=not args.no_deribit,
@@ -1771,6 +2208,7 @@ def main(argv: list[str] | None = None) -> None:
         use_fear_greed=not args.no_fear_greed,
         use_defillama=not args.no_defillama,
         use_glassnode=not args.no_glassnode,
+        use_alchemy=not args.no_alchemy,
         cache_lookback_rows=args.cache_lookback_rows,
         overwrite_start=start_date,
         verbose=verbose,
@@ -1829,11 +2267,15 @@ def main(argv: list[str] | None = None) -> None:
         "note": " | ".join(macro_note_parts),
     }
     source_status = pd.concat([source_status, pd.DataFrame([macro_row])], ignore_index=True)
+    data_quality_audit = build_data_quality_audit(master_data, source_status, external_summary)
 
     save_market_data_csv(master_data, paths.master_data_csv)
     schema.to_csv(paths.schema_csv, index=False)
     external_summary.to_csv(paths.external_feature_summary_csv, index=False)
     source_status.to_csv(paths.source_status_csv, index=False)
+    pd.DataFrame(data_quality_audit["group_summary"]).to_csv(paths.data_quality_audit_csv, index=False)
+    with paths.data_quality_audit_json.open("w", encoding="utf-8") as handle:
+        json.dump(data_quality_audit, handle, ensure_ascii=False, indent=2)
 
     payload = {
         "root": str(paths.root),
@@ -1841,6 +2283,7 @@ def main(argv: list[str] | None = None) -> None:
         "market_cache_csv": str(paths.market_cache_csv),
         "schema_csv": str(paths.schema_csv),
         "source_status_csv": str(paths.source_status_csv),
+        "data_quality_audit_json": str(paths.data_quality_audit_json),
         "raw_rows": int(master_data.shape[0]),
         "column_count": int(master_data.shape[1]),
         "start": format_timestamp(master_data.index.min()) if not master_data.empty else "",
@@ -1854,6 +2297,7 @@ def main(argv: list[str] | None = None) -> None:
         "stale_vendor_column_count": int(len(stale_columns)),
         "stale_vendor_columns": stale_columns,
         "macro_selection_readiness": macro_readiness,
+        "data_quality_audit": data_quality_audit,
         "sources": source_status.to_dict(orient="records"),
     }
     with paths.collector_summary_json.open("w", encoding="utf-8") as handle:
@@ -1894,6 +2338,13 @@ def main(argv: list[str] | None = None) -> None:
             "  Stale macro columns: "
             + ", ".join(payload["macro_selection_readiness"]["stale_columns"][:8])
         )
+    print(
+        f"- Data quality audit: tail_event_readiness={payload['data_quality_audit']['tail_event_readiness']}, "
+        f"short_history_vendor_columns={payload['data_quality_audit']['short_history_vendor_column_count']}, "
+        f"stale_vendor_columns={payload['data_quality_audit']['stale_vendor_column_count']}"
+    )
+    for recommendation in payload["data_quality_audit"]["recommendations"][:3]:
+        print(f"  Audit note: {recommendation}")
     print("- Source status")
     for row in payload["sources"]:
         note = f", note={row['note']}" if row["note"] else ""

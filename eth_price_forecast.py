@@ -31,7 +31,6 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
     accuracy_score,
-    balanced_accuracy_score,
     brier_score_loss,
     f1_score,
     mean_absolute_error,
@@ -164,9 +163,23 @@ MACRO_CONTEXT_FEATURE_COLUMNS = [
     "artemis_non_sybil_users_z_90",
     "eth_return_7",
     "eth_return_14",
+    "eth_return_60",
+    "eth_return_90",
+    "eth_return_180",
     "eth_vol_7",
     "eth_vol_14",
     "eth_vol_30",
+    "eth_vol_90",
+    "eth_vol_30_180_ratio",
+    "eth_tail_event_pressure",
+    "eth_vol_squeeze_20_90",
+    "eth_volume_impulse_3_30",
+    "eth_range_expansion_z_30",
+    "eth_ma_180_ratio",
+    "eth_drawdown_180",
+    "eth_cycle_position_365_centered",
+    "eth_vs_btc_strength_90",
+    "btc_drawdown_180",
     "eth_range_pct",
     "eth_close_open_pct",
 ]
@@ -1897,6 +1910,19 @@ def feature_score_adjustment(column: str) -> float:
         adjustment += 0.05
     if column.startswith("history_"):
         adjustment += 0.01
+    if column.startswith(("eth_", "btc_", "eth_vs_btc_")) and (
+        "_120" in column or "_180" in column or "_365" in column or "cycle_position" in column
+    ):
+        adjustment += 0.025
+    if column in {
+        "eth_tail_event_pressure",
+        "eth_cycle_position_365_centered",
+        "eth_drawdown_180",
+        "eth_return_180",
+        "eth_vol_30_180_ratio",
+        "eth_vs_btc_strength_90",
+    }:
+        adjustment += 0.04
     if column.startswith(GENERIC_VENDOR_PREFIXES):
         adjustment -= 0.01
         if column.endswith(("__asof", "__age_days", "__is_missing")):
@@ -2484,6 +2510,11 @@ def build_features(
     eth_returns_7 = frame["eth_close"].pct_change(7)
     eth_returns_14 = frame["eth_close"].pct_change(14)
     eth_returns_30 = frame["eth_close"].pct_change(30)
+    eth_returns_60 = frame["eth_close"].pct_change(60)
+    eth_returns_90 = frame["eth_close"].pct_change(90)
+    eth_returns_120 = frame["eth_close"].pct_change(120)
+    eth_returns_180 = frame["eth_close"].pct_change(180)
+    eth_returns_365 = frame["eth_close"].pct_change(365)
     eth_ema_12 = frame["eth_close"].ewm(span=12, adjust=False).mean()
     eth_ema_26 = frame["eth_close"].ewm(span=26, adjust=False).mean()
     eth_macd = eth_ema_12 - eth_ema_26
@@ -2499,6 +2530,29 @@ def build_features(
     eth_vol_7 = eth_returns_1.rolling(7).std()
     eth_vol_14 = eth_returns_1.rolling(14).std()
     eth_vol_30 = eth_returns_1.rolling(30).std()
+    eth_vol_20 = eth_returns_1.rolling(20).std()
+    eth_vol_90 = eth_returns_1.rolling(90).std()
+    eth_vol_120 = eth_returns_1.rolling(120).std()
+    eth_vol_180 = eth_returns_1.rolling(180).std()
+    eth_vol_365 = eth_returns_1.rolling(365).std()
+    eth_range_pct = (frame["eth_high"] - frame["eth_low"]) / frame["eth_close"]
+    eth_range_expansion_z_30 = compute_rolling_zscore(eth_range_pct, 30)
+    eth_volume_z_30 = (
+        (frame["eth_volume"] - frame["eth_volume"].rolling(30).mean())
+        / frame["eth_volume"].rolling(30).std()
+    )
+    eth_volume_impulse_3_30 = frame["eth_volume"].rolling(3).mean() / frame["eth_volume"].rolling(30).mean() - 1.0
+    eth_vol_expansion_7_30 = eth_vol_7 / eth_vol_30 - 1.0
+    eth_vol_squeeze_20_90 = eth_vol_20 / eth_vol_90 - 1.0
+    # Past-only proxy for "tail conditions are building"; it does not use the
+    # future target and is meant to widen risk ranges before spike/crash events.
+    eth_tail_event_pressure = (
+        0.28 * compute_rolling_zscore(eth_returns_1.abs(), 30).clip(lower=0.0, upper=4.0)
+        + 0.24 * eth_range_expansion_z_30.clip(lower=0.0, upper=4.0)
+        + 0.20 * eth_volume_z_30.clip(lower=0.0, upper=4.0)
+        + 0.16 * eth_vol_expansion_7_30.clip(lower=0.0, upper=2.5)
+        + 0.12 * (-eth_vol_squeeze_20_90).clip(lower=0.0, upper=2.5)
+    )
     eth_rsi_14 = compute_rsi(frame["eth_close"], 14)
     eth_rsi_28 = compute_rsi(frame["eth_close"], 28)
     eth_cmf_20 = compute_cmf(
@@ -2542,8 +2596,14 @@ def build_features(
     eth_up_day_ratio_14 = (eth_returns_1 > 0.0).rolling(14).mean()
     eth_low_20 = frame["eth_close"].rolling(20).min()
     eth_low_60 = frame["eth_close"].rolling(60).min()
+    eth_low_180 = frame["eth_close"].rolling(180).min()
+    eth_low_365 = frame["eth_close"].rolling(365).min()
     eth_high_20 = frame["eth_close"].rolling(20).max()
     eth_high_60 = frame["eth_close"].rolling(60).max()
+    eth_high_180 = frame["eth_close"].rolling(180).max()
+    eth_high_365 = frame["eth_close"].rolling(365).max()
+    eth_cycle_position_180 = (frame["eth_close"] - eth_low_180) / (eth_high_180 - eth_low_180).replace(0.0, np.nan)
+    eth_cycle_position_365 = (frame["eth_close"] - eth_low_365) / (eth_high_365 - eth_low_365).replace(0.0, np.nan)
     eth_macd_hist = eth_macd - eth_macd_signal
     eth_adx_trend_bias_14 = (eth_plus_di_14 - eth_minus_di_14) / (eth_plus_di_14 + eth_minus_di_14).replace(0.0, np.nan)
 
@@ -2558,11 +2618,16 @@ def build_features(
                 "eth_return_14": eth_returns_14,
                 "eth_return_21": frame["eth_close"].pct_change(21),
                 "eth_return_30": eth_returns_30,
+                "eth_return_60": eth_returns_60,
+                "eth_return_90": eth_returns_90,
+                "eth_return_120": eth_returns_120,
+                "eth_return_180": eth_returns_180,
+                "eth_return_365": eth_returns_365,
                 "eth_log_return_1": np.log(frame["eth_close"]).diff(),
                 "eth_close_lag_1": frame["eth_close"].shift(1),
                 "eth_close_lag_3": frame["eth_close"].shift(3),
                 "eth_close_lag_7": frame["eth_close"].shift(7),
-                "eth_range_pct": (frame["eth_high"] - frame["eth_low"]) / frame["eth_close"],
+                "eth_range_pct": eth_range_pct,
                 "eth_close_open_pct": (frame["eth_close"] - frame["eth_open"]) / frame["eth_open"],
                 "eth_up_streak": eth_up_streak,
                 "eth_down_streak": eth_down_streak,
@@ -2570,25 +2635,39 @@ def build_features(
                 "eth_up_day_ratio_14": eth_up_day_ratio_14,
                 "eth_rebound_from_20d_low": frame["eth_close"] / eth_low_20 - 1.0,
                 "eth_rebound_from_60d_low": frame["eth_close"] / eth_low_60 - 1.0,
+                "eth_rebound_from_180d_low": frame["eth_close"] / eth_low_180 - 1.0,
+                "eth_rebound_from_365d_low": frame["eth_close"] / eth_low_365 - 1.0,
                 "eth_distance_to_20d_high": frame["eth_close"] / eth_high_20 - 1.0,
                 "eth_distance_to_60d_high": frame["eth_close"] / eth_high_60 - 1.0,
+                "eth_distance_to_180d_high": frame["eth_close"] / eth_high_180 - 1.0,
+                "eth_distance_to_365d_high": frame["eth_close"] / eth_high_365 - 1.0,
                 "eth_ma_7_ratio": frame["eth_close"] / frame["eth_close"].rolling(7).mean() - 1.0,
                 "eth_ma_14_ratio": frame["eth_close"] / frame["eth_close"].rolling(14).mean() - 1.0,
                 "eth_ma_30_ratio": frame["eth_close"] / frame["eth_close"].rolling(30).mean() - 1.0,
                 "eth_ma_90_ratio": frame["eth_close"] / frame["eth_close"].rolling(90).mean() - 1.0,
+                "eth_ma_120_ratio": frame["eth_close"] / frame["eth_close"].rolling(120).mean() - 1.0,
+                "eth_ma_180_ratio": frame["eth_close"] / frame["eth_close"].rolling(180).mean() - 1.0,
+                "eth_ma_365_ratio": frame["eth_close"] / frame["eth_close"].rolling(365).mean() - 1.0,
                 "eth_vol_7": eth_vol_7,
                 "eth_vol_14": eth_vol_14,
                 "eth_vol_30": eth_vol_30,
                 "eth_vol_60": eth_returns_1.rolling(60).std(),
+                "eth_vol_90": eth_vol_90,
+                "eth_vol_120": eth_vol_120,
+                "eth_vol_180": eth_vol_180,
+                "eth_vol_365": eth_vol_365,
+                "eth_vol_30_180_ratio": eth_vol_30 / eth_vol_180 - 1.0,
+                "eth_vol_90_365_ratio": eth_vol_90 / eth_vol_365 - 1.0,
                 "eth_downside_vol_14": compute_downside_volatility(eth_returns_1, 14),
                 "eth_downside_vol_30": compute_downside_volatility(eth_returns_1, 30),
-                "eth_vol_regime_7_30": eth_vol_7 / eth_vol_30 - 1.0,
+                "eth_vol_regime_7_30": eth_vol_expansion_7_30,
+                "eth_vol_squeeze_20_90": eth_vol_squeeze_20_90,
+                "eth_range_expansion_z_30": eth_range_expansion_z_30,
+                "eth_volume_impulse_3_30": eth_volume_impulse_3_30,
+                "eth_tail_event_pressure": eth_tail_event_pressure,
                 "eth_volume_change_1": frame["eth_volume"].pct_change(1),
                 "eth_volume_change_7": frame["eth_volume"].pct_change(7),
-                "eth_volume_z_30": (
-                    (frame["eth_volume"] - frame["eth_volume"].rolling(30).mean())
-                    / frame["eth_volume"].rolling(30).std()
-                ),
+                "eth_volume_z_30": eth_volume_z_30,
                 "eth_rsi_14": eth_rsi_14,
                 "eth_rsi_28": eth_rsi_28,
                 "eth_rsi_14_change_3": eth_rsi_14.diff(3),
@@ -2606,8 +2685,11 @@ def build_features(
                 ) / frame["eth_close"],
                 "eth_drawdown_30": compute_drawdown(frame["eth_close"], 30),
                 "eth_drawdown_90": compute_drawdown(frame["eth_close"], 90),
+                "eth_drawdown_180": compute_drawdown(frame["eth_close"], 180),
+                "eth_drawdown_365": compute_drawdown(frame["eth_close"], 365),
                 "eth_close_z_20": compute_rolling_zscore(frame["eth_close"], 20),
                 "eth_close_z_60": compute_rolling_zscore(frame["eth_close"], 60),
+                "eth_close_z_180": compute_rolling_zscore(frame["eth_close"], 180),
                 "eth_stoch_k_14": eth_stoch_k_14,
                 "eth_stoch_d_3": eth_stoch_k_14.rolling(3).mean(),
                 "eth_bollinger_width_20": (4.0 * eth_bb_std) / eth_bb_mean,
@@ -2644,12 +2726,19 @@ def build_features(
                 "eth_ichimoku_cloud_mid_ratio": ((eth_senkou_a + eth_senkou_b) / 2.0) / frame["eth_close"] - 1.0,
                 "eth_ichimoku_cloud_thickness_ratio": (eth_senkou_a - eth_senkou_b).abs() / frame["eth_close"],
                 "eth_return_accel_7_30": eth_returns_7 - eth_returns_30,
+                "eth_return_accel_30_180": eth_returns_30 - eth_returns_180,
                 "eth_skew_30": eth_returns_1.rolling(30).skew(),
+                "eth_skew_90": eth_returns_1.rolling(90).skew(),
                 "eth_kurt_30": eth_returns_1.rolling(30).kurt(),
+                "eth_kurt_90": eth_returns_1.rolling(90).kurt(),
                 "eth_range_position_20": (
                     (frame["eth_close"] - frame["eth_low"].rolling(20).min())
                     / (frame["eth_high"].rolling(20).max() - frame["eth_low"].rolling(20).min())
                 ),
+                "eth_cycle_position_180": eth_cycle_position_180,
+                "eth_cycle_position_180_centered": eth_cycle_position_180 - 0.5,
+                "eth_cycle_position_365": eth_cycle_position_365,
+                "eth_cycle_position_365_centered": eth_cycle_position_365 - 0.5,
             },
             index=frame.index,
         )
@@ -2661,9 +2750,13 @@ def build_features(
         btc_returns_14 = frame["btc_close"].pct_change(14)
         btc_returns_20 = frame["btc_close"].pct_change(20)
         btc_returns_30 = frame["btc_close"].pct_change(30)
+        btc_returns_60 = frame["btc_close"].pct_change(60)
+        btc_returns_90 = frame["btc_close"].pct_change(90)
+        btc_returns_180 = frame["btc_close"].pct_change(180)
         btc_stoch_k_14 = compute_stochastic_k(frame["btc_high"], frame["btc_low"], frame["btc_close"], 14)
         btc_obv = compute_obv(frame["btc_close"], frame["btc_volume"])
         btc_vol_30 = btc_returns_1.rolling(30).std()
+        btc_vol_90 = btc_returns_1.rolling(90).std()
         feature_blocks.append(
             pd.DataFrame(
                 {
@@ -2674,26 +2767,40 @@ def build_features(
                     "btc_return_14": btc_returns_14,
                     "btc_return_20": btc_returns_20,
                     "btc_return_30": btc_returns_30,
+                    "btc_return_60": btc_returns_60,
+                    "btc_return_90": btc_returns_90,
+                    "btc_return_180": btc_returns_180,
                     "btc_vol_14": btc_returns_1.rolling(14).std(),
                     "btc_vol_20": btc_returns_1.rolling(20).std(),
                     "btc_vol_30": btc_vol_30,
+                    "btc_vol_90": btc_vol_90,
                     "btc_rsi_14": compute_rsi(frame["btc_close"], 14),
                     "btc_range_pct": (frame["btc_high"] - frame["btc_low"]) / frame["btc_close"],
                     "btc_stoch_k_14": btc_stoch_k_14,
                     "btc_obv_z_30": compute_rolling_zscore(btc_obv, 30),
                     "btc_ma_20_ratio": frame["btc_close"] / frame["btc_close"].rolling(20).mean() - 1.0,
                     "btc_ma_30_ratio": frame["btc_close"] / frame["btc_close"].rolling(30).mean() - 1.0,
+                    "btc_ma_90_ratio": frame["btc_close"] / frame["btc_close"].rolling(90).mean() - 1.0,
+                    "btc_ma_180_ratio": frame["btc_close"] / frame["btc_close"].rolling(180).mean() - 1.0,
                     "btc_drawdown_60": compute_drawdown(frame["btc_close"], 60),
+                    "btc_drawdown_180": compute_drawdown(frame["btc_close"], 180),
                     "btc_z_20": compute_rolling_zscore(frame["btc_close"], 20),
+                    "btc_z_90": compute_rolling_zscore(frame["btc_close"], 90),
                     "eth_btc_ratio": frame["eth_close"] / frame["btc_close"],
                     "eth_btc_corr_14": eth_returns_1.rolling(14).corr(btc_returns_1),
                     "eth_btc_corr_30": eth_returns_1.rolling(30).corr(btc_returns_1),
+                    "eth_btc_corr_90": eth_returns_1.rolling(90).corr(btc_returns_1),
                     "eth_beta_btc_30": compute_rolling_beta(eth_returns_1, btc_returns_1, 30),
+                    "eth_beta_btc_90": compute_rolling_beta(eth_returns_1, btc_returns_1, 90),
                     "eth_vs_btc_strength_5": eth_returns_5 - btc_returns_5,
                     "eth_vs_btc_strength_14": eth_returns_14 - btc_returns_14,
                     "eth_vs_btc_strength_20": frame["eth_close"].pct_change(20) - btc_returns_20,
                     "eth_vs_btc_strength_30": eth_returns_30 - btc_returns_30,
+                    "eth_vs_btc_strength_60": eth_returns_60 - btc_returns_60,
+                    "eth_vs_btc_strength_90": eth_returns_90 - btc_returns_90,
+                    "eth_vs_btc_strength_180": eth_returns_180 - btc_returns_180,
                     "eth_vs_btc_vol_ratio": feature_blocks[0]["eth_vol_30"] / btc_vol_30,
+                    "eth_vs_btc_vol_ratio_90": eth_vol_90 / btc_vol_90,
                 },
                 index=frame.index,
             )
@@ -5562,6 +5669,7 @@ def derive_macro_selection_context(
             "macro_spread": 0.0,
             "trend_bias_score": 0.0,
             "volatility_stress": 0.0,
+            "tail_event_pressure": 0.0,
             "risk_on_tilt": 0.0,
             "risk_off_tilt": 0.0,
         }
@@ -5602,8 +5710,12 @@ def derive_macro_selection_context(
             (0.08, positive("oil_vol_20", 0.10)),
             (0.10, negative("btc_drawdown_60", 0.25)),
             (0.10, negative("eth_drawdown_30", 0.20)),
+            (0.08, negative("eth_drawdown_180", 0.45)),
+            (0.06, negative("btc_drawdown_180", 0.40)),
             (0.08, negative("equity_risk_on_20", 0.16)),
             (0.07, negative("eth_vs_btc_strength_14", 0.10)),
+            (0.05, negative("eth_vs_btc_strength_90", 0.20)),
+            (0.05, positive("eth_vol_30_180_ratio", 0.75)),
             (0.08, negative("fred_net_liquidity_z_90", 2.50)),
         ],
         lower=0.0,
@@ -5616,6 +5728,11 @@ def derive_macro_selection_context(
             (0.10, positive("sentiment_fear_greed_centered", 1.00)),
             (0.10, positive("fred_net_liquidity_z_90", 2.50)),
             (0.10, positive("eth_ma_30_ratio", 0.16)),
+            (0.08, positive("eth_ma_180_ratio", 0.35)),
+            (0.08, positive("eth_return_90", 0.45)),
+            (0.06, positive("eth_return_180", 0.75)),
+            (0.06, positive("eth_cycle_position_365_centered", 0.50)),
+            (0.06, positive("eth_vs_btc_strength_90", 0.20)),
             (0.08, positive("eth_vwap_20_ratio", 0.18)),
             (0.08, positive("artemis_stablecoin_total_supply_z_30", 2.50)),
             (0.07, positive("artemis_non_sybil_users_z_90", 2.50)),
@@ -5629,10 +5746,15 @@ def derive_macro_selection_context(
         [
             (0.18, signed("eth_return_7", 0.12)),
             (0.14, signed("eth_return_14", 0.18)),
+            (0.12, signed("eth_return_60", 0.35)),
+            (0.10, signed("eth_return_180", 0.75)),
             (0.14, signed("eth_ma_14_ratio", 0.12)),
             (0.12, signed("eth_ma_30_ratio", 0.16)),
+            (0.10, signed("eth_ma_180_ratio", 0.35)),
+            (0.08, signed("eth_cycle_position_365_centered", 0.50)),
             (0.10, signed("eth_vwap_20_ratio", 0.18)),
             (0.10, signed("eth_vs_btc_strength_14", 0.10)),
+            (0.08, signed("eth_vs_btc_strength_90", 0.20)),
             (0.10, signed("equity_risk_on_20", 0.16)),
             (0.07, negative("macro_tightening_20", 1.80)),
             (0.05, negative("btc_drawdown_60", 0.25)),
@@ -5645,9 +5767,23 @@ def derive_macro_selection_context(
             (0.20, magnitude("eth_vol_7", 0.040)),
             (0.18, magnitude("eth_vol_14", 0.040)),
             (0.18, magnitude("eth_vol_30", 0.050)),
+            (0.12, positive("eth_tail_event_pressure", 1.50)),
+            (0.08, magnitude("eth_range_expansion_z_30", 2.00)),
+            (0.06, magnitude("eth_volume_impulse_3_30", 1.00)),
             (0.14, magnitude("oil_vol_20", 0.100)),
             (0.15, magnitude("eth_range_pct", 0.080)),
             (0.15, magnitude("eth_close_open_pct", 0.050)),
+        ],
+        lower=0.0,
+        upper=1.0,
+    )
+    tail_event_pressure = _weighted_available_average(
+        [
+            (0.32, positive("eth_tail_event_pressure", 1.50)),
+            (0.20, positive("eth_range_expansion_z_30", 2.00)),
+            (0.18, positive("eth_volume_impulse_3_30", 1.00)),
+            (0.16, positive("eth_vol_regime_7_30", 0.75)),
+            (0.14, negative("eth_vol_squeeze_20_90", 0.45)),
         ],
         lower=0.0,
         upper=1.0,
@@ -5688,6 +5824,7 @@ def derive_macro_selection_context(
         "macro_spread": macro_spread,
         "trend_bias_score": trend_bias_score,
         "volatility_stress": volatility_stress,
+        "tail_event_pressure": tail_event_pressure,
         "risk_on_tilt": risk_on_tilt,
         "risk_off_tilt": risk_off_tilt,
     }
@@ -9083,8 +9220,18 @@ def resolve_hybrid_volatility_profile(
         safe_float(latest.get("eth_vol_7")) or 0.0,
         safe_float(latest.get("eth_vol_14")) or 0.0,
         safe_float(latest.get("eth_vol_30")) or 0.0,
+        0.80 * (safe_float(latest.get("eth_vol_90")) or 0.0),
+        0.65 * (safe_float(latest.get("eth_vol_180")) or 0.0),
     )
     realized_move_scale = max(realized_daily_vol * float(np.sqrt(max(horizon, 1))), 0.0)
+    tail_event_pressure = max(
+        safe_float(latest.get("eth_tail_event_pressure")) or 0.0,
+        safe_float(latest.get("eth_range_expansion_z_30")) or 0.0,
+        safe_float(latest.get("eth_volume_impulse_3_30")) or 0.0,
+        safe_float(latest.get("eth_vol_30_180_ratio")) or 0.0,
+        max(-(safe_float(latest.get("eth_vol_squeeze_20_90")) or 0.0), 0.0),
+    )
+    tail_event_pressure = float(np.clip(tail_event_pressure, 0.0, 2.5))
     baseline_move = 0.08 if horizon <= 7 else 0.18
     volatility_scale = float(
         np.clip(
@@ -9097,6 +9244,7 @@ def resolve_hybrid_volatility_profile(
             1.75,
         )
     )
+    volatility_scale = float(np.clip(volatility_scale * (1.0 + 0.10 * tail_event_pressure), 0.85, 1.95))
     scenario_spread = float(
         np.clip(
             max(
@@ -9107,6 +9255,13 @@ def resolve_hybrid_volatility_profile(
             ),
             0.04 if horizon <= 7 else 0.10,
             0.35 if horizon <= 7 else 0.75,
+        )
+    )
+    scenario_spread = float(
+        np.clip(
+            scenario_spread * (1.0 + (0.14 if horizon <= 7 else 0.20) * tail_event_pressure),
+            0.04 if horizon <= 7 else 0.10,
+            0.40 if horizon <= 7 else 0.85,
         )
     )
     return target_scale, target_std, volatility_scale, scenario_spread
