@@ -176,6 +176,21 @@ jobs:
               --freeze-glob "tests/phase0/*_metrics.json" \
               --db forecast_site/predictions.db
 
+      - name: Refresh model evaluation report
+        # Cheap daily gate: re-score the committed long-run OOF metrics and
+        # publish the same report the frontend reads. This does not rerun the
+        # expensive 36-fold OOF job daily; that remains in eth_model_eval.yml.
+        # If the committed production metrics fail the full gate, stop before
+        # deploying a fresh forecast generated from an untrusted model version.
+        run: |
+          python tests/phase0/threshold_sweep.py
+          python scripts/evaluate_eth_candidate.py \
+              --baseline tests/phase0/model_baseline_manifest.json \
+              --candidate tests/phase0/phase6_production_longrun_oof_metrics.json \
+              --threshold-sweep tests/phase0/threshold_sweep_results.json \
+              --profile full
+          cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_report.json
+
       - name: Backfill actuals + refresh accuracy
         run: |
           python -m forecast_site.backfill_actuals \
@@ -215,6 +230,11 @@ jobs:
             eth_forecast_outputs/compact_dashboard.csv
             eth_forecast_outputs/summary.json
             lake/reports/collector_summary.json
+            lake/reports/collector_data_quality_audit.json
+            forecast_site/public/model_eval_report.json
+            tests/phase0/model_eval_report.json
+            tests/phase0/model_eval_report.md
+            tests/phase0/threshold_sweep_results.json
           retention-days: 14
 
       - name: Commit updated DB
@@ -257,7 +277,8 @@ jobs:
           git add -f \
               forecast_site/public/latest.json \
               forecast_site/public/accuracy.json \
-              forecast_site/public/history.json || true
+              forecast_site/public/history.json \
+              forecast_site/public/model_eval_report.json || true
           # Donation milestones — tiny public payload (milestones_reached +
           # next_milestone); full USD ledger stays in forecast_site/private/
           # which is hard-gitignored and never reaches the deploy branch.
