@@ -32,11 +32,8 @@ from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
     accuracy_score,
     brier_score_loss,
-    f1_score,
     mean_absolute_error,
     mean_squared_error,
-    precision_score,
-    recall_score,
     roc_auc_score,
 )
 from sklearn.model_selection import TimeSeriesSplit
@@ -4404,26 +4401,38 @@ def evaluate_direction_classification(
     predicted_label: np.ndarray,
     probability_up: np.ndarray,
 ) -> dict[str, float]:
+    actual = np.asarray(actual_label, dtype=int)
+    predicted = np.asarray(predicted_label, dtype=int)
     probability_up = np.clip(probability_up, 1e-6, 1 - 1e-6)
-    labels = [0, 1]
+    if len(actual) == 0:
+        return {
+            "accuracy": float("nan"),
+            "balanced_accuracy": float("nan"),
+            "precision": float("nan"),
+            "recall": float("nan"),
+            "f1": float("nan"),
+            "brier_score": float("nan"),
+            "roc_auc": float("nan"),
+        }
+
+    tp = float(((actual == 1) & (predicted == 1)).sum())
+    tn = float(((actual == 0) & (predicted == 0)).sum())
+    fp = float(((actual == 0) & (predicted == 1)).sum())
+    fn = float(((actual == 1) & (predicted == 0)).sum())
+    recall_up = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    recall_down = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+    precision_up = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    f1_up = 2.0 * precision_up * recall_up / (precision_up + recall_up) if (precision_up + recall_up) > 0 else 0.0
     metrics = {
-        "accuracy": float(accuracy_score(actual_label, predicted_label)),
-        "balanced_accuracy": float(
-            recall_score(actual_label, predicted_label, labels=labels, average="macro", zero_division=0)
-        ),
-        "precision": float(
-            precision_score(actual_label, predicted_label, labels=labels, average="binary", zero_division=0)
-        ),
-        "recall": float(
-            recall_score(actual_label, predicted_label, labels=labels, average="binary", zero_division=0)
-        ),
-        "f1": float(
-            f1_score(actual_label, predicted_label, labels=labels, average="binary", zero_division=0)
-        ),
-        "brier_score": float(brier_score_loss(actual_label, probability_up)),
+        "accuracy": float(np.mean(actual == predicted)),
+        "balanced_accuracy": float((recall_down + recall_up) / 2.0),
+        "precision": float(precision_up),
+        "recall": float(recall_up),
+        "f1": float(f1_up),
+        "brier_score": float(brier_score_loss(actual, probability_up)),
     }
-    if len(np.unique(actual_label)) > 1:
-        metrics["roc_auc"] = float(roc_auc_score(actual_label, probability_up))
+    if len(np.unique(actual)) > 1:
+        metrics["roc_auc"] = float(roc_auc_score(actual, probability_up))
     else:
         metrics["roc_auc"] = float("nan")
     return metrics
@@ -4510,6 +4519,7 @@ def evaluate_multistate_classification(
     actual = np.asarray(actual_label, dtype=int)
     predicted = np.asarray(predicted_label, dtype=int)
     observed_labels = sorted(pd.Index(actual).dropna().astype(int).unique().tolist())
+    metric_labels = [0, 1, 2]
     metrics = {
         "accuracy": float(accuracy_score(actual, predicted)) if len(actual) else float("nan"),
         "balanced_accuracy": float("nan"),
@@ -4518,17 +4528,30 @@ def evaluate_multistate_classification(
         "macro_f1": float("nan"),
     }
     if len(observed_labels) >= 2:
-        recalls = recall_score(actual, predicted, labels=observed_labels, average=None, zero_division=0)
+        recalls = []
+        precision_values = []
+        recall_values = []
+        f1_values = []
+        for label in metric_labels:
+            tp = float(((actual == label) & (predicted == label)).sum())
+            fp = float(((actual != label) & (predicted == label)).sum())
+            fn = float(((actual == label) & (predicted != label)).sum())
+            precision_value = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall_value = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1_value = (
+                2.0 * precision_value * recall_value / (precision_value + recall_value)
+                if (precision_value + recall_value) > 0
+                else 0.0
+            )
+            if label in observed_labels:
+                recalls.append(recall_value)
+            precision_values.append(precision_value)
+            recall_values.append(recall_value)
+            f1_values.append(f1_value)
         metrics["balanced_accuracy"] = float(np.mean(recalls)) if len(recalls) else float("nan")
-        metrics["macro_precision"] = float(
-            precision_score(actual, predicted, labels=observed_labels, average="macro", zero_division=0)
-        )
-        metrics["macro_recall"] = float(
-            recall_score(actual, predicted, labels=observed_labels, average="macro", zero_division=0)
-        )
-        metrics["macro_f1"] = float(
-            f1_score(actual, predicted, labels=observed_labels, average="macro", zero_division=0)
-        )
+        metrics["macro_precision"] = float(np.mean(precision_values))
+        metrics["macro_recall"] = float(np.mean(recall_values))
+        metrics["macro_f1"] = float(np.mean(f1_values))
 
     metrics["roc_auc"] = float("nan")
     try:
@@ -7190,8 +7213,8 @@ def select_classification_forecast_model(
 ) -> tuple[str, str]:
     if classification_leaderboard.empty or "model" not in classification_leaderboard.columns:
         return "", "fallback_heuristic"
-    minimum_cv_balanced_accuracy = 0.50 if horizon is not None and horizon <= 7 else 0.45
-    minimum_cv_roc_auc = 0.45 if horizon is not None and horizon <= 7 else 0.35
+    minimum_cv_balanced_accuracy = 0.50
+    minimum_cv_roc_auc = 0.48 if horizon is not None and horizon <= 7 else 0.50
     minimum_holdout_balanced_accuracy = 0.50 if horizon is not None and horizon <= 7 else 0.55
     macro_context = derive_macro_selection_context(latest_features, horizon or 30)
     macro_suffix = f"+{macro_context['selection_tag']}" if macro_context else ""
@@ -8643,7 +8666,13 @@ def direction_cv_is_weak(leaderboard_row: dict[str, Any]) -> bool:
     cv_bal = safe_float(leaderboard_row.get("balanced_accuracy"))
     cv_auc = safe_float(leaderboard_row.get("roc_auc"))
     cv_f1 = safe_float(leaderboard_row.get("f1"))
-    return (
+    below_random_auc = (
+        pd.notna(cv_auc)
+        and cv_auc < 0.50
+        and pd.notna(cv_bal)
+        and cv_bal <= 0.52
+    )
+    return below_random_auc or (
         pd.notna(cv_bal)
         and cv_bal <= 0.51
         and pd.notna(cv_auc)
@@ -8822,6 +8851,11 @@ def determine_signal_tier(
     strong_probability = probability_edge >= (0.18 if horizon <= 7 else 0.45)
     strong_hybrid = abs(float(hybrid_score)) >= (0.18 if horizon <= 7 else 0.30)
     majority_count = int(consensus["majority_count"])
+    cv_weak_selection = "cv_weak" in str(classification_forecast.selection_basis)
+    if cv_weak_selection:
+        strong_probability = probability_edge >= (0.32 if horizon <= 7 else 0.58)
+        if not holdout_ok:
+            backtest_ok = False
 
     candidate_direction = bias_direction
     direction_override = False
@@ -9701,6 +9735,15 @@ def build_hybrid_forecast(
         spread_shrink = float(np.clip(1.0 - 0.18 * live_gap_penalty, 0.72, 1.0))
         bear_spread *= spread_shrink
         bull_spread *= spread_shrink
+    if signal_tier == "NO_SIGNAL":
+        spread_cap = 0.10 if horizon <= 7 else 0.18
+    elif signal_tier == "OBSERVE":
+        spread_cap = 0.14 if horizon <= 7 else 0.26
+    else:
+        spread_cap = 0.22 if horizon <= 7 else 0.42
+    spread_floor = 0.025 if horizon <= 7 else 0.06
+    bear_spread = float(np.clip(bear_spread, spread_floor, spread_cap))
+    bull_spread = float(np.clip(bull_spread, spread_floor, spread_cap))
     bear_return = float(np.clip(adjusted_return - bear_spread, clip_lower, clip_upper))
     bull_return = float(np.clip(adjusted_return + bull_spread, clip_lower, clip_upper))
     confidence = float(

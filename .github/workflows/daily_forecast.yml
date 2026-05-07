@@ -151,10 +151,30 @@ jobs:
         run: |
           python eth_data_collector.py
 
+      - name: Restore prediction feedback history
+        # The model uses matured old forecasts as feedback features and model
+        # selection penalties. Main does not track this generated CSV, so pull
+        # the previous deploy-branch copy before forecasting.
+        run: |
+          mkdir -p eth_forecast_outputs
+          git fetch origin data/daily-forecast || true
+          git show origin/data/daily-forecast:eth_forecast_outputs/prediction_history.csv \
+            > eth_forecast_outputs/prediction_history.csv || true
+          if [ -s eth_forecast_outputs/prediction_history.csv ]; then
+            python - <<'PY'
+          import pandas as pd
+          frame = pd.read_csv("eth_forecast_outputs/prediction_history.csv")
+          print(f"Restored prior prediction history rows: {len(frame)}")
+          PY
+          else
+            echo "No prior prediction history found; starting feedback log."
+          fi
+
       - name: Run forecast suite
         run: |
           python eth_price_forecast.py \
               --master-data-csv lake/gold/eth_master_daily.csv \
+              --prediction-history-csv eth_forecast_outputs/prediction_history.csv \
               $FAST_MODE_FLAG
 
       - name: Persist forecast to DB
@@ -227,6 +247,10 @@ jobs:
           name: forecast-outputs-${{ github.run_id }}
           path: |
             eth_forecast_outputs/latest_forecast_summary.csv
+            eth_forecast_outputs/prediction_history.csv
+            eth_forecast_outputs/prediction_feedback_summary.csv
+            eth_forecast_outputs/prediction_feedback_state_summary.csv
+            eth_forecast_outputs/prediction_feedback_state_winners.csv
             eth_forecast_outputs/compact_dashboard.csv
             eth_forecast_outputs/summary.json
             lake/reports/collector_summary.json
@@ -263,17 +287,30 @@ jobs:
           git config user.name  "eth-forecast-bot"
           git config user.email "eth-forecast-bot@users.noreply.github.com"
           branch="data/daily-forecast"
+          generated_dir="$RUNNER_TEMP/eth-generated"
+          mkdir -p "$generated_dir/eth_forecast_outputs"
+          cp -f eth_forecast_outputs/prediction_history.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
+          cp -f eth_forecast_outputs/prediction_feedback_summary.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
+          cp -f eth_forecast_outputs/prediction_feedback_state_summary.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
+          cp -f eth_forecast_outputs/prediction_feedback_state_winners.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
 
           # Start fresh from main's tip every run. This is what guarantees
           # that code fixes on main (index.html, backend, workflow itself)
           # always reach Vercel — no merge drift possible.
           git fetch origin main
           git checkout -B "$branch" origin/main
+          mkdir -p eth_forecast_outputs
+          cp -f "$generated_dir"/eth_forecast_outputs/*.csv eth_forecast_outputs/ 2>/dev/null || true
 
           # Force-add generated artifacts. -f bypasses .gitignore which
           # blocks predictions.db / public/*.json on main.
           git add -f forecast_site/predictions.db || true
           git add -f lake/gold/eth_master_daily.csv || true
+          git add -f \
+              eth_forecast_outputs/prediction_history.csv \
+              eth_forecast_outputs/prediction_feedback_summary.csv \
+              eth_forecast_outputs/prediction_feedback_state_summary.csv \
+              eth_forecast_outputs/prediction_feedback_state_winners.csv || true
           git add -f \
               forecast_site/public/latest.json \
               forecast_site/public/accuracy.json \

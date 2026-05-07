@@ -24,6 +24,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MASTER_CSV = PROJECT_ROOT / "lake" / "gold" / "eth_master_daily.csv"
 DEFAULT_SUMMARY_CSV = PROJECT_ROOT / "eth_forecast_outputs" / "latest_forecast_summary.csv"
+DEFAULT_PREDICTION_HISTORY_CSV = PROJECT_ROOT / "eth_forecast_outputs" / "prediction_history.csv"
 DEFAULT_DB = PROJECT_ROOT / "forecast_site" / "predictions.db"
 DEFAULT_CODE = PROJECT_ROOT / "eth_price_forecast.py"
 
@@ -38,7 +39,7 @@ def _run(cmd: list[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model-phase", default="phase4b_production",
+    parser.add_argument("--model-phase", default="phase6_production",
                         help="Label written into forecast_runs.model_phase")
     parser.add_argument("--fast-mode", action="store_true",
                         help="Pass --fast-mode to eth_price_forecast")
@@ -56,6 +57,8 @@ def main() -> None:
                         help="Skip Telegram notification step")
     parser.add_argument("--master-data-csv", default=str(DEFAULT_MASTER_CSV))
     parser.add_argument("--summary-csv", default=str(DEFAULT_SUMMARY_CSV))
+    parser.add_argument("--prediction-history-csv", default=str(DEFAULT_PREDICTION_HISTORY_CSV),
+                        help="Forecast feedback log used by eth_price_forecast")
     parser.add_argument("--db", default=str(DEFAULT_DB))
     args = parser.parse_args()
 
@@ -68,6 +71,7 @@ def main() -> None:
         forecast_cmd = [
             python, "eth_price_forecast.py",
             "--master-data-csv", args.master_data_csv,
+            "--prediction-history-csv", args.prediction_history_csv,
         ]
         if args.fast_mode:
             forecast_cmd.append("--fast-mode")
