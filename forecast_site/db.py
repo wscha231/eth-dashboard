@@ -12,6 +12,15 @@ from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path(__file__).parent / "predictions.db"
+FORECAST_OPTIONAL_COLUMNS: dict[str, str] = {
+    "forecast_decision_mode": "TEXT",
+    "forecast_actionability": "TEXT",
+    "forecast_point_price_reliable": "INTEGER",
+    "forecast_center_return": "REAL",
+    "forecast_uncertainty_return": "REAL",
+    "forecast_lower_return": "REAL",
+    "forecast_upper_return": "REAL",
+}
 
 
 def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
@@ -35,6 +44,18 @@ def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
 def _init_schema(conn: sqlite3.Connection) -> None:
     ddl = SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(ddl)
+    _ensure_optional_columns(conn)
+
+
+def _ensure_optional_columns(conn: sqlite3.Connection) -> None:
+    """Add new nullable columns when an existing committed DB predates schema.sql."""
+    existing = {
+        str(row["name"])
+        for row in conn.execute("PRAGMA table_info(forecasts)").fetchall()
+    }
+    for column, column_type in FORECAST_OPTIONAL_COLUMNS.items():
+        if column not in existing:
+            conn.execute(f"ALTER TABLE forecasts ADD COLUMN {column} {column_type}")
 
 
 def table_names(conn: sqlite3.Connection) -> list[str]:

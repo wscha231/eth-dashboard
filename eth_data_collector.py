@@ -48,7 +48,10 @@ _autoload_dotenv()
 
 from eth_price_forecast import (
     CACHE_UPDATE_LOOKBACK_ROWS,
+    DEFAULT_FEATURE_MIN_COVERAGE,
     DEFAULT_MASTER_DATA_CSV,
+    DEFAULT_MIN_STANDARD_FEATURE_ROWS,
+    DEFAULT_MIN_VENDOR_HISTORY_DAYS,
     DEFAULT_STALE_VENDOR_MAX_AGE_DAYS,
     DEFAULT_TICKERS,
     build_external_feature_summary,
@@ -185,6 +188,7 @@ class CollectorPaths:
     collector_summary_json: Path
     data_quality_audit_json: Path
     data_quality_audit_csv: Path
+    learning_exclusion_report_csv: Path
 
 
 def log_progress(enabled: bool, message: str) -> None:
@@ -1177,6 +1181,7 @@ def resolve_collector_paths(
         collector_summary_json=reports_dir / "collector_summary.json",
         data_quality_audit_json=reports_dir / "collector_data_quality_audit.json",
         data_quality_audit_csv=reports_dir / "collector_data_quality_audit.csv",
+        learning_exclusion_report_csv=reports_dir / "collector_learning_exclusion_report.csv",
     )
 
 
@@ -1219,6 +1224,8 @@ def build_master_schema(master_data: pd.DataFrame) -> pd.DataFrame:
             group = "etherscan_onchain"
         elif column.startswith("glassnode_"):
             group = "glassnode_onchain"
+        elif column.startswith("alchemy_"):
+            group = "alchemy_onchain"
         elif column.startswith("defillama_"):
             group = "defillama_onchain"
         elif column.startswith("fred_"):
@@ -1348,10 +1355,146 @@ def _audit_column_stats(master_data: pd.DataFrame, columns: list[str]) -> dict[s
     }
 
 
+def _learning_exclusion_group(column: str) -> str:
+    if column.startswith("binance_"):
+        return "binance_derivatives"
+    if column.startswith("deribit_"):
+        return "deribit_derivatives"
+    if column.startswith("etherscan_"):
+        return "etherscan_onchain"
+    if column.startswith("glassnode_"):
+        return "glassnode_onchain"
+    if column.startswith("alchemy_"):
+        return "alchemy_onchain"
+    if column.startswith("defillama_"):
+        return "defillama_onchain"
+    if column.startswith("cg_"):
+        return "coingecko"
+    if column.startswith("fred_"):
+        return "fred_macro"
+    if column.startswith("sentiment_"):
+        return "sentiment"
+    if column.startswith("artemis_"):
+        return "artemis"
+    if column.startswith("external_") or column.startswith("manual_"):
+        return "manual_external"
+    return "other_vendor"
+
+
+def build_learning_exclusion_report(
+    master_data: pd.DataFrame,
+    external_summary: pd.DataFrame,
+) -> pd.DataFrame:
+    """List collected vendor columns that are unlikely to enter model training.
+
+    Forecast feature selection ultimately runs after feature engineering, but
+    this raw-column report is the daily early-warning layer: it tells us which
+    feeds are being collected yet still lack enough rows/span/variation to
+    produce useful transformed training features.
+    """
+    columns = [
+        "column",
+        "column_group",
+        "learning_status",
+        "likely_training_excluded",
+        "exclusion_reasons",
+        "non_null_rows",
+        "unique_values",
+        "coverage_ratio",
+        "history_span_days",
+        "latest_age_days",
+        "min_rows_required",
+        "min_history_days_required",
+        "rows_until_min",
+        "days_until_60d",
+        "days_until_90d",
+        "start",
+        "end",
+    ]
+    if master_data is None or master_data.empty or external_summary is None or external_summary.empty:
+        return pd.DataFrame(columns=columns)
+
+    row_count = int(len(master_data.index))
+    min_rows_required = max(
+        int(DEFAULT_MIN_STANDARD_FEATURE_ROWS),
+        int(row_count * float(DEFAULT_FEATURE_MIN_COVERAGE)),
+    )
+    rows: list[dict[str, Any]] = []
+    for _, summary_row in external_summary.iterrows():
+        column = str(summary_row.get("column", "")).strip()
+        if not column or column not in master_data.columns:
+            continue
+        series = pd.to_numeric(master_data[column], errors="coerce")
+        non_null = series.dropna()
+        non_null_rows = int(non_null.shape[0])
+        unique_values = int(non_null.nunique(dropna=True)) if non_null_rows else 0
+        coverage_ratio = float(non_null_rows / row_count) if row_count else 0.0
+        history_span_days = pd.to_numeric(summary_row.get("history_span_days"), errors="coerce")
+        latest_age_days = pd.to_numeric(summary_row.get("latest_age_days"), errors="coerce")
+        history_span_value = float(history_span_days) if pd.notna(history_span_days) else float("nan")
+        latest_age_value = float(latest_age_days) if pd.notna(latest_age_days) else float("nan")
+
+        reasons: list[str] = []
+        if non_null_rows == 0:
+            reasons.append("empty")
+        if non_null_rows < min_rows_required:
+            reasons.append(f"low_rows<{min_rows_required}")
+        if pd.isna(history_span_days) or float(history_span_days) < float(DEFAULT_MIN_VENDOR_HISTORY_DAYS):
+            reasons.append(f"short_history<{DEFAULT_MIN_VENDOR_HISTORY_DAYS}d")
+        if unique_values < 2:
+            reasons.append("low_variation")
+        if pd.notna(latest_age_days) and float(latest_age_days) >= float(DEFAULT_STALE_VENDOR_MAX_AGE_DAYS):
+            reasons.append(f"stale>={DEFAULT_STALE_VENDOR_MAX_AGE_DAYS}d")
+
+        likely_excluded = bool(reasons)
+        if not likely_excluded:
+            learning_status = "ready_for_training"
+        elif non_null_rows == 0:
+            learning_status = "empty"
+        elif any(reason.startswith("stale") for reason in reasons):
+            learning_status = "stale"
+        elif any(reason.startswith("short_history") for reason in reasons):
+            learning_status = "short_history"
+        elif any(reason.startswith("low_rows") for reason in reasons):
+            learning_status = "low_coverage"
+        else:
+            learning_status = "low_variation"
+
+        rows.append(
+            {
+                "column": column,
+                "column_group": _learning_exclusion_group(column),
+                "learning_status": learning_status,
+                "likely_training_excluded": likely_excluded,
+                "exclusion_reasons": ";".join(reasons),
+                "non_null_rows": non_null_rows,
+                "unique_values": unique_values,
+                "coverage_ratio": coverage_ratio,
+                "history_span_days": history_span_value,
+                "latest_age_days": latest_age_value,
+                "min_rows_required": int(min_rows_required),
+                "min_history_days_required": int(DEFAULT_MIN_VENDOR_HISTORY_DAYS),
+                "rows_until_min": int(max(min_rows_required - non_null_rows, 0)),
+                "days_until_60d": int(max(60 - history_span_value, 0)) if pd.notna(history_span_days) else 60,
+                "days_until_90d": int(max(90 - history_span_value, 0)) if pd.notna(history_span_days) else 90,
+                "start": summary_row.get("start", ""),
+                "end": summary_row.get("end", ""),
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(rows).sort_values(
+        ["likely_training_excluded", "learning_status", "rows_until_min", "days_until_90d", "column"],
+        ascending=[False, True, False, False, True],
+    ).reset_index(drop=True)
+
+
 def build_data_quality_audit(
     master_data: pd.DataFrame,
     source_status: pd.DataFrame,
     external_summary: pd.DataFrame,
+    learning_exclusion_report: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Summarize whether collected data can support tail-event forecasting.
 
@@ -1420,6 +1563,33 @@ def build_data_quality_audit(
         if "latest_age_days" in external_summary.columns:
             ages = pd.to_numeric(external_summary["latest_age_days"], errors="coerce")
             stale_count = int((ages > float(DEFAULT_STALE_VENDOR_MAX_AGE_DAYS)).sum())
+    learning_exclusion_count = 0
+    learning_exclusion_summary: list[dict[str, Any]] = []
+    learning_exclusion_sample: list[dict[str, Any]] = []
+    if learning_exclusion_report is not None and not learning_exclusion_report.empty:
+        report = learning_exclusion_report.copy()
+        excluded = report.loc[report["likely_training_excluded"].fillna(False).astype(bool)].copy()
+        learning_exclusion_count = int(len(excluded))
+        if not excluded.empty:
+            learning_exclusion_summary = (
+                excluded.groupby(["column_group", "learning_status"], dropna=False)
+                .size()
+                .reset_index(name="column_count")
+                .sort_values(["column_count", "column_group", "learning_status"], ascending=[False, True, True])
+                .to_dict(orient="records")
+            )
+            sample_columns = [
+                "column",
+                "column_group",
+                "learning_status",
+                "exclusion_reasons",
+                "non_null_rows",
+                "history_span_days",
+                "latest_age_days",
+                "rows_until_min",
+                "days_until_90d",
+            ]
+            learning_exclusion_sample = excluded[sample_columns].head(20).to_dict(orient="records")
 
     group_index = {row["group"]: row for row in group_rows}
     derivatives_ready = int(group_index.get("derivatives_tail", {}).get("ready_column_count", 0))
@@ -1449,6 +1619,11 @@ def build_data_quality_audit(
         recommendations.append(
             f"{short_history_count} vendor columns are too short for fold training; keep collecting but do not rely on them yet."
         )
+    if learning_exclusion_count:
+        recommendations.append(
+            f"{learning_exclusion_count} collected vendor columns are currently unlikely to survive training coverage filters; "
+            "review collector_learning_exclusion_report.csv for exact columns and reasons."
+        )
     if stale_count:
         recommendations.append(
             f"{stale_count} vendor columns are stale beyond {DEFAULT_STALE_VENDOR_MAX_AGE_DAYS} days."
@@ -1464,9 +1639,12 @@ def build_data_quality_audit(
         "source_status_counts": {str(k): int(v) for k, v in status_counts.items()},
         "source_errors": source_errors,
         "short_history_vendor_column_count": int(short_history_count),
+        "learning_exclusion_column_count": int(learning_exclusion_count),
         "stale_vendor_column_count": int(stale_count),
         "tail_event_readiness": tail_event_readiness,
         "group_summary": group_rows,
+        "learning_exclusion_summary": learning_exclusion_summary,
+        "learning_exclusion_sample": learning_exclusion_sample,
         "recommendations": recommendations,
     }
 
@@ -1829,7 +2007,23 @@ def collect_sources(
                 feature_frames.append(funding)
             source_status.append(source_status_row("binance_funding_history", funding, "ok" if not funding.empty else "skipped"))
         except SOURCE_FETCH_EXCEPTIONS as exc:
-            source_status.append(source_status_row("binance_funding_history", pd.DataFrame(), "error", str(exc)))
+            cached = load_cached_history_window(
+                paths.raw_vendor_dir / "binance_eth_funding_daily.csv",
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if not cached.empty:
+                feature_frames.append(cached)
+                source_status.append(
+                    source_status_row(
+                        "binance_funding_history",
+                        cached,
+                        "warning",
+                        f"live_fetch_failed_using_cached_data: {exc}",
+                    )
+                )
+            else:
+                source_status.append(source_status_row("binance_funding_history", pd.DataFrame(), "error", str(exc)))
 
         # Binance `/futures/data/*` endpoints enforce a ~30-day retention
         # window: requests with startTime older than that silently 404 even
@@ -1904,7 +2098,19 @@ def collect_sources(
                     )
                 )
             except SOURCE_FETCH_EXCEPTIONS as exc:
-                source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
+                cached = load_cached_history_window(output_path, start_date=start_date, end_date=end_date)
+                if not cached.empty:
+                    feature_frames.append(cached)
+                    source_status.append(
+                        source_status_row(
+                            source_name,
+                            cached,
+                            "warning",
+                            f"{note} | live_fetch_failed_using_cached_data: {exc}",
+                        )
+                    )
+                else:
+                    source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
     else:
         source_status.append(source_status_row("binance", pd.DataFrame(), "skipped", "Disabled by flag"))
 
@@ -1926,7 +2132,23 @@ def collect_sources(
                 )
             )
         except SOURCE_FETCH_EXCEPTIONS as exc:
-            source_status.append(source_status_row("deribit_historical_volatility", pd.DataFrame(), "error", str(exc)))
+            cached = load_cached_history_window(
+                paths.raw_vendor_dir / "deribit_eth_historical_volatility.csv",
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if not cached.empty:
+                feature_frames.append(cached)
+                source_status.append(
+                    source_status_row(
+                        "deribit_historical_volatility",
+                        cached,
+                        "warning",
+                        f"live_fetch_failed_using_cached_data: {exc}",
+                    )
+                )
+            else:
+                source_status.append(source_status_row("deribit_historical_volatility", pd.DataFrame(), "error", str(exc)))
 
         try:
             existing = load_market_data_csv(paths.raw_vendor_dir / "deribit_eth_funding_daily.csv")
@@ -1957,7 +2179,23 @@ def collect_sources(
                 feature_frames.append(funding)
             source_status.append(source_status_row("deribit_funding_history", funding, "ok" if not funding.empty else "skipped"))
         except SOURCE_FETCH_EXCEPTIONS as exc:
-            source_status.append(source_status_row("deribit_funding_history", pd.DataFrame(), "error", str(exc)))
+            cached = load_cached_history_window(
+                paths.raw_vendor_dir / "deribit_eth_funding_daily.csv",
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if not cached.empty:
+                feature_frames.append(cached)
+                source_status.append(
+                    source_status_row(
+                        "deribit_funding_history",
+                        cached,
+                        "warning",
+                        f"live_fetch_failed_using_cached_data: {exc}",
+                    )
+                )
+            else:
+                source_status.append(source_status_row("deribit_funding_history", pd.DataFrame(), "error", str(exc)))
 
         # NOTE: Deribit /get_book_summary_by_currency is snapshot-only (no
         # historical parameters). Phase 3 regime features keyed off option IV,
@@ -1970,6 +2208,7 @@ def collect_sources(
         ):
             source_name = f"deribit_{kind}_snapshot"
             try:
+                existing = load_cached_history_window(paths.raw_vendor_dir / filename, start_date=start_date, end_date=end_date)
                 payload = request_json(
                     "https://www.deribit.com/api/v2/public/get_book_summary_by_currency",
                     params={"currency": DEFAULT_DERIBIT_CURRENCY, "kind": kind},
@@ -1979,28 +2218,52 @@ def collect_sources(
                 snapshot = (
                     append_history_csv(paths.raw_vendor_dir / filename, snapshot, overwrite_start=overwrite_start)
                     if not snapshot.empty
-                    else pd.DataFrame()
+                    else existing
                 )
                 if not snapshot.empty:
                     feature_frames.append(snapshot)
                 source_status.append(source_status_row(source_name, snapshot, "ok" if not snapshot.empty else "skipped"))
             except SOURCE_FETCH_EXCEPTIONS as exc:
-                source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
+                cached = load_cached_history_window(paths.raw_vendor_dir / filename, start_date=start_date, end_date=end_date)
+                if not cached.empty:
+                    feature_frames.append(cached)
+                    source_status.append(
+                        source_status_row(
+                            source_name,
+                            cached,
+                            "warning",
+                            f"snapshot_live_fetch_failed_using_cached_data: {exc}",
+                        )
+                    )
+                else:
+                    source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
     else:
         source_status.append(source_status_row("deribit", pd.DataFrame(), "skipped", "Disabled by flag"))
 
     if use_etherscan and etherscan_api_key:
         for action in DEFAULT_ETHERSCAN_ACTIONS:
             source_name = f"etherscan_{action}"
+            output_path = paths.raw_vendor_dir / f"{source_name}.csv"
             try:
                 frame = collect_etherscan_action(action, start_date, end_date, etherscan_api_key)
-                output_path = paths.raw_vendor_dir / f"{source_name}.csv"
                 frame = append_history_csv(output_path, frame, overwrite_start=overwrite_start) if not frame.empty else pd.DataFrame()
                 if not frame.empty:
                     feature_frames.append(frame)
                 source_status.append(source_status_row(source_name, frame, "ok" if not frame.empty else "skipped"))
             except SOURCE_FETCH_EXCEPTIONS as exc:
-                source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
+                cached = load_cached_history_window(output_path, start_date=start_date, end_date=end_date)
+                if not cached.empty:
+                    feature_frames.append(cached)
+                    source_status.append(
+                        source_status_row(
+                            source_name,
+                            cached,
+                            "warning",
+                            f"live_fetch_failed_using_cached_data: {exc}",
+                        )
+                    )
+                else:
+                    source_status.append(source_status_row(source_name, pd.DataFrame(), "error", str(exc)))
     elif use_etherscan:
         note = "Etherscan stats need an API key and several useful endpoints are PRO-only"
         source_status.append(source_status_row("etherscan", pd.DataFrame(), "skipped", note))
@@ -2011,13 +2274,14 @@ def collect_sources(
     # Single-row point-in-time snapshot per run. Historical density only grows
     # with repeated runs, so this is designed to be idempotent and additive.
     if use_alchemy and alchemy_api_key:
+        output_path = paths.raw_vendor_dir / "alchemy_eth_snapshot.csv"
         try:
             snapshot = collect_alchemy_eth_snapshot(alchemy_api_key)
-            output_path = paths.raw_vendor_dir / "alchemy_eth_snapshot.csv"
+            existing = load_cached_history_window(output_path, start_date=start_date, end_date=end_date)
             snapshot = (
                 append_history_csv(output_path, snapshot, overwrite_start=overwrite_start)
                 if not snapshot.empty
-                else pd.DataFrame()
+                else existing
             )
             if not snapshot.empty:
                 feature_frames.append(snapshot)
@@ -2029,13 +2293,37 @@ def collect_sources(
                 )
             )
         except SOURCE_FETCH_EXCEPTIONS as exc:
-            source_status.append(
-                source_status_row("alchemy_eth_snapshot", pd.DataFrame(), "error", str(exc))
-            )
+            cached = load_cached_history_window(output_path, start_date=start_date, end_date=end_date)
+            if not cached.empty:
+                feature_frames.append(cached)
+                source_status.append(
+                    source_status_row(
+                        "alchemy_eth_snapshot",
+                        cached,
+                        "warning",
+                        f"live_fetch_failed_using_cached_data: {exc}",
+                    )
+                )
+            else:
+                source_status.append(
+                    source_status_row("alchemy_eth_snapshot", pd.DataFrame(), "error", str(exc))
+                )
         except RuntimeError as exc:
-            source_status.append(
-                source_status_row("alchemy_eth_snapshot", pd.DataFrame(), "error", str(exc))
-            )
+            cached = load_cached_history_window(output_path, start_date=start_date, end_date=end_date)
+            if not cached.empty:
+                feature_frames.append(cached)
+                source_status.append(
+                    source_status_row(
+                        "alchemy_eth_snapshot",
+                        cached,
+                        "warning",
+                        f"live_fetch_failed_using_cached_data: {exc}",
+                    )
+                )
+            else:
+                source_status.append(
+                    source_status_row("alchemy_eth_snapshot", pd.DataFrame(), "error", str(exc))
+                )
     elif use_alchemy:
         source_status.append(
             source_status_row(
@@ -2267,13 +2555,20 @@ def main(argv: list[str] | None = None) -> None:
         "note": " | ".join(macro_note_parts),
     }
     source_status = pd.concat([source_status, pd.DataFrame([macro_row])], ignore_index=True)
-    data_quality_audit = build_data_quality_audit(master_data, source_status, external_summary)
+    learning_exclusion_report = build_learning_exclusion_report(master_data, external_summary)
+    data_quality_audit = build_data_quality_audit(
+        master_data,
+        source_status,
+        external_summary,
+        learning_exclusion_report=learning_exclusion_report,
+    )
 
     save_market_data_csv(master_data, paths.master_data_csv)
     schema.to_csv(paths.schema_csv, index=False)
     external_summary.to_csv(paths.external_feature_summary_csv, index=False)
     source_status.to_csv(paths.source_status_csv, index=False)
     pd.DataFrame(data_quality_audit["group_summary"]).to_csv(paths.data_quality_audit_csv, index=False)
+    learning_exclusion_report.to_csv(paths.learning_exclusion_report_csv, index=False)
     with paths.data_quality_audit_json.open("w", encoding="utf-8") as handle:
         json.dump(data_quality_audit, handle, ensure_ascii=False, indent=2)
 
@@ -2284,6 +2579,7 @@ def main(argv: list[str] | None = None) -> None:
         "schema_csv": str(paths.schema_csv),
         "source_status_csv": str(paths.source_status_csv),
         "data_quality_audit_json": str(paths.data_quality_audit_json),
+        "learning_exclusion_report_csv": str(paths.learning_exclusion_report_csv),
         "raw_rows": int(master_data.shape[0]),
         "column_count": int(master_data.shape[1]),
         "start": format_timestamp(master_data.index.min()) if not master_data.empty else "",
@@ -2341,8 +2637,18 @@ def main(argv: list[str] | None = None) -> None:
     print(
         f"- Data quality audit: tail_event_readiness={payload['data_quality_audit']['tail_event_readiness']}, "
         f"short_history_vendor_columns={payload['data_quality_audit']['short_history_vendor_column_count']}, "
+        f"learning_exclusion_columns={payload['data_quality_audit']['learning_exclusion_column_count']}, "
         f"stale_vendor_columns={payload['data_quality_audit']['stale_vendor_column_count']}"
     )
+    if payload["data_quality_audit"]["learning_exclusion_sample"]:
+        print("  Learning-excluded sample:")
+        for item in payload["data_quality_audit"]["learning_exclusion_sample"][:5]:
+            print(
+                "    - "
+                f"{item.get('column')}({item.get('learning_status')}, "
+                f"rows={item.get('non_null_rows')}, span_days={item.get('history_span_days')}, "
+                f"reason={item.get('exclusion_reasons')})"
+            )
     for recommendation in payload["data_quality_audit"]["recommendations"][:3]:
         print(f"  Audit note: {recommendation}")
     print("- Source status")

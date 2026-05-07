@@ -123,6 +123,7 @@ GENERIC_VENDOR_PREFIXES = (
     # like we did for the Phase 5 macro re-add.
     "defillama_",
     "glassnode_",
+    "alchemy_",
 )
 CRYPTO_24_7_PREFIXES = ("eth_", "btc_", "sol_", "bnb_")
 TRADITIONAL_MARKET_PREFIXES = ("spy_", "qqq_", "gold_", "oil_", "dxy_", "vix_", "tnx_")
@@ -1245,6 +1246,17 @@ def build_prediction_feedback_summary(
     ).reset_index(drop=True)
 
 
+def macro_volatility_bucket(value: Any) -> str:
+    numeric_value = safe_float(value)
+    if pd.isna(numeric_value):
+        return "VOL_UNKNOWN"
+    if float(numeric_value) >= 0.66:
+        return "HIGH_VOL"
+    if float(numeric_value) <= 0.33:
+        return "LOW_VOL"
+    return "MID_VOL"
+
+
 def build_prediction_feedback_state_summary(
     prediction_history: pd.DataFrame | None,
 ) -> pd.DataFrame:
@@ -1259,6 +1271,10 @@ def build_prediction_feedback_state_summary(
     )
     matured["horizon_steps"] = frame_numeric_series(matured, "horizon_steps")
     matured["macro_risk_regime"] = frame_text_series(matured, "macro_risk_regime").replace("", "UNKNOWN")
+    matured["macro_volatility_bucket"] = frame_numeric_series(
+        matured,
+        "macro_volatility_stress",
+    ).map(macro_volatility_bucket)
     matured = matured.dropna(subset=["forecast_target_timestamp", "horizon_steps"])
     if matured.empty:
         return pd.DataFrame()
@@ -1282,15 +1298,16 @@ def build_prediction_feedback_state_summary(
         task_frame = task_frame.loc[task_frame["model_name"] != ""].copy()
         if task_frame.empty:
             continue
-        group_keys = ["horizon_steps", "macro_risk_regime", "model_name"]
+        group_keys = ["horizon_steps", "macro_risk_regime", "macro_volatility_bucket", "model_name"]
         for group_values, group in task_frame.groupby(group_keys, dropna=True):
-            horizon_value, macro_risk_regime, model_name = group_values
+            horizon_value, macro_risk_regime, macro_volatility_state, model_name = group_values
             weights = pd.to_numeric(group["feedback_weight"], errors="coerce").fillna(0.0)
             rows.append(
                 {
                     "task": task_name,
                     "horizon_steps": int(horizon_value),
                     "macro_risk_regime": str(macro_risk_regime),
+                    "macro_volatility_bucket": str(macro_volatility_state),
                     "model_name": str(model_name),
                     "state_feedback_count": int(len(group)),
                     "state_feedback_weight_sum": float(weights.sum()),
@@ -1332,8 +1349,16 @@ def build_prediction_feedback_state_summary(
         - pd.to_numeric(summary["state_feedback_total_benchmark_return"], errors="coerce")
     )
     return summary.sort_values(
-        ["task", "horizon_steps", "macro_risk_regime", "state_feedback_weight_sum", "state_feedback_count", "model_name"],
-        ascending=[True, True, True, False, False, True],
+        [
+            "task",
+            "horizon_steps",
+            "macro_risk_regime",
+            "macro_volatility_bucket",
+            "state_feedback_weight_sum",
+            "state_feedback_count",
+            "model_name",
+        ],
+        ascending=[True, True, True, True, False, False, True],
         na_position="last",
     ).reset_index(drop=True)
 
@@ -1350,7 +1375,10 @@ def build_prediction_feedback_state_winner_table(
         + pd.to_numeric(summary["state_feedback_weighted_directional_accuracy"], errors="coerce").fillna(float("-inf")) * 0.35
         + (-pd.to_numeric(summary["state_feedback_weighted_mean_abs_error_return"], errors="coerce").fillna(float("inf")) * 0.20)
     )
-    for _, group in summary.groupby(["task", "horizon_steps", "macro_risk_regime"], dropna=True):
+    group_columns = ["task", "horizon_steps", "macro_risk_regime"]
+    if "macro_volatility_bucket" in summary.columns:
+        group_columns.append("macro_volatility_bucket")
+    for _, group in summary.groupby(group_columns, dropna=True):
         ranked = group.sort_values(
             ["winner_rank_score", "state_feedback_weight_sum", "state_feedback_count"],
             ascending=[False, False, False],
@@ -6325,6 +6353,7 @@ def merge_prediction_feedback_state_metrics(
     risk_regime = str((macro_context or {}).get("risk_regime", "")).strip()
     if risk_regime == "":
         return frame
+    volatility_bucket = macro_volatility_bucket((macro_context or {}).get("volatility_stress"))
     feedback = prediction_feedback_state_summary.copy()
     required_columns = {"task", "model_name", "macro_risk_regime"}
     if not required_columns.issubset(set(feedback.columns)):
@@ -6333,6 +6362,12 @@ def merge_prediction_feedback_state_metrics(
         (feedback["task"].astype(str) == str(task_name))
         & (feedback["macro_risk_regime"].astype(str) == risk_regime)
     ].copy()
+    if "macro_volatility_bucket" in feedback.columns:
+        volatility_matched = feedback.loc[
+            feedback["macro_volatility_bucket"].astype(str) == volatility_bucket
+        ].copy()
+        if not volatility_matched.empty:
+            feedback = volatility_matched
     if horizon is not None and "horizon_steps" in feedback.columns:
         feedback = feedback.loc[
             pd.to_numeric(feedback["horizon_steps"], errors="coerce") == float(horizon)
@@ -10923,6 +10958,41 @@ def extract_model_row(frame: pd.DataFrame, model_name: str) -> dict[str, Any]:
     return match.iloc[0].to_dict() if not match.empty else {}
 
 
+def hybrid_decision_fields(horizon: int, hybrid_forecast: HybridForecastResult) -> dict[str, Any]:
+    center_return = float(hybrid_forecast.adjusted_predicted_return)
+    lower_return = float(hybrid_forecast.bear_predicted_return)
+    upper_return = float(hybrid_forecast.bull_predicted_return)
+    uncertainty_return = float(max(abs(center_return - lower_return), abs(upper_return - center_return)))
+    tier = str(hybrid_forecast.signal_tier or "NO_SIGNAL").upper()
+    confidence = float(hybrid_forecast.confidence)
+    point_forecast_reliable = bool(
+        tier == "HIGH_CONFIDENCE"
+        and confidence >= (0.72 if int(horizon) <= 7 else 0.76)
+    )
+    if point_forecast_reliable:
+        decision_mode = "point_signal"
+        actionability = "trade_signal"
+    elif tier == "OBSERVE":
+        decision_mode = "gated_return_range"
+        actionability = "observe_only"
+    else:
+        decision_mode = "uncertainty_range_only"
+        actionability = "range_only"
+    if int(horizon) >= 30 and tier != "HIGH_CONFIDENCE":
+        point_forecast_reliable = False
+        actionability = "range_only" if tier == "NO_SIGNAL" else "observe_only"
+        decision_mode = "gated_return_range" if tier == "OBSERVE" else "uncertainty_range_only"
+    return {
+        "forecast_decision_mode": decision_mode,
+        "forecast_actionability": actionability,
+        "forecast_point_price_reliable": point_forecast_reliable,
+        "forecast_center_return": center_return,
+        "forecast_uncertainty_return": uncertainty_return,
+        "forecast_lower_return": lower_return,
+        "forecast_upper_return": upper_return,
+    }
+
+
 def build_latest_forecast_summary(artifacts: PipelineArtifacts) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for horizon, horizon_artifacts in sorted(artifacts.horizons.items()):
@@ -10947,6 +11017,7 @@ def build_latest_forecast_summary(artifacts: PipelineArtifacts) -> pd.DataFrame:
             horizon_artifacts.reversal_backtest,
             horizon_artifacts.reversal_forecast.model_name,
         )
+        decision_fields = hybrid_decision_fields(int(horizon), horizon_artifacts.hybrid_forecast)
         rows.append(
             {
                 "horizon_steps": int(horizon),
@@ -11020,6 +11091,7 @@ def build_latest_forecast_summary(artifacts: PipelineArtifacts) -> pd.DataFrame:
                 "hybrid_bear_predicted_close": horizon_artifacts.hybrid_forecast.bear_predicted_close,
                 "hybrid_bull_predicted_return": horizon_artifacts.hybrid_forecast.bull_predicted_return,
                 "hybrid_bull_predicted_close": horizon_artifacts.hybrid_forecast.bull_predicted_close,
+                **decision_fields,
                 "regression_backtest_total_return": regression_backtest.get("total_return"),
                 "regression_backtest_sharpe": regression_backtest.get("sharpe"),
                 "regression_macro_bucket_label": regression_backtest.get("macro_bucket_label"),
@@ -11092,6 +11164,7 @@ def build_compact_dashboard(artifacts: PipelineArtifacts) -> pd.DataFrame:
             horizon_artifacts.reversal_backtest,
             horizon_artifacts.reversal_forecast.model_name,
         )
+        decision_fields = hybrid_decision_fields(int(horizon), horizon_artifacts.hybrid_forecast)
 
         regression_perm = top_importance_records(
             horizon_artifacts.regression_explainability.permutation_importance,
@@ -11206,6 +11279,7 @@ def build_compact_dashboard(artifacts: PipelineArtifacts) -> pd.DataFrame:
                 "hybrid_bear_predicted_close": horizon_artifacts.hybrid_forecast.bear_predicted_close,
                 "hybrid_bull_predicted_return": horizon_artifacts.hybrid_forecast.bull_predicted_return,
                 "hybrid_bull_predicted_close": horizon_artifacts.hybrid_forecast.bull_predicted_close,
+                **decision_fields,
                 "best_benchmark_model": benchmark_best.get("model"),
                 "best_benchmark_total_return": benchmark_best.get("total_return"),
                 "best_benchmark_sharpe": benchmark_best.get("sharpe"),

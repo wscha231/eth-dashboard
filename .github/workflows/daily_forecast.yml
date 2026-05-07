@@ -255,6 +255,8 @@ jobs:
             eth_forecast_outputs/summary.json
             lake/reports/collector_summary.json
             lake/reports/collector_data_quality_audit.json
+            lake/reports/collector_data_quality_audit.csv
+            lake/reports/collector_learning_exclusion_report.csv
             forecast_site/public/model_eval_report.json
             tests/phase0/model_eval_report.json
             tests/phase0/model_eval_report.md
@@ -306,6 +308,11 @@ jobs:
           # blocks predictions.db / public/*.json on main.
           git add -f forecast_site/predictions.db || true
           git add -f lake/gold/eth_master_daily.csv || true
+          git add -f \
+              lake/reports/collector_summary.json \
+              lake/reports/collector_data_quality_audit.json \
+              lake/reports/collector_data_quality_audit.csv \
+              lake/reports/collector_learning_exclusion_report.csv || true
           git add -f \
               eth_forecast_outputs/prediction_history.csv \
               eth_forecast_outputs/prediction_feedback_summary.csv \

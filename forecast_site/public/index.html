@@ -312,18 +312,28 @@ function gateMetrics(report, horizon) {
 
 function forecastHealth(metrics, horizon, forecast, confidence) {
   const tier = String(forecast.hybrid_signal_tier || "NO_SIGNAL").toUpperCase();
+  const actionability = String(forecast.forecast_actionability || "").toLowerCase();
+  const pointReliable = Number(forecast.forecast_point_price_reliable || 0) === 1 || forecast.forecast_point_price_reliable === true;
   const auc = Number(metrics.rocAuc);
   const strictHit = Number(metrics.strictHit);
   const signalDays = Number(metrics.signalDays);
   const conf = Number(confidence);
   const hasDirectionalEdge = Number.isFinite(auc) && auc >= 0.50;
   const hasStrictEdge = Number.isFinite(strictHit) && strictHit >= 58 && Number.isFinite(signalDays) && signalDays >= 3;
-  if (tier === "HIGH_CONFIDENCE" && Number.isFinite(conf) && conf >= 0.62 && (hasDirectionalEdge || hasStrictEdge)) {
+  if (pointReliable && tier === "HIGH_CONFIDENCE" && Number.isFinite(conf) && conf >= 0.62 && (hasDirectionalEdge || hasStrictEdge)) {
     return {
       label: "HIGH SIGNAL",
       direction: forecast.active_predicted_direction || forecast.hybrid_predicted_direction || "FLAT",
       useActive: true,
       note: "passed strict gate",
+    };
+  }
+  if (actionability === "range_only") {
+    return {
+      label: horizon === "30" ? "RANGE ONLY" : "LOW TRUST",
+      direction: "RANGE",
+      useActive: false,
+      note: "range-only gate",
     };
   }
   if (hasDirectionalEdge && hasStrictEdge && Number.isFinite(conf) && conf >= 0.32) {

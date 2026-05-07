@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS forecasts (
     hybrid_signal_reason                TEXT,
     hybrid_volatility_scale             REAL,
     hybrid_scenario_spread              REAL,
+    forecast_decision_mode              TEXT,
+    forecast_actionability              TEXT,
+    forecast_point_price_reliable       INTEGER,
+    forecast_center_return              REAL,
+    forecast_uncertainty_return         REAL,
+    forecast_lower_return               REAL,
+    forecast_upper_return               REAL,
 
     -- Hybrid "active" scenario (includes macro tilt)
     active_predicted_direction          TEXT,

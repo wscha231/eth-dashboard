@@ -69,6 +69,136 @@ def all_leakage_safe(rows: list[dict[str, Any]]) -> bool:
     return bool(checked) and all(bool(row.get("validation_leakage_safe")) for row in checked)
 
 
+def sign_label(value: float | None, *, deadband: float = 0.0) -> str:
+    if value is None:
+        return "UNKNOWN"
+    if value > deadband:
+        return "UP"
+    if value < -deadband:
+        return "DOWN"
+    return "FLAT"
+
+
+def percentile(values: list[float], q: float) -> float | None:
+    clean = sorted(value for value in values if math.isfinite(value))
+    if not clean:
+        return None
+    if len(clean) == 1:
+        return clean[0]
+    position = (len(clean) - 1) * q
+    lower = int(math.floor(position))
+    upper = int(math.ceil(position))
+    if lower == upper:
+        return clean[lower]
+    weight = position - lower
+    return clean[lower] * (1.0 - weight) + clean[upper] * weight
+
+
+def regime_breakdown(candidate: dict[str, Any], horizon: str) -> list[dict[str, Any]]:
+    predictions = rows_for_horizon(candidate, horizon, "predictions")
+    if not predictions:
+        return []
+    actual_abs_returns = [
+        abs(value)
+        for value in (finite_float(row.get("actual_return")) for row in predictions)
+        if value is not None
+    ]
+    high_vol_cutoff = percentile(actual_abs_returns, 0.75)
+    low_vol_cutoff = percentile(actual_abs_returns, 0.25)
+
+    enriched: list[dict[str, Any]] = []
+    for row in predictions:
+        actual_return = finite_float(row.get("actual_return"))
+        if actual_return is None:
+            continue
+        abs_return = abs(actual_return)
+        if high_vol_cutoff is not None and abs_return >= high_vol_cutoff:
+            volatility_bucket = "HIGH_VOL"
+        elif low_vol_cutoff is not None and abs_return <= low_vol_cutoff:
+            volatility_bucket = "LOW_VOL"
+        else:
+            volatility_bucket = "MID_VOL"
+        enriched.append(
+            {
+                **row,
+                "_actual_return": actual_return,
+                "_actual_direction": sign_label(actual_return),
+                "_volatility_bucket": volatility_bucket,
+            }
+        )
+
+    breakdown_rows: list[dict[str, Any]] = []
+    for bucket_name, bucket_getter in (
+        ("realized_direction", lambda item: item["_actual_direction"]),
+        ("realized_volatility", lambda item: item["_volatility_bucket"]),
+    ):
+        groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        for row in enriched:
+            key = (
+                str(row.get("head") or ""),
+                str(row.get("model") or ""),
+                str(bucket_getter(row)),
+            )
+            groups.setdefault(key, []).append(row)
+        for (head, model, bucket), group in groups.items():
+            actual = [item["_actual_return"] for item in group]
+            predicted_return = [finite_float(item.get("predicted_return")) for item in group]
+            predicted_return_clean = [value for value in predicted_return if value is not None]
+            probability_up = [finite_float(item.get("probability_up")) for item in group]
+            probability_up_clean = [value for value in probability_up if value is not None]
+            predicted_label = [finite_float(item.get("predicted_label")) for item in group]
+            predicted_label_clean = [int(value) for value in predicted_label if value is not None]
+            actual_labels = [1 if value > 0 else 0 for value in actual]
+
+            row_out: dict[str, Any] = {
+                "bucket_type": bucket_name,
+                "bucket": bucket,
+                "head": head,
+                "model": model,
+                "n": len(group),
+                "mean_actual_return": sum(actual) / len(actual) if actual else None,
+            }
+            if predicted_return_clean and len(predicted_return_clean) == len(actual):
+                errors = [pred - act for pred, act in zip(predicted_return_clean, actual)]
+                row_out.update(
+                    {
+                        "return_mae": sum(abs(error) for error in errors) / len(errors),
+                        "return_rmse": math.sqrt(sum(error * error for error in errors) / len(errors)),
+                        "directional_accuracy": sum(
+                            1
+                            for pred, act in zip(predicted_return_clean, actual)
+                            if sign_label(pred) == sign_label(act)
+                        )
+                        / len(actual),
+                    }
+                )
+            if probability_up_clean and len(probability_up_clean) == len(actual):
+                brier = [
+                    (probability - actual_label) ** 2
+                    for probability, actual_label in zip(probability_up_clean, actual_labels)
+                ]
+                row_out["brier_score"] = sum(brier) / len(brier)
+            if predicted_label_clean and len(predicted_label_clean) == len(actual_labels):
+                row_out["classification_accuracy"] = sum(
+                    1
+                    for pred, actual_label in zip(predicted_label_clean, actual_labels)
+                    if int(pred) == int(actual_label)
+                ) / len(actual_labels)
+            breakdown_rows.append(row_out)
+
+    return sorted(
+        breakdown_rows,
+        key=lambda row: (
+            str(row.get("bucket_type")),
+            str(row.get("bucket")),
+            str(row.get("head")),
+            finite_float(row.get("return_mae")) if finite_float(row.get("return_mae")) is not None else 999.0,
+            finite_float(row.get("brier_score")) if finite_float(row.get("brier_score")) is not None else 999.0,
+            str(row.get("model")),
+        ),
+    )
+
+
 def completed_folds(payload: dict[str, Any], horizon: str) -> int:
     raw = (payload.get("folds_completed") or {}).get(str(horizon))
     value = finite_float(raw)
@@ -194,6 +324,7 @@ def evaluate(
                 "leakage_safe": all_leakage_safe(cls_rows),
             },
             "threshold_sweep": {},
+            "regime_breakdown": regime_breakdown(candidate, horizon),
         }
         report["horizons"][str(horizon)] = horizon_report
 
@@ -315,6 +446,37 @@ def write_markdown(path: Path, report: dict[str, Any], failures: list[str], warn
                 f"- Threshold sweep best: `{sweep.get('model')}` threshold `{sweep.get('threshold')}` "
                 f"accuracy `{sweep.get('accuracy_on_signals')}` signal% `{sweep.get('signal_pct_days')}`"
             )
+        regime_rows = horizon_report.get("regime_breakdown") or []
+        if regime_rows:
+            worst_regression = [
+                row for row in regime_rows
+                if row.get("head") == "regression" and finite_float(row.get("return_mae")) is not None
+            ]
+            worst_classification = [
+                row for row in regime_rows
+                if row.get("head") == "classification" and finite_float(row.get("brier_score")) is not None
+            ]
+            worst_regression = sorted(
+                worst_regression,
+                key=lambda row: finite_float(row.get("return_mae")) or float("-inf"),
+                reverse=True,
+            )[:3]
+            worst_classification = sorted(
+                worst_classification,
+                key=lambda row: finite_float(row.get("brier_score")) or float("-inf"),
+                reverse=True,
+            )[:3]
+            lines.append("- Regime breakdown: included in JSON for realized direction and realized volatility buckets")
+            for row in worst_regression:
+                lines.append(
+                    f"  - Regression weak bucket `{row.get('bucket_type')}={row.get('bucket')}` "
+                    f"model `{row.get('model')}` return MAE `{row.get('return_mae')}` n `{row.get('n')}`"
+                )
+            for row in worst_classification:
+                lines.append(
+                    f"  - Classification weak bucket `{row.get('bucket_type')}={row.get('bucket')}` "
+                    f"model `{row.get('model')}` Brier `{row.get('brier_score')}` n `{row.get('n')}`"
+                )
         lines.append("")
     if failures:
         lines.extend(["## Failures", ""])
