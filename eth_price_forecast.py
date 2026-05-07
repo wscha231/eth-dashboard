@@ -9287,6 +9287,7 @@ def build_active_forecast_track(
     volatility_scale: float,
     macro_context_summary: dict[str, Any],
     live_gap_penalty: float,
+    signal_tier: str = "NO_SIGNAL",
 ) -> dict[str, float | str]:
     macro_spread = safe_float(macro_context_summary.get("macro_spread")) or 0.0
     trend_bias_score = safe_float(macro_context_summary.get("trend_bias_score")) or 0.0
@@ -9326,9 +9327,14 @@ def build_active_forecast_track(
     if live_gap_penalty > 0.0:
         active_return *= float(np.clip(1.0 - 0.12 * live_gap_penalty, 0.70, 1.0))
 
-    active_clip_multiplier = 1.28 if horizon <= 7 else 1.40
-    active_clip_cap = 0.24 if horizon <= 7 else 0.55
-    active_clip_floor = 0.10 if horizon <= 7 else 0.18
+    tier = str(signal_tier or "NO_SIGNAL").upper()
+    active_clip_multiplier = 1.20 if horizon <= 7 else 1.24
+    if horizon <= 7:
+        active_clip_cap = 0.24 if tier == "HIGH_CONFIDENCE" else 0.18
+        active_clip_floor = 0.08 if tier == "HIGH_CONFIDENCE" else 0.055
+    else:
+        active_clip_cap = 0.42 if tier == "HIGH_CONFIDENCE" else 0.30
+        active_clip_floor = 0.16 if tier == "HIGH_CONFIDENCE" else 0.09
     active_lower = min(max(target_low * active_clip_multiplier, -active_clip_cap), -active_clip_floor)
     active_upper = max(min(target_high * active_clip_multiplier, active_clip_cap), active_clip_floor)
     active_return = float(np.clip(active_return, active_lower, active_upper))
@@ -9350,6 +9356,15 @@ def build_active_forecast_track(
             1.16 if horizon <= 7 else 1.24,
         )
     )
+    if tier == "NO_SIGNAL":
+        active_spread_scale *= 0.55 if horizon <= 7 else 0.48
+        active_spread_cap = 0.085 if horizon <= 7 else 0.16
+    elif tier == "OBSERVE":
+        active_spread_scale *= 0.72 if horizon <= 7 else 0.64
+        active_spread_cap = 0.12 if horizon <= 7 else 0.22
+    else:
+        active_spread_cap = 0.18 if horizon <= 7 else 0.34
+    active_spread_floor = 0.025 if horizon <= 7 else 0.06
     active_bear_spread = float(scenario_spread * active_spread_scale)
     active_bull_spread = float(scenario_spread * active_spread_scale)
     if active_direction == "UP":
@@ -9358,10 +9373,15 @@ def build_active_forecast_track(
     elif active_direction == "DOWN":
         active_bear_spread *= 1.12
         active_bull_spread *= 0.88
+    else:
+        active_bear_spread *= 0.78 if horizon <= 7 else 0.70
+        active_bull_spread *= 0.78 if horizon <= 7 else 0.70
     if live_gap_penalty > 0.0:
         spread_shrink = float(np.clip(1.0 - 0.12 * live_gap_penalty, 0.76, 1.0))
         active_bear_spread *= spread_shrink
         active_bull_spread *= spread_shrink
+    active_bear_spread = float(np.clip(active_bear_spread, active_spread_floor, active_spread_cap))
+    active_bull_spread = float(np.clip(active_bull_spread, active_spread_floor, active_spread_cap))
 
     active_bear_return = float(np.clip(active_return - active_bear_spread, active_lower, active_upper))
     active_bull_return = float(np.clip(active_return + active_bull_spread, active_lower, active_upper))
@@ -9609,24 +9629,24 @@ def build_hybrid_forecast(
         adjusted_return = min(adjusted_return * 0.35, 0.0) + min(hybrid_bias, 0.0) * 0.40
     if predicted_market_state == "SIDEWAYS":
         sideways_cap = max(
-            target_scale * (1.20 if horizon <= 7 else 1.40),
-            scenario_spread * (0.95 if signal_tier != "NO_SIGNAL" else 0.80),
-            0.10 if horizon <= 7 else 0.22,
+            target_scale * (1.10 if horizon <= 7 else 1.20),
+            scenario_spread * (0.82 if signal_tier != "NO_SIGNAL" else 0.62),
+            0.08 if horizon <= 7 else 0.16,
         )
         adjusted_return = float(np.clip(adjusted_return, -sideways_cap, sideways_cap))
 
     if signal_tier == "NO_SIGNAL":
         clip_multiplier = 1.10 if horizon <= 7 else 1.15
-        clip_cap = 0.18 if horizon <= 7 else 0.35
-        clip_floor = 0.08 if horizon <= 7 else 0.12
+        clip_cap = 0.16 if horizon <= 7 else 0.28
+        clip_floor = 0.06 if horizon <= 7 else 0.09
     elif signal_tier == "OBSERVE":
         clip_multiplier = 1.18 if horizon <= 7 else 1.24
-        clip_cap = 0.22 if horizon <= 7 else 0.42
-        clip_floor = 0.09 if horizon <= 7 else 0.15
+        clip_cap = 0.20 if horizon <= 7 else 0.34
+        clip_floor = 0.07 if horizon <= 7 else 0.12
     else:
         clip_multiplier = 1.25 if horizon <= 7 else 1.35
-        clip_cap = 0.25 if horizon <= 7 else 0.50
-        clip_floor = 0.10 if horizon <= 7 else 0.18
+        clip_cap = 0.24 if horizon <= 7 else 0.42
+        clip_floor = 0.09 if horizon <= 7 else 0.16
     if live_gap_penalty > 0.0:
         clip_cap = max(clip_floor, clip_cap * (1.0 - 0.16 * live_gap_penalty))
     clip_lower = min(max(target_low * clip_multiplier, -clip_cap), -clip_floor)
@@ -9650,6 +9670,7 @@ def build_hybrid_forecast(
         volatility_scale=volatility_scale,
         macro_context_summary=macro_context_summary,
         live_gap_penalty=live_gap_penalty,
+        signal_tier=signal_tier,
     )
     adjusted_return = float(
         np.clip(

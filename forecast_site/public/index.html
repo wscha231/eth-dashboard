@@ -249,6 +249,7 @@ const signedPct = (value, digits = 2) => {
   if (!Number.isFinite(n)) return "--";
   return `${n >= 0 ? "+" : ""}${(n * 100).toFixed(digits)}%`;
 };
+const clamp = (value, lower, upper) => Math.min(Math.max(value, lower), upper);
 const fmtDate = (value) => {
   if (!value) return "--";
   const d = new Date(value);
@@ -300,9 +301,66 @@ function gateMetrics(report, horizon) {
     rmse: h.regression?.best_price_rmse,
     returnMae: h.regression?.best_return_mae,
     dirAcc: h.regression?.best_directional_accuracy,
+    rocAuc: h.classification?.best_roc_auc,
+    balAcc: h.classification?.best_balanced_accuracy,
+    brier: h.classification?.best_brier_score,
     strictHit: h.threshold_sweep?.accuracy_on_signals,
     signalDays: h.threshold_sweep?.signal_pct_days,
     backtestModel: h.threshold_sweep?.model || "n/a",
+  };
+}
+
+function forecastHealth(metrics, horizon, forecast, confidence) {
+  const tier = String(forecast.hybrid_signal_tier || "NO_SIGNAL").toUpperCase();
+  const auc = Number(metrics.rocAuc);
+  const strictHit = Number(metrics.strictHit);
+  const signalDays = Number(metrics.signalDays);
+  const conf = Number(confidence);
+  const hasDirectionalEdge = Number.isFinite(auc) && auc >= 0.50;
+  const hasStrictEdge = Number.isFinite(strictHit) && strictHit >= 58 && Number.isFinite(signalDays) && signalDays >= 3;
+  if (tier === "HIGH_CONFIDENCE" && Number.isFinite(conf) && conf >= 0.62 && (hasDirectionalEdge || hasStrictEdge)) {
+    return {
+      label: "HIGH SIGNAL",
+      direction: forecast.active_predicted_direction || forecast.hybrid_predicted_direction || "FLAT",
+      useActive: true,
+      note: "passed strict gate",
+    };
+  }
+  if (hasDirectionalEdge && hasStrictEdge && Number.isFinite(conf) && conf >= 0.32) {
+    return {
+      label: "SELECTIVE",
+      direction: forecast.hybrid_predicted_direction || forecast.classification_predicted_direction || "FLAT",
+      useActive: true,
+      note: "use only with gate",
+    };
+  }
+  return {
+    label: horizon === "30" ? "RANGE ONLY" : "LOW TRUST",
+    direction: "RANGE",
+    useActive: false,
+    note: hasDirectionalEdge ? "weak signal" : "no direction edge",
+  };
+}
+
+function practicalRange(centerPrice, metrics, horizon, forecast, health) {
+  const h = Number(horizon);
+  const mae = Number(metrics.returnMae);
+  const volScale = Number(forecast.hybrid_volatility_scale);
+  let spread = Number.isFinite(mae) ? mae * 1.10 : (h <= 7 ? 0.07 : 0.16);
+  if (Number.isFinite(volScale)) {
+    spread += clamp((volScale - 1.0) * (h <= 7 ? 0.018 : 0.028), -0.01, 0.04);
+  }
+  const floor = h <= 7 ? 0.035 : 0.08;
+  const cap = health.label === "HIGH SIGNAL"
+    ? (h <= 7 ? 0.14 : 0.28)
+    : health.label === "SELECTIVE"
+      ? (h <= 7 ? 0.12 : 0.22)
+      : (h <= 7 ? 0.10 : 0.18);
+  spread = clamp(spread, floor, cap);
+  return {
+    lower: centerPrice * (1 - spread),
+    upper: centerPrice * (1 + spread),
+    spread,
   };
 }
 
@@ -341,13 +399,20 @@ function renderForecast(latest, report) {
   $("forecast-grid").innerHTML = ["7", "30"].map((horizon) => {
     const f = latest.horizons[horizon] || {};
     const metrics = gateMetrics(report, horizon);
-    const base = f.active_predicted_close ?? f.regression_predicted_close;
-    const bear = f.active_bear_predicted_close ?? f.regression_lower_close_10;
-    const bull = f.active_bull_predicted_close ?? f.regression_upper_close_90;
-    const price = rollingTarget(base, refPrice);
-    const direction = f.hybrid_predicted_direction || f.classification_predicted_direction || "FLAT";
-    const ret = f.active_predicted_return ?? f.regression_predicted_return;
     const confidence = f.active_confidence ?? f.hybrid_confidence ?? f.classification_confidence;
+    const health = forecastHealth(metrics, horizon, f, confidence);
+    const base = health.useActive
+      ? (f.active_predicted_close ?? f.regression_predicted_close)
+      : (f.regression_predicted_close ?? f.active_predicted_close);
+    const price = rollingTarget(base, refPrice);
+    const direction = health.direction || f.hybrid_predicted_direction || f.classification_predicted_direction || "FLAT";
+    const ret = Number.isFinite(Number(base)) && Number.isFinite(refPrice) && refPrice !== 0
+      ? (Number(base) - refPrice) / refPrice
+      : (f.active_predicted_return ?? f.regression_predicted_return);
+    const range = practicalRange(price, metrics, horizon, f, health);
+    const moveLine = health.useActive
+      ? `${signedPct(ret)} expected move`
+      : `No reliable point edge; ${fmtPct(range.spread)} practical band`;
     return `
       <article class="panel forecast-card">
         <div class="card-top">
@@ -358,11 +423,11 @@ function renderForecast(latest, report) {
           <span class="pill ${directionClass(direction)}">${String(direction).toUpperCase()}</span>
         </div>
         <div class="price">${fmtUSD(price)}</div>
-        <div class="return ${Number(ret) >= 0 ? "up" : Number(ret) < 0 ? "down" : "flat"}">${signedPct(ret)} expected move</div>
+        <div class="return ${health.useActive ? (Number(ret) >= 0 ? "up" : Number(ret) < 0 ? "down" : "flat") : "flat"}">${moveLine}</div>
         <div class="stats">
-          <div class="stat"><span>Past strict hit</span><b>${fmtRawPct(metrics.strictHit)}</b><div class="small">${metrics.signalDays ?? "--"}% signal days</div></div>
-          <div class="stat"><span>Confidence</span><b>${fmtPct(confidence)}</b><div class="small">${String(f.hybrid_signal_tier || "NO_SIGNAL").replace(/_/g, " ")}</div></div>
-          <div class="stat"><span>Bear/Base/Bull</span><b>${fmtUSD(rollingTarget(bear, refPrice))}</b><div class="small">${fmtUSD(price)} / ${fmtUSD(rollingTarget(bull, refPrice))}</div></div>
+          <div class="stat"><span>Past gated hit</span><b>${fmtRawPct(metrics.strictHit)}</b><div class="small">${metrics.signalDays ?? "--"}% signal days</div></div>
+          <div class="stat"><span>Model trust</span><b>${health.label}</b><div class="small">${health.note}; AUC ${fmtPct(metrics.rocAuc, 1)}</div></div>
+          <div class="stat"><span>Practical range</span><b>${fmtUSD(range.lower)}</b><div class="small">${fmtUSD(price)} / ${fmtUSD(range.upper)}</div></div>
           <div class="stat"><span>Market</span><b>${f.macro_risk_regime || "n/a"}</b><div class="small">${f.macro_directional_bias || "FLAT"} bias</div></div>
         </div>
       </article>

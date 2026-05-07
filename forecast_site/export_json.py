@@ -59,7 +59,9 @@ def export_latest(conn) -> dict:
                classification_model, classification_predicted_direction,
                classification_probability_up, classification_confidence,
                hybrid_predicted_direction, hybrid_signal_tier, hybrid_confidence,
-               active_predicted_close, active_bear_predicted_close, active_bull_predicted_close,
+               hybrid_volatility_scale, hybrid_scenario_spread,
+               active_predicted_return, active_predicted_close,
+               active_bear_predicted_close, active_bull_predicted_close,
                regime_predicted_state, reversal_predicted_signal,
                macro_risk_regime, macro_directional_bias, macro_readiness_status
         FROM forecasts
