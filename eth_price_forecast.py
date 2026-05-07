@@ -849,13 +849,27 @@ def load_prediction_history_csv(path: str | Path | None) -> pd.DataFrame:
     source = Path(path)
     if not source.exists():
         return pd.DataFrame()
-    frame = pd.read_csv(
-        source,
-        parse_dates=["run_timestamp", "forecast_input_timestamp", "forecast_target_timestamp"],
-    )
+    try:
+        if source.stat().st_size == 0:
+            return pd.DataFrame()
+        frame = pd.read_csv(source)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
+    for column in ("run_timestamp", "forecast_input_timestamp", "forecast_target_timestamp"):
+        if column in frame.columns:
+            frame[column] = pd.to_datetime(frame[column], errors="coerce")
     if "horizon_steps" in frame.columns:
-        frame["horizon_steps"] = frame["horizon_steps"].astype(int)
-    return frame.sort_values(["forecast_input_timestamp", "horizon_steps", "run_timestamp"]).reset_index(drop=True)
+        horizon_steps = pd.to_numeric(frame["horizon_steps"], errors="coerce")
+        frame = frame.loc[horizon_steps.notna()].copy()
+        frame["horizon_steps"] = horizon_steps.loc[frame.index].astype(int)
+    sort_columns = [
+        column
+        for column in ("forecast_input_timestamp", "horizon_steps", "run_timestamp")
+        if column in frame.columns
+    ]
+    if sort_columns:
+        frame = frame.sort_values(sort_columns)
+    return frame.reset_index(drop=True)
 
 
 def frame_numeric_series(frame: pd.DataFrame, column: str) -> pd.Series:

@@ -67,3 +67,12 @@ def test_oof_return_calibration_shrinks_overconfident_regression() -> None:
     assert applied_metadata["applied"] is True
     assert calibrated_oof is not None
     assert abs(adjusted) < 0.18
+
+
+def test_prediction_history_loader_allows_empty_file(tmp_path) -> None:
+    history_path = tmp_path / "prediction_history.csv"
+    history_path.write_text("", encoding="utf-8")
+
+    history = efp.load_prediction_history_csv(history_path)
+
+    assert history.empty
