@@ -66,7 +66,7 @@ def build_horizon_payload(market_data, horizon: int) -> dict:
     )
     training_dataset = feature_frame.loc[
         full_mask,
-        candidates + ["eth_close", "target_return", "target_close", *STATE_COLS],
+        candidates + ["eth_close", "target_return", "target_close", *efp.DIRECTION_TARGET_COLUMNS, *STATE_COLS],
     ].copy()
     sample_weights = efp.build_time_decay_sample_weights(
         training_dataset.index, interval="1d", horizon=horizon,
@@ -91,6 +91,10 @@ def build_horizon_payload(market_data, horizon: int) -> dict:
             "candidate_feature_count":      len(candidates),
             "phase6_vendor_feature_count":  phase6_vendor_columns,
             "training_rows":                int(len(training_dataset)),
+            "direction_actionable_rate":     efp.direction_target_actionable_rate(training_dataset, horizon),
+            "direction_actionable_rows":     int(
+                efp.get_direction_classification_target(training_dataset, horizon).notna().sum()
+            ),
             "embargo":                      embargo,
         },
     }

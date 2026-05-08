@@ -80,7 +80,7 @@ REQUIRED_TICKERS = {"eth", "btc"}
 CACHE_UPDATE_LOOKBACK_ROWS = 400
 DEFAULT_MASTER_DATA_CSV = "eth_master_daily.csv"
 DEFAULT_CLASSIFICATION_SIGNAL_THRESHOLD = 0.55
-DEFAULT_CLASSIFICATION_THRESHOLD_GRID = [0.50, 0.55, 0.60, 0.65]
+DEFAULT_CLASSIFICATION_THRESHOLD_GRID = [0.50, 0.55, 0.60, 0.65, 0.70]
 DEFAULT_CLASSIFICATION_MIN_EDGE = 0.03
 DEFAULT_REGRESSION_THRESHOLD_GRID = [0.0, 0.005, 0.01, 0.02]
 DEFAULT_FEATURE_MIN_COVERAGE = 0.03
@@ -105,6 +105,14 @@ DEFAULT_LONG_TRAINING_WINDOW_YEARS = 5.0
 DEFAULT_SHORT_SAMPLE_WEIGHT_HALF_LIFE_YEARS = 1.0
 DEFAULT_LONG_SAMPLE_WEIGHT_HALF_LIFE_YEARS = 1.5
 DEFAULT_SAMPLE_WEIGHT_MIN = 0.05
+DIRECTION_TARGET_LABEL_COLUMN = "target_direction_label"
+DIRECTION_TARGET_THRESHOLD_COLUMN = "target_direction_threshold"
+DIRECTION_TARGET_ACTIONABLE_COLUMN = "target_direction_is_actionable"
+DIRECTION_TARGET_COLUMNS = [
+    DIRECTION_TARGET_LABEL_COLUMN,
+    DIRECTION_TARGET_THRESHOLD_COLUMN,
+    DIRECTION_TARGET_ACTIONABLE_COLUMN,
+]
 GENERIC_VENDOR_PREFIXES = (
     "external_",
     "artemis_",
@@ -891,6 +899,82 @@ def realized_direction_band_for_horizon(horizon: int | float | None) -> float:
     if horizon_steps <= 30:
         return 0.018
     return 0.030
+
+
+def classification_direction_threshold_bounds(
+    horizon: int | float | None,
+) -> tuple[float, float, float]:
+    """Return vol multiplier, floor, and cap for actionable direction labels.
+
+    Ordinary sign labels make ETH 30d classification behave like a coin toss
+    because tiny positive/negative outcomes are mostly noise. These thresholds
+    define the binary target as "meaningful up move" vs "meaningful down move";
+    middle/range outcomes are excluded from direction-model scoring and training.
+    """
+    horizon_steps = int(horizon) if horizon is not None and pd.notna(horizon) else 7
+    if horizon_steps <= 7:
+        return 0.40, 0.008, 0.045
+    if horizon_steps <= 30:
+        return 0.65, 0.055, 0.160
+    return 0.70, 0.080, 0.240
+
+
+def build_direction_classification_targets(close: pd.Series, horizon: int) -> pd.DataFrame:
+    close_series = pd.to_numeric(close, errors="coerce").astype(float)
+    future_return = close_series.shift(-horizon) / close_series - 1.0
+    daily_return = close_series.pct_change(fill_method=None)
+    multiplier, floor, cap = classification_direction_threshold_bounds(horizon)
+    realized_threshold = (
+        daily_return.rolling(30, min_periods=20).std() * np.sqrt(max(int(horizon), 1)) * multiplier
+    )
+    threshold = realized_threshold.clip(lower=floor, upper=cap).fillna(floor)
+    label = pd.Series(np.nan, index=close_series.index, dtype=float)
+    label.loc[future_return >= threshold] = 1.0
+    label.loc[future_return <= -threshold] = 0.0
+    actionable = label.notna() & future_return.notna()
+    return pd.DataFrame(
+        {
+            DIRECTION_TARGET_LABEL_COLUMN: label,
+            DIRECTION_TARGET_THRESHOLD_COLUMN: threshold.where(future_return.notna(), np.nan),
+            DIRECTION_TARGET_ACTIONABLE_COLUMN: actionable.astype(float).where(future_return.notna(), np.nan),
+        },
+        index=close_series.index,
+    )
+
+
+def get_direction_classification_target(dataset: pd.DataFrame, horizon: int | None = None) -> pd.Series:
+    if DIRECTION_TARGET_LABEL_COLUMN in dataset.columns:
+        return pd.to_numeric(dataset[DIRECTION_TARGET_LABEL_COLUMN], errors="coerce")
+    if "target_return" not in dataset.columns:
+        return pd.Series(np.nan, index=dataset.index, dtype=float)
+    # Backward-compatible fallback for older OOF artifacts/tests that predate
+    # the actionable large-move target.
+    target_return = pd.to_numeric(dataset["target_return"], errors="coerce")
+    return (target_return > 0.0).astype(float).where(target_return.notna(), np.nan)
+
+
+def direction_classification_target_column(dataset: pd.DataFrame) -> str:
+    return DIRECTION_TARGET_LABEL_COLUMN if DIRECTION_TARGET_LABEL_COLUMN in dataset.columns else "target_return"
+
+
+def direction_target_valid_mask(dataset: pd.DataFrame, horizon: int | None = None) -> pd.Series:
+    target = get_direction_classification_target(dataset, horizon)
+    return target.notna()
+
+
+def direction_target_actionable_rate(dataset: pd.DataFrame, horizon: int | None = None) -> float:
+    target = get_direction_classification_target(dataset, horizon)
+    if target.empty:
+        return float("nan")
+    valid_return = (
+        pd.to_numeric(dataset["target_return"], errors="coerce").notna()
+        if "target_return" in dataset.columns
+        else pd.Series(True, index=dataset.index)
+    )
+    denominator = int(valid_return.sum())
+    if denominator <= 0:
+        return float("nan")
+    return float(target.notna().sum() / denominator)
 
 
 def infer_direction_from_return_value(
@@ -2997,6 +3081,7 @@ def build_features(
                 },
                 index=frame.index,
             ),
+            build_direction_classification_targets(frame["eth_close"], horizon=horizon),
             build_state_targets(frame["eth_close"], horizon=horizon),
         ],
         axis=1,
@@ -3012,6 +3097,7 @@ def build_features(
         if column in {
             "target_return",
             "target_close",
+            *DIRECTION_TARGET_COLUMNS,
             "target_regime",
             "target_reversal_state",
             "target_bottom_reversal",
@@ -3770,7 +3856,40 @@ def build_permutation_importance_report(
         y = dataset["target_return"]
         scoring = "neg_root_mean_squared_error"
     else:
-        y = (dataset["target_return"] > 0).astype(int)
+        y = get_direction_classification_target(dataset, horizon)
+        valid_direction_mask = y.notna()
+        if not valid_direction_mask.all():
+            dataset = dataset.loc[valid_direction_mask].copy()
+            X = dataset[feature_columns]
+            y = y.loc[valid_direction_mask]
+            split_indices = select_explainability_split(
+                dataset=dataset,
+                feature_columns=feature_columns,
+                horizon=horizon,
+                preferred_test_size=cv_test_size,
+            )
+            if split_indices is None:
+                return (
+                    pd.DataFrame(
+                        columns=[
+                            "model",
+                            "feature",
+                            "importance_mean",
+                            "importance_std",
+                            "rank",
+                            "train_rows",
+                            "eval_rows",
+                            "scoring",
+                        ]
+                    ),
+                    {
+                        "analysis": "permutation_importance",
+                        "status": "skipped",
+                        "detail": "Not enough actionable direction rows for permutation importance.",
+                    },
+                )
+            train_idx, test_idx = split_indices
+        y = y.astype(int)
         scoring = "roc_auc" if y.iloc[test_idx].nunique() > 1 else "balanced_accuracy"
 
     if task == "classification" and y.iloc[train_idx].nunique() < 2:
@@ -4007,7 +4126,15 @@ def build_explainability_artifacts(
         target = dataset["target_return"]
     else:
         model_template = make_classification_models(horizon=horizon)[model_name]
-        target = (dataset["target_return"] > 0).astype(int)
+        target = get_direction_classification_target(dataset, horizon)
+        valid_direction_mask = target.notna()
+        dataset = dataset.loc[valid_direction_mask].copy()
+        target = target.loc[valid_direction_mask].astype(int)
+        if dataset.empty or target.nunique() < 2:
+            return empty_explainability_artifacts(
+                model_name,
+                "Classification explainability skipped because actionable direction labels had fewer than two classes.",
+            )
 
     if task == "classification":
         fitted_model = fit_calibrated_classifier(
@@ -5518,13 +5645,26 @@ def build_recent_holdout_report(
             }
         )
 
-    actual_labels = (holdout_dataset["target_return"] > 0).astype(int)
+    train_direction_target = get_direction_classification_target(train_dataset, horizon)
+    train_direction_mask = train_direction_target.notna()
+    direction_train_dataset = train_dataset.loc[train_direction_mask].copy()
+    direction_train_target = train_direction_target.loc[train_direction_mask].astype(int)
+    direction_train_sample_weight = (
+        train_sample_weight.loc[direction_train_dataset.index]
+        if train_sample_weight is not None and not direction_train_dataset.empty
+        else None
+    )
+    holdout_direction_target = get_direction_classification_target(holdout_dataset, horizon)
+    holdout_direction_mask = holdout_direction_target.notna()
+    actual_labels = holdout_direction_target.loc[holdout_direction_mask].astype(int)
     for model_name, template in make_classification_models(horizon=horizon).items():
+        if direction_train_dataset.empty or direction_train_target.nunique() < 2 or actual_labels.empty:
+            continue
         model = fit_calibrated_classifier(
             template,
-            train_dataset[feature_columns],
-            (train_dataset["target_return"] > 0).astype(int),
-            sample_weight=train_sample_weight,
+            direction_train_dataset[feature_columns],
+            direction_train_target,
+            sample_weight=direction_train_sample_weight,
         )
         probabilities = pd.Series(
             model.predict_proba(holdout_dataset[feature_columns])[:, 1],
@@ -5539,10 +5679,11 @@ def build_recent_holdout_report(
         classification_holdout_probabilities[model_name] = probabilities.copy()
         selected_threshold = float((classification_thresholds or {}).get(model_name, DEFAULT_CLASSIFICATION_SIGNAL_THRESHOLD))
         _, effective_threshold = resolve_classification_signal_thresholds(selected_threshold)
+        evaluation_probabilities = probabilities.loc[actual_labels.index]
         classification_metrics = evaluate_direction_classification(
             actual_label=actual_labels.to_numpy(),
-            predicted_label=(probabilities >= effective_threshold).astype(int).to_numpy(),
-            probability_up=probabilities.to_numpy(),
+            predicted_label=(evaluation_probabilities >= effective_threshold).astype(int).to_numpy(),
+            probability_up=evaluation_probabilities.to_numpy(),
         )
         signal = classification_signal_from_probabilities(probabilities, threshold=selected_threshold)
         best_backtest, _ = run_signal_backtest(
@@ -5555,8 +5696,8 @@ def build_recent_holdout_report(
             {
                 "task": "classification",
                 "model": model_name,
-                "train_rows": int(len(train_dataset)),
-                "evaluation_rows": int(len(holdout_dataset)),
+                "train_rows": int(len(direction_train_dataset)),
+                "evaluation_rows": int(len(actual_labels)),
                 "embargo_rows": int(holdout_embargo_rows),
                 "validation_scheme": validation_scheme,
                 "signal_threshold": float(effective_threshold),
@@ -5606,10 +5747,11 @@ def build_recent_holdout_report(
             )
         )
         _, effective_threshold = resolve_classification_signal_thresholds(selected_threshold)
+        evaluation_probability = ensemble_probability.loc[actual_labels.index]
         classification_metrics = evaluate_direction_classification(
             actual_label=actual_labels.to_numpy(),
-            predicted_label=(ensemble_probability >= effective_threshold).astype(int).to_numpy(),
-            probability_up=ensemble_probability.to_numpy(),
+            predicted_label=(evaluation_probability >= effective_threshold).astype(int).to_numpy(),
+            probability_up=evaluation_probability.to_numpy(),
         )
         signal = classification_signal_from_probabilities(ensemble_probability, threshold=selected_threshold)
         best_backtest, _ = run_signal_backtest(
@@ -5622,8 +5764,8 @@ def build_recent_holdout_report(
             {
                 "task": "classification",
                 "model": TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL,
-                "train_rows": int(len(train_dataset)),
-                "evaluation_rows": int(len(holdout_dataset)),
+                "train_rows": int(len(direction_train_dataset)),
+                "evaluation_rows": int(len(actual_labels)),
                 "embargo_rows": int(holdout_embargo_rows),
                 "validation_scheme": validation_scheme,
                 "signal_threshold": float(effective_threshold),
@@ -7262,9 +7404,9 @@ def select_classification_forecast_model(
 ) -> tuple[str, str]:
     if classification_leaderboard.empty or "model" not in classification_leaderboard.columns:
         return "", "fallback_heuristic"
-    minimum_cv_balanced_accuracy = 0.50
-    minimum_cv_roc_auc = 0.48 if horizon is not None and horizon <= 7 else 0.50
-    minimum_holdout_balanced_accuracy = 0.50 if horizon is not None and horizon <= 7 else 0.55
+    minimum_cv_balanced_accuracy = 0.50 if horizon is not None and horizon <= 7 else 0.52
+    minimum_cv_roc_auc = 0.48 if horizon is not None and horizon <= 7 else 0.52
+    minimum_holdout_balanced_accuracy = 0.50 if horizon is not None and horizon <= 7 else 0.56
     macro_context = derive_macro_selection_context(latest_features, horizon or 30)
     macro_suffix = f"+{macro_context['selection_tag']}" if macro_context else ""
 
@@ -7743,7 +7885,7 @@ def walk_forward_classification(
     min_feature_coverage: float = DEFAULT_FEATURE_MIN_COVERAGE,
     embargo: int = 0,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    y = (dataset["target_return"] > 0).astype(int)
+    y = get_direction_classification_target(dataset, gap)
     splitter = purged_time_series_split(
         n_samples=len(dataset),
         n_splits=n_splits,
@@ -7763,7 +7905,12 @@ def walk_forward_classification(
         fold_count = 0
 
         for train_idx, test_idx in splitter.split(split_source):
-            y_train = y.iloc[train_idx]
+            train_positions = np.asarray(train_idx, dtype=int)
+            prediction_positions = np.asarray(test_idx, dtype=int)
+            train_positions = train_positions[y.iloc[train_positions].notna().to_numpy()]
+            if len(train_positions) == 0 or len(prediction_positions) == 0:
+                continue
+            y_train = y.iloc[train_positions].astype(int)
             if y_train.nunique() < 2:
                 continue
 
@@ -7771,10 +7918,10 @@ def walk_forward_classification(
                 fold_features = select_fold_features(
                     dataset=dataset,
                     candidate_feature_columns=feature_columns,
-                    train_positions=train_idx,
+                    train_positions=train_positions,
                     min_feature_coverage=min_feature_coverage,
                     horizon=gap,
-                    target_column="target_return",
+                    target_column=direction_classification_target_column(dataset),
                 )
                 if not fold_features:
                     fold_features = feature_columns
@@ -7784,25 +7931,25 @@ def walk_forward_classification(
 
             model = fit_calibrated_classifier(
                 template,
-                X_fold.iloc[train_idx],
+                X_fold.iloc[train_positions],
                 y_train,
-                sample_weight=aligned_sample_weight.iloc[train_idx] if aligned_sample_weight is not None else None,
+                sample_weight=aligned_sample_weight.iloc[train_positions] if aligned_sample_weight is not None else None,
             )
             prob_up = pd.Series(
-                model.predict_proba(X_fold.iloc[test_idx])[:, 1],
-                index=X_fold.iloc[test_idx].index,
+                model.predict_proba(X_fold.iloc[prediction_positions])[:, 1],
+                index=X_fold.iloc[prediction_positions].index,
                 dtype=float,
             )
-            overlay_frame = dataset.iloc[test_idx] if fold_feature_selection else X_fold.iloc[test_idx]
+            overlay_frame = dataset.iloc[prediction_positions] if fold_feature_selection else X_fold.iloc[prediction_positions]
             prob_up = apply_direction_regime_overlay(
                 prob_up,
                 overlay_frame,
                 horizon=gap,
             )
-            probabilities.iloc[test_idx] = prob_up.to_numpy()
+            probabilities.iloc[prediction_positions] = prob_up.to_numpy()
             fold_count += 1
 
-        valid_probabilities = probabilities.dropna()
+        valid_probabilities = probabilities.loc[y.notna()].dropna()
         if valid_probabilities.empty or fold_count == 0:
             continue
 
@@ -7959,12 +8106,25 @@ def fit_best_classifier(
     horizon: int,
     sample_weight: pd.Series | None = None,
 ) -> Any:
-    target = (dataset["target_return"] > 0).astype(int)
+    target = get_direction_classification_target(dataset, horizon)
+    valid_mask = target.notna()
+    training_dataset = dataset.loc[valid_mask].copy()
+    target = target.loc[valid_mask].astype(int)
+    base_sample_weight = align_sample_weight(sample_weight, dataset.index)
+    aligned_sample_weight = (
+        base_sample_weight.loc[training_dataset.index]
+        if base_sample_weight is not None and not training_dataset.empty
+        else None
+    )
+    if training_dataset.empty or target.nunique() < 2:
+        raise ValueError(
+            f"Need at least two actionable direction classes to fit {model_name} for horizon {horizon}."
+        )
     return fit_calibrated_classifier(
         make_classification_models(horizon=horizon)[model_name],
-        dataset[feature_columns],
+        training_dataset[feature_columns],
         target,
-        sample_weight=sample_weight,
+        sample_weight=aligned_sample_weight,
     )
 
 
@@ -8160,10 +8320,15 @@ def append_trimmed_classification_ensemble_candidate(
         return leaderboard, oof_predictions
 
     updated_oof = oof_predictions.copy()
-    actual = (dataset.loc[valid_probability.index, "target_return"] > 0).astype(int)
+    actual_target = get_direction_classification_target(dataset, horizon).loc[valid_probability.index]
+    valid_evaluation = actual_target.notna() & valid_probability.notna()
+    if not valid_evaluation.any():
+        return leaderboard, oof_predictions
+    actual = actual_target.loc[valid_evaluation].astype(int)
+    evaluation_probability = valid_probability.loc[valid_evaluation]
     selected_threshold, metrics = choose_classification_evaluation_threshold(
         actual_label=actual,
-        probability_up=valid_probability,
+        probability_up=evaluation_probability,
         horizon=horizon,
     )
     predicted_label = pd.Series(
@@ -8652,8 +8817,10 @@ def strengthen_classification_threshold(
     if pd.notna(backtest_sharpe) and pd.notna(holdout_sharpe):
         weaken_signal = weaken_signal or (float(backtest_sharpe) <= 0.0 and float(holdout_sharpe) <= 0.0)
 
+    if horizon >= 30:
+        threshold = max(threshold, 0.65)
     if weaken_signal:
-        threshold = max(threshold, 0.65 if horizon <= 7 else 0.60)
+        threshold = max(threshold, 0.65 if horizon <= 7 else 0.70)
     return threshold, weaken_signal
 
 
@@ -10103,6 +10270,8 @@ def forecast_direction(
         if np.isfinite(last_close) and np.isfinite(model_input_close) and model_input_close > 0.0
         else 0.0
     )
+    if DIRECTION_TARGET_LABEL_COLUMN in training_dataset.columns:
+        selection_basis = f"{selection_basis}+large_move_target"
     if model_name == TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL:
         component_models: list[str] = []
         if classification_leaderboard is not None and not classification_leaderboard.empty:
@@ -10116,16 +10285,19 @@ def forecast_direction(
             )
         component_models = [component for component in component_models if component != model_name]
         if len(component_models) < 2:
-            raise ValueError("Trimmed direction ensemble was selected without enough component models.")
+            component_models = []
         component_probabilities: dict[str, float] = {}
         for component_model in component_models:
-            component_classifier = fit_best_classifier(
-                training_dataset,
-                feature_columns,
-                component_model,
-                horizon=horizon,
-                sample_weight=sample_weight,
-            )
+            try:
+                component_classifier = fit_best_classifier(
+                    training_dataset,
+                    feature_columns,
+                    component_model,
+                    horizon=horizon,
+                    sample_weight=sample_weight,
+                )
+            except ValueError:
+                continue
             component_probability = float(
                 apply_direction_regime_overlay(
                     pd.Series(
@@ -10139,32 +10311,40 @@ def forecast_direction(
                 ).iloc[0]
             )
             component_probabilities[component_model] = component_probability
-        classification_weights = derive_ensemble_weights_from_leaderboard(
-            classification_leaderboard, list(component_models), "brier_score", higher_is_better=False
-        )
-        probability_up = float(
-            skill_weighted_trimmed_mean(
-                pd.DataFrame([component_probabilities], index=latest_features.index),
-                weights=classification_weights,
-            ).iloc[0]
-        )
-        selection_basis = f"{selection_basis}+skill_weighted[{ '|'.join(component_models) }]"
+        if len(component_probabilities) < 2:
+            probability_up = 0.5
+            selection_basis = f"{selection_basis}+insufficient_actionable_labels"
+        else:
+            classification_weights = derive_ensemble_weights_from_leaderboard(
+                classification_leaderboard, list(component_probabilities.keys()), "brier_score", higher_is_better=False
+            )
+            probability_up = float(
+                skill_weighted_trimmed_mean(
+                    pd.DataFrame([component_probabilities], index=latest_features.index),
+                    weights=classification_weights,
+                ).iloc[0]
+            )
+            selection_basis = f"{selection_basis}+skill_weighted[{ '|'.join(component_probabilities.keys()) }]"
     else:
-        model = fit_best_classifier(
-            training_dataset,
-            feature_columns,
-            model_name,
-            horizon=horizon,
-            sample_weight=sample_weight,
-        )
-        probability_up = float(
-            apply_direction_regime_overlay(
-                pd.Series(model.predict_proba(latest_features)[:, 1], index=latest_features.index, dtype=float),
-                latest_features,
+        try:
+            model = fit_best_classifier(
+                training_dataset,
+                feature_columns,
+                model_name,
                 horizon=horizon,
-                live_gap=live_gap,
-            ).iloc[0]
-        )
+                sample_weight=sample_weight,
+            )
+            probability_up = float(
+                apply_direction_regime_overlay(
+                    pd.Series(model.predict_proba(latest_features)[:, 1], index=latest_features.index, dtype=float),
+                    latest_features,
+                    horizon=horizon,
+                    live_gap=live_gap,
+                ).iloc[0]
+            )
+        except ValueError:
+            probability_up = 0.5
+            selection_basis = f"{selection_basis}+insufficient_actionable_labels"
     probability_down = float(1.0 - probability_up)
     lower_threshold, upper_threshold = resolve_classification_signal_thresholds(signal_threshold)
     if probability_up >= upper_threshold:
@@ -10327,7 +10507,7 @@ def run_horizon_pipeline(
     prediction_mask = feature_frame["eth_close"].notna()
     full_training_dataset = feature_frame.loc[
         full_training_mask,
-        feature_columns + ["eth_close", "target_return", "target_close", *state_target_columns],
+        feature_columns + ["eth_close", "target_return", "target_close", *DIRECTION_TARGET_COLUMNS, *state_target_columns],
     ].copy()
     full_training_rows = len(full_training_dataset)
     trimmed_training_dataset = trim_training_window(
@@ -10345,7 +10525,7 @@ def run_horizon_pipeline(
     )
     training_dataset = feature_frame.loc[
         training_mask,
-        raw_candidate_feature_columns + ["eth_close", "target_return", "target_close", *state_target_columns],
+        raw_candidate_feature_columns + ["eth_close", "target_return", "target_close", *DIRECTION_TARGET_COLUMNS, *state_target_columns],
     ].copy()
     prediction_frame = feature_frame.loc[prediction_mask, feature_columns + ["eth_close"]].copy()
     training_window_years = training_window_years_for_horizon(horizon)
@@ -10384,6 +10564,13 @@ def run_horizon_pipeline(
         sample_weight_half_life_years=sample_weight_half_life_years,
         sample_weights=sample_weights,
         full_training_rows=full_training_rows,
+    )
+    data_window_summary["direction_actionable_rate"] = direction_target_actionable_rate(training_dataset, horizon)
+    data_window_summary["direction_actionable_rows"] = int(
+        get_direction_classification_target(training_dataset, horizon).notna().sum()
+    )
+    data_window_summary["direction_target_type"] = (
+        "large_move_ex_neutral" if DIRECTION_TARGET_LABEL_COLUMN in training_dataset.columns else "signed_return"
     )
 
     log_progress(verbose, f"{label}running regression walk-forward validation...")
@@ -10708,7 +10895,7 @@ def run_horizon_pipeline(
     )
     if "cv_weak" in classification_selection_basis:
         classification_suppressed = True
-        classification_threshold = max(classification_threshold, 0.65 if horizon <= 7 else 0.60)
+        classification_threshold = max(classification_threshold, 0.65 if horizon <= 7 else 0.70)
     if classification_suppressed:
         classification_selection_basis = f"{classification_selection_basis}+weak_signal_suppressed"
     if build_explainability:
@@ -11144,6 +11331,9 @@ def build_latest_forecast_summary(artifacts: PipelineArtifacts) -> pd.DataFrame:
                 "raw_rows": data_window.get("raw_rows"),
                 "training_rows": data_window.get("training_rows"),
                 "feature_count": data_window.get("feature_count"),
+                "direction_target_type": data_window.get("direction_target_type"),
+                "direction_actionable_rate": data_window.get("direction_actionable_rate"),
+                "direction_actionable_rows": data_window.get("direction_actionable_rows"),
             }
         )
     return pd.DataFrame(rows)
@@ -12336,6 +12526,13 @@ def main(argv: list[str] | None = None) -> None:
                 f"train_rows_per_fold={data_window['min_train_rows_per_fold']}~{data_window['max_train_rows_per_fold']}, "
                 f"validation_rows_per_fold={data_window['min_validation_rows_per_fold']}~{data_window['max_validation_rows_per_fold']}"
             )
+            if data_window.get("direction_target_type"):
+                print(
+                    "  Direction target: "
+                    f"type={data_window.get('direction_target_type')}, "
+                    f"actionable_rows={data_window.get('direction_actionable_rows')}, "
+                    f"actionable_rate={data_window.get('direction_actionable_rate')}"
+                )
             print(
                 "  Data sufficiency: "
                 f"practical_min_years={data_window['practical_min_years']}, "

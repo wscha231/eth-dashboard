@@ -248,28 +248,36 @@ class FoldRunner:
             gc.collect()
 
         # --- Classification ---
-        y_cls = (y_return > 0).astype(int)
+        y_cls = efp.get_direction_classification_target(self.dataset, self.horizon)
 
         for model_name, template in self._cls_models.items():
-            y_train = y_cls.iloc[train_idx]
+            train_positions = np.asarray(train_idx, dtype=int)
+            prediction_positions = np.asarray(test_idx, dtype=int)
+            train_positions = train_positions[y_cls.iloc[train_positions].notna().to_numpy()]
+            if len(train_positions) == 0 or len(prediction_positions) == 0:
+                continue
+            y_train = y_cls.iloc[train_positions].astype(int)
             if y_train.nunique() < 2:
                 continue
 
-            fold_features = self._fold_features(train_idx)
+            fold_features = self._fold_features(
+                train_positions,
+                target_column=efp.direction_classification_target_column(self.dataset),
+            )
             X_full = self.dataset[fold_features]
             train_sw = (
-                self.aligned_sample_weight.iloc[train_idx]
+                self.aligned_sample_weight.iloc[train_positions]
                 if self.aligned_sample_weight is not None else None
             )
 
             model = efp.fit_calibrated_classifier(
-                template, X_full.iloc[train_idx], y_train, sample_weight=train_sw,
+                template, X_full.iloc[train_positions], y_train, sample_weight=train_sw,
             )
             prob_up = pd.Series(
-                model.predict_proba(X_full.iloc[test_idx])[:, 1],
-                index=X_full.iloc[test_idx].index, dtype=float,
+                model.predict_proba(X_full.iloc[prediction_positions])[:, 1],
+                index=X_full.iloc[prediction_positions].index, dtype=float,
             )
-            overlay_frame = self.dataset.iloc[test_idx]
+            overlay_frame = self.dataset.iloc[prediction_positions]
             prob_up = efp.apply_direction_regime_overlay(
                 prob_up, overlay_frame, horizon=self.horizon,
             )
@@ -286,6 +294,7 @@ class FoldRunner:
                 actual_return = (
                     (act - ref) / ref if (ref is not None and ref > 0 and act is not None) else None
                 )
+                actual_target = y_cls.loc[date] if date in y_cls.index else np.nan
                 rows.append({
                     "horizon_days":    self.horizon,
                     "head":            "classification",
@@ -296,7 +305,7 @@ class FoldRunner:
                     "reference_close": ref,
                     "actual_close":    act,
                     "actual_return":   actual_return,
-                    "actual_label":    int(actual_return > 0) if actual_return is not None else None,
+                    "actual_label":    int(actual_target) if pd.notna(actual_target) else None,
                     "probability_up":  float(prob),
                     # predicted_label filled in at finalize (needs threshold).
                     "predicted_label": None,
@@ -310,7 +319,7 @@ class FoldRunner:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _fold_features(self, train_idx: np.ndarray) -> list[str]:
+    def _fold_features(self, train_idx: np.ndarray, target_column: str = "target_return") -> list[str]:
         """Fold-internal feature selection — uses train rows only."""
         selected = efp.select_fold_features(
             dataset=self.dataset,
@@ -318,7 +327,7 @@ class FoldRunner:
             train_positions=train_idx,
             min_feature_coverage=self.min_feature_coverage,
             horizon=self.horizon,
-            target_column="target_return",
+            target_column=target_column,
         )
         return selected or list(self.feature_columns)
 
@@ -402,14 +411,19 @@ def finalize_run(
         for c in runner.cls_oof.columns
         if c.endswith("_prob_up")
     ]
-    y_cls = (dataset["target_return"] > 0).astype(int)
+    y_cls = efp.get_direction_classification_target(dataset, horizon)
     for model_name in cls_models_with_oof:
         prob_col = runner.cls_oof[f"{model_name}_prob_up"].dropna()
         if prob_col.empty:
             continue
-        actual = y_cls.loc[prob_col.index].astype(int)
+        actual_target = y_cls.loc[prob_col.index]
+        valid_evaluation = actual_target.notna() & prob_col.notna()
+        if not valid_evaluation.any():
+            continue
+        actual = actual_target.loc[valid_evaluation].astype(int)
+        evaluation_probability = prob_col.loc[valid_evaluation]
         threshold, metrics = efp.choose_classification_evaluation_threshold(
-            actual_label=actual, probability_up=prob_col, horizon=horizon,
+            actual_label=actual, probability_up=evaluation_probability, horizon=horizon,
         )
         metrics["model"] = model_name
         metrics["folds"] = float(runner.n_splits)
@@ -523,9 +537,14 @@ def _append_equal_weight_classification_row(leaderboard, oof, dataset, horizon, 
     valid = blended.dropna()
     if valid.empty:
         return leaderboard
-    actual = (dataset.loc[valid.index, "target_return"] > 0).astype(int)
+    actual_target = efp.get_direction_classification_target(dataset, horizon).loc[valid.index]
+    valid_evaluation = actual_target.notna() & valid.notna()
+    if not valid_evaluation.any():
+        return leaderboard
+    actual = actual_target.loc[valid_evaluation].astype(int)
+    evaluation_probability = valid.loc[valid_evaluation]
     threshold, metrics = efp.choose_classification_evaluation_threshold(
-        actual_label=actual, probability_up=valid, horizon=horizon,
+        actual_label=actual, probability_up=evaluation_probability, horizon=horizon,
     )
     metrics["model"] = EQUAL_WEIGHT_CLASSIFICATION_MODEL
     metrics["folds"] = float(min(len(available), 4))
@@ -551,6 +570,7 @@ def _emit_ensemble_prediction_rows(
     dataset = runner.dataset
     current_close = dataset["eth_close"]
     target_close = dataset["target_close"]
+    direction_target = efp.get_direction_classification_target(dataset, horizon)
 
     # Find fold_index for each test date by scanning existing per-model rows.
     fold_for_date: dict[str, int] = {}
@@ -598,6 +618,7 @@ def _emit_ensemble_prediction_rows(
             actual_return = (
                 (act - ref) / ref if (ref is not None and ref > 0 and act is not None) else None
             )
+            actual_target = direction_target.loc[date] if date in direction_target.index else np.nan
             pred_label = None
             if label_col in runner.cls_oof.columns and not pd.isna(runner.cls_oof.loc[date, label_col]):
                 pred_label = int(runner.cls_oof.loc[date, label_col])
@@ -613,7 +634,7 @@ def _emit_ensemble_prediction_rows(
                 "reference_close": ref,
                 "actual_close":    act,
                 "actual_return":   actual_return,
-                "actual_label":    int(actual_return > 0) if actual_return is not None else None,
+                "actual_label":    int(actual_target) if pd.notna(actual_target) else None,
                 "probability_up":  float(prob),
                 "predicted_label": pred_label,
             })

@@ -86,6 +86,7 @@ def test_target_uses_negative_shift_only_for_targets() -> None:
     tree = ast.parse(SOURCE_TEXT)
     allowed_funcs = {
         "build_state_targets",
+        "build_direction_classification_targets",
         "compute_future_window_extrema",
         "build_features",
     }
@@ -125,8 +126,15 @@ def test_feature_does_not_see_future_rows(synthetic_ohlcv_with_companions: pd.Da
     perturbed_frame, _ = efp.build_features(perturbed_input, horizon=horizon)
 
     leaks: list[tuple[str, float, float]] = []
-    target_cols = {"target_return", "target_close", "target_regime",
-                   "target_reversal_state", "target_bottom_reversal", "target_top_reversal"}
+    target_cols = {
+        "target_return",
+        "target_close",
+        *efp.DIRECTION_TARGET_COLUMNS,
+        "target_regime",
+        "target_reversal_state",
+        "target_bottom_reversal",
+        "target_top_reversal",
+    }
     for column in feature_cols:
         if column in target_cols:
             continue

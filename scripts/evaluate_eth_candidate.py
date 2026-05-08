@@ -148,7 +148,12 @@ def regime_breakdown(candidate: dict[str, Any], horizon: str) -> list[dict[str, 
             probability_up_clean = [value for value in probability_up if value is not None]
             predicted_label = [finite_float(item.get("predicted_label")) for item in group]
             predicted_label_clean = [int(value) for value in predicted_label if value is not None]
-            actual_labels = [1 if value > 0 else 0 for value in actual]
+            actual_labels = [
+                int(label)
+                if (label := finite_float(item.get("actual_label"))) is not None
+                else None
+                for item in group
+            ]
 
             row_out: dict[str, Any] = {
                 "bucket_type": bucket_name,
@@ -172,18 +177,28 @@ def regime_breakdown(candidate: dict[str, Any], horizon: str) -> list[dict[str, 
                         / len(actual),
                     }
                 )
-            if probability_up_clean and len(probability_up_clean) == len(actual):
+            probability_label_pairs = [
+                (probability, actual_label)
+                for probability, actual_label in zip(probability_up, actual_labels)
+                if probability is not None and actual_label is not None
+            ]
+            if probability_label_pairs:
                 brier = [
                     (probability - actual_label) ** 2
-                    for probability, actual_label in zip(probability_up_clean, actual_labels)
+                    for probability, actual_label in probability_label_pairs
                 ]
                 row_out["brier_score"] = sum(brier) / len(brier)
-            if predicted_label_clean and len(predicted_label_clean) == len(actual_labels):
+            predicted_label_pairs = [
+                (pred, actual_label)
+                for pred, actual_label in zip(predicted_label, actual_labels)
+                if pred is not None and actual_label is not None
+            ]
+            if predicted_label_pairs:
                 row_out["classification_accuracy"] = sum(
                     1
-                    for pred, actual_label in zip(predicted_label_clean, actual_labels)
+                    for pred, actual_label in predicted_label_pairs
                     if int(pred) == int(actual_label)
-                ) / len(actual_labels)
+                ) / len(predicted_label_pairs)
             breakdown_rows.append(row_out)
 
     return sorted(

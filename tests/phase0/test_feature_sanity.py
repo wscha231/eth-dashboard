@@ -12,6 +12,8 @@ def test_build_features_returns_nonempty_columns(synthetic_ohlcv_with_companions
     assert len(columns) > 50, f"Expected >50 feature columns, got {len(columns)}"
     assert "target_return" in frame.columns
     assert "target_close" in frame.columns
+    for column in efp.DIRECTION_TARGET_COLUMNS:
+        assert column in frame.columns
 
 
 def test_build_features_no_infinities(synthetic_ohlcv_with_companions: pd.DataFrame) -> None:
@@ -34,6 +36,17 @@ def test_regime_targets_are_in_expected_set(synthetic_ohlcv_with_companions: pd.
     frame, _ = efp.build_features(synthetic_ohlcv_with_companions, horizon=7)
     regime = frame["target_regime"].dropna().unique()
     assert set(regime.tolist()).issubset({0.0, 1.0, 2.0}), f"Unexpected regime labels: {regime}"
+
+
+def test_direction_target_excludes_range_noise(synthetic_ohlcv_with_companions: pd.DataFrame) -> None:
+    frame, _ = efp.build_features(synthetic_ohlcv_with_companions, horizon=30)
+    target = efp.get_direction_classification_target(frame, 30)
+    clean = target.dropna()
+
+    assert not clean.empty
+    assert set(clean.unique().tolist()).issubset({0.0, 1.0})
+    assert len(clean) < frame["target_return"].notna().sum()
+    assert 0.0 < efp.direction_target_actionable_rate(frame, 30) < 1.0
 
 
 def test_time_series_splitter_respects_gap() -> None:
