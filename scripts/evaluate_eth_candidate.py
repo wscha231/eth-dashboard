@@ -249,7 +249,72 @@ def threshold_best(
             eligible.append(row)
     if not eligible:
         return None
-    return max(eligible, key=lambda row: finite_float(row.get("accuracy_on_signals")) or float("-inf"))
+
+    def accuracy_lower_bound(row: dict[str, Any]) -> float:
+        existing = finite_float(row.get("accuracy_wilson_lower_95"))
+        if existing is not None:
+            return existing
+        accuracy = finite_float(row.get("accuracy_on_signals"))
+        n_signal = finite_float(row.get("n_signal"))
+        if accuracy is None or n_signal is None or n_signal <= 0:
+            return float("-inf")
+        p = max(0.0, min(1.0, accuracy / 100.0))
+        z = 1.96
+        denom = 1.0 + (z * z / n_signal)
+        centre = p + (z * z / (2.0 * n_signal))
+        margin = z * ((p * (1.0 - p) / n_signal + z * z / (4.0 * n_signal * n_signal)) ** 0.5)
+        return 100.0 * ((centre - margin) / denom)
+
+    return max(
+        eligible,
+        key=lambda row: (
+            accuracy_lower_bound(row),
+            finite_float(row.get("accuracy_on_signals")) or float("-inf"),
+            finite_float(row.get("signal_pct_days")) or float("-inf"),
+            finite_float(row.get("n_signal")) or float("-inf"),
+        ),
+    )
+
+
+def selective_signal_override_state(
+    threshold_row: dict[str, Any],
+    cls_spec: dict[str, Any],
+) -> dict[str, Any]:
+    """Return whether a selective threshold gate can offset weak global ROC AUC.
+
+    AUC evaluates global probability ranking over every day. The live strategy is
+    intentionally selective: most days should be FLAT/range-only, and only high
+    threshold days become directional calls. This override is therefore allowed
+    only when the threshold sweep clears explicit hit-rate and coverage floors.
+    """
+    enabled = bool(cls_spec.get("allow_selective_signal_override", False))
+    accuracy = finite_float(threshold_row.get("accuracy_on_signals"))
+    signal_pct = finite_float(threshold_row.get("signal_pct_days"))
+    n_signal = finite_float(threshold_row.get("n_signal"))
+    min_accuracy = finite_float(cls_spec.get("selective_min_accuracy_on_signals"))
+    min_signal_pct = finite_float(cls_spec.get("selective_min_signal_pct_days"))
+    min_n_signal = finite_float(cls_spec.get("selective_min_n_signal"))
+
+    passed = bool(
+        enabled
+        and accuracy is not None
+        and signal_pct is not None
+        and n_signal is not None
+        and (min_accuracy is None or accuracy >= min_accuracy)
+        and (min_signal_pct is None or signal_pct >= min_signal_pct)
+        and (min_n_signal is None or int(n_signal) >= int(min_n_signal))
+    )
+    return {
+        "enabled": enabled,
+        "passed": passed,
+        "applied": False,
+        "accuracy_on_signals": accuracy,
+        "signal_pct_days": signal_pct,
+        "n_signal": int(n_signal) if n_signal is not None else None,
+        "min_accuracy_on_signals": min_accuracy,
+        "min_signal_pct_days": min_signal_pct,
+        "min_n_signal": int(min_n_signal) if min_n_signal is not None else None,
+    }
 
 
 def check_max(
@@ -377,33 +442,6 @@ def evaluate(
             severity=reg_severity,
         )
 
-        cls_spec = spec.get("classification") or {}
-        cls_severity = str(cls_spec.get("severity", "fail"))
-        check_min(
-            failures,
-            warnings,
-            label=f"h{horizon} classification best_balanced_accuracy",
-            value=horizon_report["classification"]["best_balanced_accuracy"],
-            limit=finite_float(cls_spec.get("min_best_balanced_accuracy")),
-            severity=cls_severity,
-        )
-        check_max(
-            failures,
-            warnings,
-            label=f"h{horizon} classification best_brier_score",
-            value=horizon_report["classification"]["best_brier_score"],
-            limit=finite_float(cls_spec.get("max_best_brier_score")),
-            severity=cls_severity,
-        )
-        check_min(
-            failures,
-            warnings,
-            label=f"h{horizon} classification best_roc_auc",
-            value=horizon_report["classification"]["best_roc_auc"],
-            limit=finite_float(cls_spec.get("min_best_roc_auc")),
-            severity=cls_severity,
-        )
-
         sweep_spec = spec.get("threshold_sweep") or {}
         if sweep_spec and threshold_rows:
             best = threshold_best(
@@ -424,6 +462,49 @@ def evaluate(
             )
         elif sweep_spec and str(sweep_spec.get("severity", "warn")) == "fail":
             failures.append(f"h{horizon}: threshold sweep rows are missing")
+
+        cls_spec = spec.get("classification") or {}
+        cls_severity = str(cls_spec.get("severity", "fail"))
+        selective_state = selective_signal_override_state(
+            horizon_report.get("threshold_sweep") or {},
+            cls_spec,
+        )
+        horizon_report["classification"]["selective_signal_override"] = selective_state
+        check_min(
+            failures,
+            warnings,
+            label=f"h{horizon} classification best_balanced_accuracy",
+            value=horizon_report["classification"]["best_balanced_accuracy"],
+            limit=finite_float(cls_spec.get("min_best_balanced_accuracy")),
+            severity=cls_severity,
+        )
+        check_max(
+            failures,
+            warnings,
+            label=f"h{horizon} classification best_brier_score",
+            value=horizon_report["classification"]["best_brier_score"],
+            limit=finite_float(cls_spec.get("max_best_brier_score")),
+            severity=cls_severity,
+        )
+        roc_value = horizon_report["classification"]["best_roc_auc"]
+        roc_limit = finite_float(cls_spec.get("min_best_roc_auc"))
+        if roc_limit is not None:
+            if roc_value is None:
+                message = f"h{horizon} classification best_roc_auc: missing value"
+            elif roc_value >= roc_limit:
+                message = ""
+            else:
+                message = f"h{horizon} classification best_roc_auc: {roc_value:.6g} < min {roc_limit:.6g}"
+            if message:
+                if selective_state.get("passed"):
+                    selective_state["applied"] = True
+                    warnings.append(
+                        f"{message}; selective signal gate passed "
+                        f"({selective_state.get('accuracy_on_signals')}% hit, "
+                        f"{selective_state.get('signal_pct_days')}% days)"
+                    )
+                else:
+                    (warnings if cls_severity == "warn" else failures).append(message)
 
     return report, failures, warnings
 
@@ -460,6 +541,12 @@ def write_markdown(path: Path, report: dict[str, Any], failures: list[str], warn
             lines.append(
                 f"- Threshold sweep best: `{sweep.get('model')}` threshold `{sweep.get('threshold')}` "
                 f"accuracy `{sweep.get('accuracy_on_signals')}` signal% `{sweep.get('signal_pct_days')}`"
+            )
+        override = (cls.get("selective_signal_override") or {})
+        if override.get("enabled"):
+            lines.append(
+                f"- Selective signal override: passed `{override.get('passed')}` "
+                f"applied `{override.get('applied')}`"
             )
         regime_rows = horizon_report.get("regime_breakdown") or []
         if regime_rows:

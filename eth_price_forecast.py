@@ -80,7 +80,7 @@ REQUIRED_TICKERS = {"eth", "btc"}
 CACHE_UPDATE_LOOKBACK_ROWS = 400
 DEFAULT_MASTER_DATA_CSV = "eth_master_daily.csv"
 DEFAULT_CLASSIFICATION_SIGNAL_THRESHOLD = 0.55
-DEFAULT_CLASSIFICATION_THRESHOLD_GRID = [0.50, 0.55, 0.60, 0.65, 0.70]
+DEFAULT_CLASSIFICATION_THRESHOLD_GRID = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.92, 0.95]
 DEFAULT_CLASSIFICATION_MIN_EDGE = 0.03
 DEFAULT_REGRESSION_THRESHOLD_GRID = [0.0, 0.005, 0.01, 0.02]
 DEFAULT_FEATURE_MIN_COVERAGE = 0.03
@@ -8820,7 +8820,7 @@ def strengthen_classification_threshold(
     if horizon >= 30:
         threshold = max(threshold, 0.65)
     if weaken_signal:
-        threshold = max(threshold, 0.65 if horizon <= 7 else 0.70)
+        threshold = max(threshold, 0.75 if horizon <= 7 else 0.70)
     return threshold, weaken_signal
 
 

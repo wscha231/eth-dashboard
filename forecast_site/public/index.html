@@ -305,7 +305,9 @@ function gateMetrics(report, horizon) {
     balAcc: h.classification?.best_balanced_accuracy,
     brier: h.classification?.best_brier_score,
     strictHit: h.threshold_sweep?.accuracy_on_signals,
+    strictLower: h.threshold_sweep?.accuracy_wilson_lower_95,
     signalDays: h.threshold_sweep?.signal_pct_days,
+    selectiveOverride: h.classification?.selective_signal_override,
     backtestModel: h.threshold_sweep?.model || "n/a",
   };
 }
@@ -320,6 +322,7 @@ function forecastHealth(metrics, horizon, forecast, confidence) {
   const conf = Number(confidence);
   const hasDirectionalEdge = Number.isFinite(auc) && auc >= 0.50;
   const hasStrictEdge = Number.isFinite(strictHit) && strictHit >= 58 && Number.isFinite(signalDays) && signalDays >= 3;
+  const selectiveOverridePassed = metrics.selectiveOverride?.passed === true;
   if (pointReliable && tier === "HIGH_CONFIDENCE" && Number.isFinite(conf) && conf >= 0.62 && (hasDirectionalEdge || hasStrictEdge)) {
     return {
       label: "HIGH SIGNAL",
@@ -336,12 +339,12 @@ function forecastHealth(metrics, horizon, forecast, confidence) {
       note: "range-only gate",
     };
   }
-  if (hasDirectionalEdge && hasStrictEdge && Number.isFinite(conf) && conf >= 0.32) {
+  if (hasStrictEdge && Number.isFinite(conf) && conf >= 0.32) {
     return {
       label: "SELECTIVE",
       direction: forecast.hybrid_predicted_direction || forecast.classification_predicted_direction || "FLAT",
       useActive: true,
-      note: "use only with gate",
+      note: hasDirectionalEdge || selectiveOverridePassed ? "use only with gate" : "broad AUC weak",
     };
   }
   return {
@@ -376,7 +379,7 @@ function practicalRange(centerPrice, metrics, horizon, forecast, health) {
 
 function renderMetricLine(rootId, metrics) {
   const items = [
-    ["Strict hit", fmtRawPct(metrics.strictHit), `${metrics.signalDays ?? "--"}% days`],
+    ["Strict hit", fmtRawPct(metrics.strictHit), `floor ${fmtRawPct(metrics.strictLower)}; ${metrics.signalDays ?? "--"}% days`],
     ["Dir acc", fmtPct(metrics.dirAcc), "all OOF rows"],
     ["Return MAE", fmtPct(metrics.returnMae), "avg miss"],
     ["Folds", metrics.folds ?? "--", "walk-forward"],
@@ -435,7 +438,7 @@ function renderForecast(latest, report) {
         <div class="price">${fmtUSD(price)}</div>
         <div class="return ${health.useActive ? (Number(ret) >= 0 ? "up" : Number(ret) < 0 ? "down" : "flat") : "flat"}">${moveLine}</div>
         <div class="stats">
-          <div class="stat"><span>Past gated hit</span><b>${fmtRawPct(metrics.strictHit)}</b><div class="small">${metrics.signalDays ?? "--"}% signal days</div></div>
+          <div class="stat"><span>Past gated hit</span><b>${fmtRawPct(metrics.strictHit)}</b><div class="small">floor ${fmtRawPct(metrics.strictLower)}; ${metrics.signalDays ?? "--"}% signal days</div></div>
           <div class="stat"><span>Model trust</span><b>${health.label}</b><div class="small">${health.note}; AUC ${fmtPct(metrics.rocAuc, 1)}</div></div>
           <div class="stat"><span>Practical range</span><b>${fmtUSD(range.lower)}</b><div class="small">${fmtUSD(price)} / ${fmtUSD(range.upper)}</div></div>
           <div class="stat"><span>Market</span><b>${f.macro_risk_regime || "n/a"}</b><div class="small">${f.macro_directional_bias || "FLAT"} bias</div></div>

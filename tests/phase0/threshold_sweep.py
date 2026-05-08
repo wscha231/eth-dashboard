@@ -34,6 +34,17 @@ OUTPUT_JSON = Path(__file__).with_name("threshold_sweep_results.json")
 THRESHOLDS = [0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.92, 0.95]
 
 
+def wilson_lower_bound(successes: int, total: int, z: float = 1.96) -> float | None:
+    """95% Wilson lower bound as a percentage, for robust threshold ranking."""
+    if total <= 0:
+        return None
+    p = successes / total
+    denom = 1.0 + (z * z / total)
+    centre = p + (z * z / (2.0 * total))
+    margin = z * ((p * (1.0 - p) / total + z * z / (4.0 * total * total)) ** 0.5)
+    return round(100 * ((centre - margin) / denom), 2)
+
+
 def sweep_one_model(predictions: list[dict], horizon: int, model: str) -> list[dict]:
     """Return one row per threshold for (horizon, model)."""
     rows = [
@@ -67,7 +78,8 @@ def sweep_one_model(predictions: list[dict], horizon: int, model: str) -> list[d
         else:
             up_correct   = sum(1 for r in signals_up   if r["actual_label"] == 1)
             down_correct = sum(1 for r in signals_down if r["actual_label"] == 0)
-            acc          = (up_correct + down_correct) / n_signal
+            correct      = up_correct + down_correct
+            acc          = correct / n_signal
             up_acc       = up_correct   / n_up   if n_up   else float("nan")
             down_acc     = down_correct / n_down if n_down else float("nan")
 
@@ -81,6 +93,7 @@ def sweep_one_model(predictions: list[dict], horizon: int, model: str) -> list[d
             "n_down_signals": n_down,
             "signal_pct_days": round(100 * n_signal / n_total, 2) if n_total else 0.0,
             "accuracy_on_signals": round(100 * acc, 2) if n_signal else None,
+            "accuracy_wilson_lower_95": wilson_lower_bound(correct, n_signal) if n_signal else None,
             "up_signal_accuracy":   round(100 * up_acc, 2)   if n_up   else None,
             "down_signal_accuracy": round(100 * down_acc, 2) if n_down else None,
             "base_up_rate_full_oof": round(100 * base_up_rate, 2),
@@ -108,7 +121,9 @@ def main() -> None:
             p["model"] for p in predictions
             if p.get("head") == "classification" and p.get("model")
         })
-        # Models we care about: ensemble + top single models from leaderboard.
+        # Sweep the priority models first, then every remaining classifier.
+        # The best selective signal can move between model families by regime,
+        # so restricting the sweep silently hides useful gates.
         priority = [
             "trimmed_classification_ensemble_equal",
             "trimmed_equal_weight_direction",
@@ -116,8 +131,12 @@ def main() -> None:
             "knn_clf",
             "catboost_clf",
             "random_forest_clf",
+            "extra_trees_clf",
+            "hist_gbc",
+            "mlp_clf",
         ]
         models_to_sweep = [m for m in priority if m in cls_models]
+        models_to_sweep.extend(m for m in cls_models if m not in models_to_sweep)
 
         print(f"\n=== h={horizon} ===")
         for model in models_to_sweep:
