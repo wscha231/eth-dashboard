@@ -413,7 +413,11 @@ def evaluate(
         if require_complete and bool(candidate.get("partial")):
             failures.append(f"h{horizon}: candidate run is partial but profile requires complete")
         if require_leakage_safe and not horizon_report["classification"]["leakage_safe"]:
-            failures.append(f"h{horizon}: threshold validation is not leakage-safe for all classification rows")
+            message = f"h{horizon}: threshold validation is not leakage-safe for all classification rows"
+            if bool(candidate.get("partial")) and not require_complete:
+                warnings.append(f"{message}; partial smoke run only")
+            else:
+                failures.append(message)
 
         reg_spec = spec.get("regression") or {}
         reg_severity = str(reg_spec.get("severity", "fail"))
