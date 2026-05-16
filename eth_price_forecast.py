@@ -147,8 +147,13 @@ RUNTIME_OPTIONS: dict[str, Any] = {
 }
 REGIME_STATE_LABELS = {0: "DOWNTREND", 1: "SIDEWAYS", 2: "UPTREND"}
 REVERSAL_STATE_LABELS = {0: "TOP_REVERSAL", 1: "NONE", 2: "BOTTOM_REVERSAL"}
+NO_CHANGE_ANCHOR_MODEL = "no_change_anchor"
 TRIMMED_REGRESSION_ENSEMBLE_MODEL = "trimmed_equal_weight_regression"
 TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL = "trimmed_equal_weight_direction"
+REGRESSION_PSEUDO_MODELS = {
+    NO_CHANGE_ANCHOR_MODEL,
+    TRIMMED_REGRESSION_ENSEMBLE_MODEL,
+}
 MACRO_CONTEXT_FEATURE_COLUMNS = [
     "macro_tightening_20",
     "fred_bbb_oas_z_90",
@@ -4201,6 +4206,73 @@ def evaluate_predictions(
     }
 
 
+def append_no_change_regression_anchor(
+    leaderboard: pd.DataFrame,
+    oof_predictions: pd.DataFrame,
+    dataset: pd.DataFrame,
+    *,
+    folds: float | int | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Add the no-change close anchor as an explicit regression candidate.
+
+    For ETH, especially at 30d, many point-price models lose to the simple
+    baseline "target close equals reference close". Treating that anchor as a
+    first-class candidate lets model selection admit when there is no point
+    edge instead of forcing an overfit price estimate into the final forecast.
+    """
+    required = {"eth_close", "target_return"}
+    if not required.issubset(dataset.columns):
+        return leaderboard, oof_predictions
+
+    updated_oof = oof_predictions.copy()
+    validation_columns = [
+        column
+        for column in updated_oof.columns
+        if column.endswith("_pred_return")
+        and column != f"{NO_CHANGE_ANCHOR_MODEL}_pred_return"
+    ]
+    valid_mask = (
+        pd.to_numeric(dataset["eth_close"], errors="coerce").notna()
+        & pd.to_numeric(dataset["target_return"], errors="coerce").notna()
+    )
+    if validation_columns:
+        valid_mask = valid_mask & updated_oof[validation_columns].notna().any(axis=1)
+    valid_index = dataset.index[valid_mask]
+    if len(valid_index) == 0:
+        return leaderboard, updated_oof
+
+    anchor_return = pd.Series(np.nan, index=dataset.index, dtype=float)
+    anchor_return.loc[valid_index] = 0.0
+    updated_oof[f"{NO_CHANGE_ANCHOR_MODEL}_pred_return"] = anchor_return
+    updated_oof[f"{NO_CHANGE_ANCHOR_MODEL}_pred_close"] = pd.to_numeric(
+        dataset["eth_close"], errors="coerce"
+    )
+
+    matched = dataset.loc[valid_index]
+    summary = evaluate_predictions(
+        current_close=pd.to_numeric(matched["eth_close"], errors="coerce").to_numpy(dtype=float),
+        actual_return=pd.to_numeric(matched["target_return"], errors="coerce").to_numpy(dtype=float),
+        predicted_return=np.zeros(len(matched), dtype=float),
+    )
+    summary["model"] = NO_CHANGE_ANCHOR_MODEL
+    summary["folds"] = float(folds) if folds is not None else float("nan")
+    summary["component_models"] = ""
+    summary["forecast_role"] = "point_anchor"
+
+    updated_leaderboard = (
+        leaderboard.loc[leaderboard["model"].astype(str) != NO_CHANGE_ANCHOR_MODEL].copy()
+        if not leaderboard.empty and "model" in leaderboard.columns
+        else pd.DataFrame()
+    )
+    updated_leaderboard = pd.concat([updated_leaderboard, pd.DataFrame([summary])], ignore_index=True)
+    updated_leaderboard = updated_leaderboard.sort_values(
+        ["price_rmse", "price_mae"],
+        ascending=True,
+        na_position="last",
+    ).reset_index(drop=True)
+    return updated_leaderboard, updated_oof
+
+
 def _feature_series_or_nan(feature_frame: pd.DataFrame, column: str) -> pd.Series:
     if column not in feature_frame.columns:
         return pd.Series(np.nan, index=feature_frame.index, dtype=float)
@@ -6283,7 +6355,7 @@ def select_trimmed_regression_ensemble_members(
     if max_members is None:
         max_members = 3 if horizon <= 7 else 4
     frame = leaderboard.loc[
-        leaderboard["model"].astype(str) != TRIMMED_REGRESSION_ENSEMBLE_MODEL
+        ~leaderboard["model"].astype(str).isin(REGRESSION_PSEUDO_MODELS)
     ].copy()
     if frame.empty:
         return []
@@ -6309,7 +6381,7 @@ def select_trimmed_regression_ensemble_members(
         ].copy()
     if frame.empty:
         frame = leaderboard.loc[
-            leaderboard["model"].astype(str) != TRIMMED_REGRESSION_ENSEMBLE_MODEL
+            ~leaderboard["model"].astype(str).isin(REGRESSION_PSEUDO_MODELS)
         ].copy()
     frame = frame.sort_values(
         [rmse_column, mae_column, directional_column],
@@ -6326,7 +6398,7 @@ def select_trimmed_regression_ensemble_members(
     )
     if len(members) < 2:
         fallback = leaderboard.loc[
-            leaderboard["model"].astype(str) != TRIMMED_REGRESSION_ENSEMBLE_MODEL,
+            ~leaderboard["model"].astype(str).isin(REGRESSION_PSEUDO_MODELS),
             "model",
         ].astype(str).tolist()[:2]
         members = fallback
@@ -7040,10 +7112,33 @@ def select_regression_forecast_model(
 ) -> tuple[str, str]:
     if regression_leaderboard.empty or "model" not in regression_leaderboard.columns:
         return "", "fallback_heuristic"
+    horizon_value = int(horizon or 0)
+    if horizon_value < 30:
+        non_anchor = regression_leaderboard.loc[
+            regression_leaderboard["model"].astype(str) != NO_CHANGE_ANCHOR_MODEL
+        ].copy()
+        if not non_anchor.empty:
+            regression_leaderboard = non_anchor
     best_cv_rmse = pd.to_numeric(regression_leaderboard["price_rmse"], errors="coerce").min()
     best_cv_directional = pd.to_numeric(regression_leaderboard["directional_accuracy"], errors="coerce").max()
     macro_context = derive_macro_selection_context(latest_features, horizon or 30)
     macro_suffix = f"+{macro_context['selection_tag']}" if macro_context else ""
+    if horizon_value >= 30:
+        anchor_rows = regression_leaderboard.loc[
+            regression_leaderboard["model"].astype(str) == NO_CHANGE_ANCHOR_MODEL
+        ].copy()
+        non_anchor_rows = regression_leaderboard.loc[
+            regression_leaderboard["model"].astype(str) != NO_CHANGE_ANCHOR_MODEL
+        ].copy()
+        if not anchor_rows.empty and not non_anchor_rows.empty:
+            anchor_rmse = pd.to_numeric(anchor_rows.iloc[0].get("price_rmse"), errors="coerce")
+            best_non_anchor_rmse = pd.to_numeric(non_anchor_rows.get("price_rmse"), errors="coerce").min()
+            if (
+                pd.notna(anchor_rmse)
+                and pd.notna(best_non_anchor_rmse)
+                and anchor_rmse <= best_non_anchor_rmse * 1.002
+            ):
+                return NO_CHANGE_ANCHOR_MODEL, f"no_change_anchor_regime_range{macro_suffix}"
 
     if recent_holdout_report is not None and not recent_holdout_report.empty:
         regression_holdout = recent_holdout_report.loc[recent_holdout_report["task"] == "regression"].copy()
@@ -7382,6 +7477,13 @@ def select_regression_forecast_model(
             )
         ),
     )
+    if fallback_regression.empty:
+        fallback_regression = regression_leaderboard.rename(
+            columns={
+                "price_rmse": "cv_price_rmse",
+                "directional_accuracy": "cv_directional_accuracy",
+            }
+        )
     fallback_regression = score_regression_selection_candidates(
         fallback_regression,
         macro_context=macro_context,
@@ -7866,9 +7968,20 @@ def walk_forward_leaderboard(
         oof[f"{model_name}_pred_close"] = dataset["eth_close"] * (1.0 + predictions)
 
     if not rows:
-        return pd.DataFrame(), oof
+        return append_no_change_regression_anchor(
+            pd.DataFrame(),
+            oof,
+            dataset,
+            folds=0,
+        )
 
     leaderboard = pd.DataFrame(rows).sort_values(["price_rmse", "price_mae"], ascending=True).reset_index(drop=True)
+    leaderboard, oof = append_no_change_regression_anchor(
+        leaderboard,
+        oof,
+        dataset,
+        folds=n_splits,
+    )
     return leaderboard, oof
 
 
@@ -8439,6 +8552,8 @@ def choose_regression_blend_components(
     horizon: int,
     max_models: int | None = None,
 ) -> list[str]:
+    if selected_model == NO_CHANGE_ANCHOR_MODEL:
+        return [NO_CHANGE_ANCHOR_MODEL]
     if score_frame.empty:
         return [selected_model]
 
@@ -8447,10 +8562,9 @@ def choose_regression_blend_components(
 
     best_cv_rmse = pd.to_numeric(score_frame["cv_price_rmse"], errors="coerce").min()
     eligible = score_frame.copy()
-    if selected_model != TRIMMED_REGRESSION_ENSEMBLE_MODEL:
-        eligible = eligible.loc[
-            eligible["model"].astype(str) != TRIMMED_REGRESSION_ENSEMBLE_MODEL
-        ].copy()
+    eligible = eligible.loc[
+        ~eligible["model"].astype(str).isin(REGRESSION_PSEUDO_MODELS - {selected_model})
+    ].copy()
     if pd.notna(best_cv_rmse):
         tolerance = 1.15 if horizon <= 7 else 1.30
         eligible = eligible.loc[
@@ -9588,6 +9702,8 @@ def build_active_forecast_track(
     active_lower = min(max(target_low * active_clip_multiplier, -active_clip_cap), -active_clip_floor)
     active_upper = max(min(target_high * active_clip_multiplier, active_clip_cap), active_clip_floor)
     active_return = float(np.clip(active_return, active_lower, active_upper))
+    if horizon >= 30 and tier != "HIGH_CONFIDENCE":
+        active_return *= 0.35 if tier == "OBSERVE" else 0.20
 
     active_threshold = 0.012 if horizon <= 7 else 0.035
     if active_return >= active_threshold:
@@ -9877,6 +9993,10 @@ def build_hybrid_forecast(
         adjusted_return = max(adjusted_return * 0.35, 0.0) + max(hybrid_bias, 0.0) * 0.40
     elif predicted_reversal_signal == "TOP_REVERSAL" and adjusted_return > 0.0:
         adjusted_return = min(adjusted_return * 0.35, 0.0) + min(hybrid_bias, 0.0) * 0.40
+    if horizon >= 30 and signal_tier != "HIGH_CONFIDENCE":
+        adjusted_return *= 0.35 if signal_tier == "OBSERVE" else 0.20
+        if "horizon30_anchor_shrink" not in signal_reason:
+            signal_reason = f"{signal_reason}+horizon30_anchor_shrink"
     if predicted_market_state == "SIDEWAYS":
         sideways_cap = max(
             target_scale * (1.10 if horizon <= 7 else 1.20),
@@ -10070,6 +10190,37 @@ def forecast_next_step(
         if np.isfinite(last_close) and np.isfinite(model_input_close) and model_input_close > 0.0
         else 0.0
     )
+    if model_name == NO_CHANGE_ANCHOR_MODEL:
+        recent_target = (
+            pd.to_numeric(training_dataset["target_return"], errors="coerce").dropna()
+            if "target_return" in training_dataset.columns
+            else pd.Series(dtype=float)
+        )
+        if recent_target.empty:
+            lower_return, upper_return = (-0.18, 0.18) if horizon >= 30 else (-0.08, 0.08)
+        else:
+            recent_target = recent_target.tail(max(DEFAULT_RECENT_HOLDOUT_ROWS * 2, 240))
+            lower_return = float(np.nanquantile(recent_target.to_numpy(dtype=float), 0.10))
+            upper_return = float(np.nanquantile(recent_target.to_numpy(dtype=float), 0.90))
+        lower_return, upper_return = sorted((min(lower_return, 0.0), max(upper_return, 0.0)))
+        offset = interval_to_offset(interval) * horizon
+        prediction_timestamp = (prediction_frame.index[-1] + offset).strftime("%Y-%m-%d %H:%M:%S")
+        return ForecastResult(
+            model_name=model_name,
+            selection_basis=f"{selection_basis_text}+point_anchor+conformal_interval",
+            prediction_timestamp=prediction_timestamp,
+            horizon_steps=horizon,
+            model_input_close=model_input_close,
+            last_close=last_close,
+            reference_price_source=price_reference.source,
+            reference_price_timestamp=price_reference.timestamp,
+            predicted_return=0.0,
+            predicted_close=last_close,
+            lower_return_10=lower_return,
+            lower_close_10=last_close * (1.0 + lower_return),
+            upper_return_90=upper_return,
+            upper_close_90=last_close * (1.0 + upper_return),
+        )
 
     blended_oof_prediction = None
     if model_name == TRIMMED_REGRESSION_ENSEMBLE_MODEL:
@@ -10904,6 +11055,11 @@ def run_horizon_pipeline(
             regression_explainability = empty_explainability_artifacts(
                 best_regression_model,
                 "Trimmed equal-weight regression baseline selected; model-specific explainability was skipped.",
+            )
+        elif best_regression_model == NO_CHANGE_ANCHOR_MODEL:
+            regression_explainability = empty_explainability_artifacts(
+                best_regression_model,
+                "No-change anchor selected; point-model explainability was skipped.",
             )
         else:
             try:

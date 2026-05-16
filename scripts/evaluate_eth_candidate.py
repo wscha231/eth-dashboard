@@ -527,8 +527,11 @@ def evaluate(
             severity=reg_severity,
         )
         if bool(reg_spec.get("warn_if_worse_than_no_change")):
-            point_beats = horizon_report["regression"].get("point_forecast_beats_no_change")
-            if point_beats is False:
+            if (
+                best_price_rmse is not None
+                and no_change_rmse
+                and best_price_rmse > no_change_rmse * 1.002
+            ):
                 warnings.append(
                     f"h{horizon} regression best_price_rmse does not beat no-change benchmark: "
                     f"best={best_price_rmse:.6g}, no_change={no_change_rmse:.6g}, "

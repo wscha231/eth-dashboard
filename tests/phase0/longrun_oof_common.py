@@ -247,6 +247,34 @@ class FoldRunner:
             del model
             gc.collect()
 
+        anchor_return = pd.Series(0.0, index=self.dataset.iloc[test_idx].index, dtype=float)
+        self.reg_oof.loc[anchor_return.index, f"{efp.NO_CHANGE_ANCHOR_MODEL}_pred_return"] = anchor_return
+        self.reg_oof.loc[anchor_return.index, f"{efp.NO_CHANGE_ANCHOR_MODEL}_pred_close"] = current_close.loc[
+            anchor_return.index
+        ]
+        ref_close = current_close.iloc[test_idx]
+        act_close = target_close.iloc[test_idx]
+        for date, pr in anchor_return.items():
+            ref = float(ref_close.loc[date]) if not pd.isna(ref_close.loc[date]) else None
+            act = float(act_close.loc[date]) if not pd.isna(act_close.loc[date]) else None
+            actual_return = (
+                (act - ref) / ref if (ref is not None and ref > 0 and act is not None) else None
+            )
+            rows.append({
+                "horizon_days": self.horizon,
+                "head": "regression",
+                "model": efp.NO_CHANGE_ANCHOR_MODEL,
+                "prediction_date": date.strftime("%Y-%m-%d"),
+                "target_date": (date + pd.Timedelta(days=self.horizon)).strftime("%Y-%m-%d"),
+                "fold_index": int(fold_index),
+                "reference_close": ref,
+                "actual_close": act,
+                "actual_return": actual_return,
+                "actual_label": int(actual_return > 0) if actual_return is not None else None,
+                "predicted_return": float(pr),
+                "predicted_close": ref if ref is not None else None,
+            })
+
         # --- Classification ---
         y_cls = efp.get_direction_classification_target(self.dataset, self.horizon)
 
@@ -402,6 +430,12 @@ def finalize_run(
     reg_lb = pd.DataFrame(reg_rows).sort_values(
         ["price_rmse", "price_mae"], ascending=True,
     ).reset_index(drop=True) if reg_rows else pd.DataFrame()
+    reg_lb, runner.reg_oof = efp.append_no_change_regression_anchor(
+        reg_lb,
+        runner.reg_oof,
+        dataset,
+        folds=runner.n_splits,
+    )
 
     # --- Classification leaderboard (same pattern, but per-model threshold) ---
     cls_rows: list[dict[str, float | str]] = []
@@ -576,6 +610,37 @@ def _emit_ensemble_prediction_rows(
     fold_for_date: dict[str, int] = {}
     for row in rows_sink:
         fold_for_date.setdefault(row["prediction_date"], int(row["fold_index"]))
+
+    anchor_col = f"{efp.NO_CHANGE_ANCHOR_MODEL}_pred_return"
+    existing_anchor_dates = {
+        row.get("prediction_date")
+        for row in rows_sink
+        if row.get("head") == "regression" and row.get("model") == efp.NO_CHANGE_ANCHOR_MODEL
+    }
+    if anchor_col in runner.reg_oof.columns:
+        for date, pr in runner.reg_oof[anchor_col].dropna().items():
+            date_str = date.strftime("%Y-%m-%d")
+            if date_str in existing_anchor_dates or date_str not in fold_for_date:
+                continue
+            ref = float(current_close.loc[date]) if not pd.isna(current_close.loc[date]) else None
+            act = float(target_close.loc[date]) if not pd.isna(target_close.loc[date]) else None
+            actual_return = (
+                (act - ref) / ref if (ref is not None and ref > 0 and act is not None) else None
+            )
+            rows_sink.append({
+                "horizon_days": horizon,
+                "head": "regression",
+                "model": efp.NO_CHANGE_ANCHOR_MODEL,
+                "prediction_date": date_str,
+                "target_date": (date + pd.Timedelta(days=horizon)).strftime("%Y-%m-%d"),
+                "fold_index": fold_for_date[date_str],
+                "reference_close": ref,
+                "actual_close": act,
+                "actual_return": actual_return,
+                "actual_label": int(actual_return > 0) if actual_return is not None else None,
+                "predicted_return": float(pr),
+                "predicted_close": ref if ref is not None else None,
+            })
 
     # Regression ensemble rows.
     reg_col = f"{ensemble_reg_model}_pred_return"
