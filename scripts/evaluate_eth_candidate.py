@@ -69,6 +69,72 @@ def all_leakage_safe(rows: list[dict[str, Any]]) -> bool:
     return bool(checked) and all(bool(row.get("validation_leakage_safe")) for row in checked)
 
 
+def no_change_benchmark(candidate: dict[str, Any], horizon: str) -> dict[str, Any]:
+    """Benchmark point forecasts against a no-change close anchor.
+
+    ETH point-price forecasts should clear the simplest possible baseline:
+    target close equals the reference close at prediction time. If model RMSE
+    cannot beat this, the system should treat the horizon as range/signal work,
+    not as a reliable point forecast.
+    """
+    predictions = rows_for_horizon(candidate, horizon, "predictions")
+    unique_rows: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in predictions:
+        if row.get("head") != "regression":
+            continue
+        reference_close = finite_float(row.get("reference_close"))
+        actual_close = finite_float(row.get("actual_close"))
+        if reference_close is None or actual_close is None:
+            continue
+        key = (
+            str(row.get("prediction_date") or ""),
+            str(row.get("target_date") or ""),
+        )
+        unique_rows[key] = row
+
+    rows = list(unique_rows.values())
+    if not rows:
+        return {
+            "no_change_n": 0,
+            "no_change_price_rmse": None,
+            "no_change_price_mae": None,
+            "no_change_return_mae": None,
+        }
+
+    price_errors: list[float] = []
+    return_errors: list[float] = []
+    for row in rows:
+        reference_close = finite_float(row.get("reference_close"))
+        actual_close = finite_float(row.get("actual_close"))
+        actual_return = finite_float(row.get("actual_return"))
+        if reference_close is None or actual_close is None:
+            continue
+        price_errors.append(reference_close - actual_close)
+        if actual_return is not None:
+            return_errors.append(actual_return)
+        elif reference_close:
+            return_errors.append((actual_close / reference_close) - 1.0)
+
+    if not price_errors:
+        return {
+            "no_change_n": 0,
+            "no_change_price_rmse": None,
+            "no_change_price_mae": None,
+            "no_change_return_mae": None,
+        }
+
+    return {
+        "no_change_n": len(price_errors),
+        "no_change_price_rmse": math.sqrt(sum(error * error for error in price_errors) / len(price_errors)),
+        "no_change_price_mae": sum(abs(error) for error in price_errors) / len(price_errors),
+        "no_change_return_mae": (
+            sum(abs(error) for error in return_errors) / len(return_errors)
+            if return_errors
+            else None
+        ),
+    }
+
+
 def sign_label(value: float | None, *, deadband: float = 0.0) -> str:
     if value is None:
         return "UNKNOWN"
@@ -406,6 +472,21 @@ def evaluate(
             "threshold_sweep": {},
             "regime_breakdown": regime_breakdown(candidate, horizon),
         }
+        no_change = no_change_benchmark(candidate, horizon)
+        best_price_rmse = horizon_report["regression"]["best_price_rmse"]
+        no_change_rmse = no_change.get("no_change_price_rmse")
+        point_edge_pct = None
+        point_beats_no_change = None
+        if best_price_rmse is not None and no_change_rmse:
+            point_edge_pct = 100.0 * (no_change_rmse - best_price_rmse) / no_change_rmse
+            point_beats_no_change = best_price_rmse < no_change_rmse
+        horizon_report["regression"].update(
+            {
+                **no_change,
+                "best_price_rmse_vs_no_change_pct": point_edge_pct,
+                "point_forecast_beats_no_change": point_beats_no_change,
+            }
+        )
         report["horizons"][str(horizon)] = horizon_report
 
         if folds < min_fold_count:
@@ -445,6 +526,14 @@ def evaluate(
             limit=finite_float(reg_spec.get("min_best_directional_accuracy")),
             severity=reg_severity,
         )
+        if bool(reg_spec.get("warn_if_worse_than_no_change")):
+            point_beats = horizon_report["regression"].get("point_forecast_beats_no_change")
+            if point_beats is False:
+                warnings.append(
+                    f"h{horizon} regression best_price_rmse does not beat no-change benchmark: "
+                    f"best={best_price_rmse:.6g}, no_change={no_change_rmse:.6g}, "
+                    f"edge={point_edge_pct:.3f}%"
+                )
 
         sweep_spec = spec.get("threshold_sweep") or {}
         if sweep_spec and threshold_rows:
@@ -533,6 +622,8 @@ def write_markdown(path: Path, report: dict[str, Any], failures: list[str], warn
                 "",
                 f"- Folds completed: `{horizon_report.get('folds_completed')}`",
                 f"- Regression best RMSE: `{reg.get('best_price_rmse')}`",
+                f"- Regression no-change RMSE: `{reg.get('no_change_price_rmse')}`",
+                f"- Regression point edge vs no-change: `{reg.get('best_price_rmse_vs_no_change_pct')}`%",
                 f"- Regression best return MAE: `{reg.get('best_return_mae')}`",
                 f"- Regression best directional accuracy: `{reg.get('best_directional_accuracy')}`",
                 f"- Classification best balanced accuracy: `{cls.get('best_balanced_accuracy')}`",

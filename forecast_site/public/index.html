@@ -244,6 +244,10 @@ const fmtRawPct = (value, digits = 1) => {
   const n = Number(value);
   return Number.isFinite(n) ? `${n.toFixed(digits)}%` : "--";
 };
+const fmtSignedRawPct = (value, digits = 1) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixed(digits)}%` : "--";
+};
 const signedPct = (value, digits = 2) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return "--";
@@ -299,6 +303,9 @@ function gateMetrics(report, horizon) {
   return {
     folds: h.folds_completed,
     rmse: h.regression?.best_price_rmse,
+    noChangeRmse: h.regression?.no_change_price_rmse,
+    pointEdgePct: h.regression?.best_price_rmse_vs_no_change_pct,
+    pointBeatsNoChange: h.regression?.point_forecast_beats_no_change,
     returnMae: h.regression?.best_return_mae,
     dirAcc: h.regression?.best_directional_accuracy,
     rocAuc: h.classification?.best_roc_auc,
@@ -381,7 +388,7 @@ function renderMetricLine(rootId, metrics) {
   const items = [
     ["Strict hit", fmtRawPct(metrics.strictHit), `floor ${fmtRawPct(metrics.strictLower)}; ${metrics.signalDays ?? "--"}% days`],
     ["Dir acc", fmtPct(metrics.dirAcc), "all OOF rows"],
-    ["Return MAE", fmtPct(metrics.returnMae), "avg miss"],
+    ["Point edge", fmtSignedRawPct(metrics.pointEdgePct), `vs no-change RMSE ${fmtUSD(metrics.noChangeRmse)}`],
     ["Folds", metrics.folds ?? "--", "walk-forward"],
   ];
   $(rootId).innerHTML = items.map(([label, value, note]) => `
@@ -457,19 +464,37 @@ function chartRows(longrun, horizon) {
   const points = pickLongrunPhase(longrun)?.points?.[String(horizon)] || [];
   return points
     .filter((p) => p.predicted_close != null && p.actual_close != null)
-    .map((p) => ({ date: fmtDate(p.target_date), predicted: Number(p.predicted_close), actual: Number(p.actual_close) }));
+    .map((p) => ({
+      date: fmtDate(p.target_date),
+      predicted: Number(p.predicted_close),
+      actual: Number(p.actual_close),
+      chartModel: p.chart_model || "model_forecast",
+    }));
+}
+
+function chartInfo(longrun, horizon) {
+  const phase = pickLongrunPhase(longrun);
+  return phase?.chart_model_by_horizon?.[String(horizon)] || null;
+}
+
+function formatChartModel(info) {
+  const model = info?.chart_model || "model_forecast";
+  if (model === "no_change_anchor") return "no-change anchor";
+  return String(model).replaceAll("_", " ");
 }
 
 function renderChart(id, rows) {
   const canvas = $(id);
   if (!canvas || !rows.length) return;
+  const chartModel = rows.find((r) => r.chartModel)?.chartModel;
+  const predictedLabel = chartModel === "no_change_anchor" ? "No-change anchor" : "Model forecast";
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(canvas, {
     type: "line",
     data: {
       labels: rows.map((r) => r.date),
       datasets: [
-        { label: "Predicted", data: rows.map((r) => r.predicted), borderColor: "#75e0b8", pointRadius: 0, borderWidth: 1.8, tension: 0.12 },
+        { label: predictedLabel, data: rows.map((r) => r.predicted), borderColor: "#75e0b8", pointRadius: 0, borderWidth: 1.8, tension: 0.12 },
         { label: "Actual", data: rows.map((r) => r.actual), borderColor: "#f7f0dc", pointRadius: 0, borderWidth: 1.4, borderDash: [6, 5], tension: 0.12 },
       ],
     },
@@ -508,8 +533,8 @@ async function refreshLivePrice() {
   renderForecast(latest, report);
   const h7 = gateMetrics(report, 7);
   const h30 = gateMetrics(report, 30);
-  $("h7-model").textContent = `Gate model: ${h7.backtestModel}`;
-  $("h30-model").textContent = `Gate model: ${h30.backtestModel}`;
+  $("h7-model").textContent = `Gate: ${h7.backtestModel}; chart: ${formatChartModel(chartInfo(longrun, 7))}`;
+  $("h30-model").textContent = `Gate: ${h30.backtestModel}; chart: ${formatChartModel(chartInfo(longrun, 30))}`;
   renderMetricLine("h7-metrics", h7);
   renderMetricLine("h30-metrics", h30);
   renderChart("chart-h7", chartRows(longrun, 7));

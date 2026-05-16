@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import math
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -145,6 +146,18 @@ def export_full_matrix(conn) -> list[dict]:
 LONGRUN_CHART_MODEL = "trimmed_regression_ensemble_equal"
 
 
+def _finite_float(value) -> float | None:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _rmse(errors: list[float]) -> float | None:
+    return math.sqrt(sum(error * error for error in errors) / len(errors)) if errors else None
+
+
 def export_longrun_history(conn, model: str = LONGRUN_CHART_MODEL) -> dict:
     """Compact chart-ready payload: per-phase, per-horizon predicted-vs-actual
     for the 3-year OOF backtest.
@@ -170,6 +183,48 @@ def export_longrun_history(conn, model: str = LONGRUN_CHART_MODEL) -> dict:
         (model,),
     ).fetchall()
 
+    chart_stats: dict[tuple[str, str], dict] = {}
+    grouped_rows: dict[tuple[str, str], list] = {}
+    for r in rows:
+        grouped_rows.setdefault((r["model_phase"], str(r["horizon_days"])), []).append(r)
+
+    for key, group in grouped_rows.items():
+        model_errors: list[float] = []
+        anchor_errors: list[float] = []
+        for r in group:
+            predicted_close = _finite_float(r["predicted_close"])
+            reference_close = _finite_float(r["reference_close"])
+            actual_close = _finite_float(r["actual_close"])
+            if actual_close is None:
+                continue
+            if predicted_close is not None:
+                model_errors.append(predicted_close - actual_close)
+            if reference_close is not None:
+                anchor_errors.append(reference_close - actual_close)
+        model_rmse = _rmse(model_errors)
+        no_change_rmse = _rmse(anchor_errors)
+        use_anchor = bool(
+            no_change_rmse is not None
+            and (model_rmse is None or no_change_rmse <= model_rmse)
+        )
+        edge_pct = (
+            100.0 * (no_change_rmse - model_rmse) / no_change_rmse
+            if model_rmse is not None and no_change_rmse
+            else None
+        )
+        chart_stats[key] = {
+            "raw_model": model,
+            "chart_model": "no_change_anchor" if use_anchor else model,
+            "model_price_rmse": model_rmse,
+            "no_change_price_rmse": no_change_rmse,
+            "point_forecast_beats_no_change": bool(
+                model_rmse is not None
+                and no_change_rmse is not None
+                and model_rmse < no_change_rmse
+            ),
+            "point_edge_vs_no_change_pct": edge_pct,
+        }
+
     phases: dict[str, dict] = {}
     for r in rows:
         phase = r["model_phase"]
@@ -178,19 +233,37 @@ def export_longrun_history(conn, model: str = LONGRUN_CHART_MODEL) -> dict:
             "frozen_utc":  r["frozen_utc"],
             "mode":        r["mode"],
             "model":       model,
+            "raw_model":   model,
+            "chart_selection": "fallback_to_no_change_when_point_rmse_has_no_edge",
+            "chart_model_by_horizon": {},
             "points":      {},
         })
         horizon_key = str(r["horizon_days"])
+        stats = chart_stats.get((phase, horizon_key), {})
+        chart_model = stats.get("chart_model") or model
+        bundle["chart_model_by_horizon"][horizon_key] = stats
         bucket = bundle["points"].setdefault(horizon_key, [])
-        bucket.append({
+        predicted_close = r["predicted_close"]
+        predicted_return = r["predicted_return"]
+        raw_predicted_close = r["predicted_close"]
+        raw_predicted_return = r["predicted_return"]
+        if chart_model == "no_change_anchor":
+            predicted_close = r["reference_close"]
+            predicted_return = 0.0
+        row = {
             "target_date":      r["target_date"],
             "prediction_date":  r["prediction_date"],
             "reference_close":  r["reference_close"],
-            "predicted_close":  r["predicted_close"],
+            "predicted_close":  predicted_close,
             "actual_close":     r["actual_close"],
-            "predicted_return": r["predicted_return"],
+            "predicted_return": predicted_return,
             "actual_return":    r["actual_return"],
-        })
+            "chart_model":      chart_model,
+        }
+        if chart_model == "no_change_anchor":
+            row["raw_predicted_close"] = raw_predicted_close
+            row["raw_predicted_return"] = raw_predicted_return
+        bucket.append(row)
     return phases
 
 
@@ -294,6 +367,8 @@ def main() -> None:
     payload_longrun = {
         "generated_at": now_iso,
         "chart_model":  LONGRUN_CHART_MODEL,
+        "raw_chart_model":  LONGRUN_CHART_MODEL,
+        "chart_selection": "fallback_to_no_change_when_point_rmse_has_no_edge",
         "phases":       longrun_history,
     }
 
