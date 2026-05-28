@@ -20,7 +20,7 @@ on:
     - cron: "0 18 * * 0"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: eth-model-eval-${{ github.ref }}
@@ -212,6 +212,23 @@ jobs:
             cat tests/phase0/model_eval_report.md >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$status"
+
+      - name: Publish full evaluation artifacts
+        if: ${{ github.ref == 'refs/heads/main' && success() }}
+        run: |
+          mkdir -p forecast_site/public
+          cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_report.json
+          git config user.name  "eth-forecast-bot"
+          git config user.email "eth-forecast-bot@users.noreply.github.com"
+          git add \
+              tests/phase0/phase6_production_longrun_oof_metrics.json \
+              forecast_site/public/model_eval_report.json
+          if git diff --cached --quiet; then
+            echo "Full evaluation artifacts are already current."
+            exit 0
+          fi
+          git commit -m "chore(eval): refresh long-run backtest $(date -u +%Y-%m-%d)"
+          git push origin HEAD:main
 
       - name: Upload full evaluation artifacts
         uses: actions/upload-artifact@v4
