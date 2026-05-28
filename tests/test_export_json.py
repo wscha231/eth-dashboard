@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+import json
+import sys
+
+from forecast_site import export_json
+
+
+def _seed_forecast(conn, *, input_ts: str = "2026-05-20 00:00:00") -> int:
+    run_id = conn.execute(
+        """
+        INSERT INTO forecast_runs (
+            run_timestamp_utc, input_timestamp_utc, reference_price,
+            reference_price_source, reference_price_timestamp_utc,
+            model_phase, code_version, fast_mode
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026-05-20T01:00:00+00:00",
+            input_ts,
+            2000.0,
+            "test",
+            input_ts,
+            "phase_test",
+            "sha256:test",
+            0,
+        ),
+    ).lastrowid
+    conn.execute(
+        """
+        INSERT INTO forecasts (
+            run_id, horizon_days, forecast_target_timestamp_utc,
+            regression_model, regression_predicted_return, regression_predicted_close,
+            classification_model, classification_predicted_direction,
+            classification_probability_up, active_predicted_direction
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            run_id,
+            7,
+            "2026-05-27 00:00:00",
+            "test_reg",
+            0.01,
+            2020.0,
+            "test_cls",
+            "UP",
+            0.60,
+            "UP",
+        ),
+    )
+    conn.commit()
+    return int(run_id)
+
+
+def test_export_health_reports_bootstrap_when_live_history_is_empty(temp_db) -> None:
+    _seed_forecast(temp_db)
+
+    health = export_json.export_health(temp_db)
+
+    assert health["status"] in {"bootstrap", "degraded"}
+    assert health["db_counts"]["forecast_runs"] == 1
+    assert health["db_counts"]["forecasts"] == 1
+    assert health["db_counts"]["actuals"] == 0
+    assert "7" in health["latest_forecasts_by_horizon"]
+
+
+def test_export_health_reports_resolved_history(temp_db) -> None:
+    _seed_forecast(temp_db)
+    forecast_id = temp_db.execute("SELECT forecast_id FROM forecasts").fetchone()["forecast_id"]
+    temp_db.execute(
+        """
+        INSERT INTO actuals (
+            forecast_id, resolved_at_utc, actual_close, actual_return,
+            direction_actual, direction_correct, active_direction_correct,
+            return_absolute_error, price_absolute_error, brier_contribution
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            forecast_id,
+            "2026-05-28T00:00:00+00:00",
+            2040.0,
+            0.02,
+            "UP",
+            1,
+            1,
+            0.01,
+            20.0,
+            0.16,
+        ),
+    )
+    temp_db.commit()
+
+    health = export_json.export_health(temp_db)
+
+    assert health["db_counts"]["actuals"] == 1
+    assert health["latest_resolved_by_horizon"]["7"]["resolved_count"] == 1
+    assert health["latest_resolved_by_horizon"]["7"]["latest_resolved_target_utc"] == "2026-05-27 00:00:00"
+
+
+def test_export_json_main_writes_health_file(temp_db_path, tmp_path, monkeypatch) -> None:
+    from forecast_site.db import connect
+
+    conn = connect(temp_db_path)
+    try:
+        _seed_forecast(conn)
+    finally:
+        conn.close()
+
+    out_dir = tmp_path / "public"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "export_json",
+            "--db",
+            str(temp_db_path),
+            "--output-dir",
+            str(out_dir),
+        ],
+    )
+    export_json.main()
+
+    health_path = out_dir / "health.json"
+    assert health_path.exists()
+    payload = json.loads(health_path.read_text(encoding="utf-8"))
+    assert payload["db_counts"]["forecast_runs"] == 1

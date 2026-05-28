@@ -147,6 +147,33 @@ jobs:
                         python-dateutil
           fi
 
+      - name: Restore deployed forecast DB
+        # The deploy branch is force-rebuilt every run, so the live SQLite DB
+        # must be copied back before inserting today's forecast. Without this
+        # step forecast_runs starts at run_id=1 every day, history.json stays
+        # empty, and resolved live accuracy never accumulates.
+        run: |
+          mkdir -p forecast_site
+          git fetch origin data/daily-forecast || true
+          if git show origin/data/daily-forecast:forecast_site/predictions.db \
+              > forecast_site/predictions.db 2>/dev/null; then
+            python - <<'PY'
+          import sqlite3
+          conn = sqlite3.connect("forecast_site/predictions.db")
+          counts = {}
+          for table in ("forecast_runs", "forecasts", "actuals", "accuracy_snapshot"):
+              try:
+                  counts[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+              except sqlite3.Error:
+                  counts[table] = "missing"
+          conn.close()
+          print("Restored deployed DB counts:", counts)
+          PY
+          else
+            echo "No deployed DB found; starting a new forecast DB."
+            rm -f forecast_site/predictions.db
+          fi
+
       - name: Refresh market data
         run: |
           python eth_data_collector.py
@@ -320,6 +347,7 @@ jobs:
               forecast_site/public/latest.json \
               forecast_site/public/accuracy.json \
               forecast_site/public/history.json \
+              forecast_site/public/health.json \
               forecast_site/public/model_eval_report.json || true
           # Donation milestones — tiny public payload (milestones_reached +
           # next_milestone); full USD ledger stays in forecast_site/private/

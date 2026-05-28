@@ -131,6 +131,101 @@ def export_history(conn, limit: int = 200) -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
+def _scalar(conn, sql: str, params: tuple = ()) -> int:
+    row = conn.execute(sql, params).fetchone()
+    if row is None:
+        return 0
+    value = row[0]
+    return int(value or 0)
+
+
+def export_health(conn) -> dict:
+    """Operational freshness report for the daily forecast pipeline."""
+    generated_at = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
+    latest_run = conn.execute(
+        """
+        SELECT run_id, run_timestamp_utc, input_timestamp_utc, model_phase, code_version
+        FROM forecast_runs
+        ORDER BY run_timestamp_utc DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    latest_by_horizon = conn.execute(
+        """
+        SELECT f.horizon_days, f.forecast_target_timestamp_utc,
+               r.input_timestamp_utc, r.run_timestamp_utc
+        FROM forecasts f
+        JOIN forecast_runs r ON r.run_id = f.run_id
+        WHERE r.run_timestamp_utc = (SELECT MAX(run_timestamp_utc) FROM forecast_runs)
+        ORDER BY f.horizon_days
+        """
+    ).fetchall()
+    resolved_by_horizon = conn.execute(
+        """
+        SELECT f.horizon_days, COUNT(*) AS resolved_count,
+               MAX(f.forecast_target_timestamp_utc) AS latest_resolved_target_utc
+        FROM actuals a
+        JOIN forecasts f ON f.forecast_id = a.forecast_id
+        GROUP BY f.horizon_days
+        ORDER BY f.horizon_days
+        """
+    ).fetchall()
+    due_by_horizon = conn.execute(
+        """
+        SELECT f.horizon_days, COUNT(*) AS due_count
+        FROM forecasts f
+        LEFT JOIN actuals a ON a.forecast_id = f.forecast_id
+        WHERE a.forecast_id IS NULL
+          AND DATE(f.forecast_target_timestamp_utc) < DATE('now')
+        GROUP BY f.horizon_days
+        ORDER BY f.horizon_days
+        """
+    ).fetchall()
+
+    counts = {
+        "forecast_runs": _scalar(conn, "SELECT COUNT(*) FROM forecast_runs"),
+        "forecasts": _scalar(conn, "SELECT COUNT(*) FROM forecasts"),
+        "actuals": _scalar(conn, "SELECT COUNT(*) FROM actuals"),
+        "accuracy_snapshot": _scalar(conn, "SELECT COUNT(*) FROM accuracy_snapshot"),
+        "backtest_runs": _scalar(conn, "SELECT COUNT(*) FROM backtest_runs"),
+        "backtest_predictions": _scalar(conn, "SELECT COUNT(*) FROM backtest_predictions"),
+    }
+    latest = {
+        str(row["horizon_days"]): _row_to_dict(row)
+        for row in latest_by_horizon
+    }
+    resolved = {
+        str(row["horizon_days"]): _row_to_dict(row)
+        for row in resolved_by_horizon
+    }
+    due = {
+        str(row["horizon_days"]): int(row["due_count"])
+        for row in due_by_horizon
+    }
+    notes: list[str] = []
+    status = "ok"
+    if latest_run is None:
+        status = "stale"
+        notes.append("no forecast run in DB")
+    if counts["forecast_runs"] <= 1 and counts["actuals"] == 0:
+        status = "bootstrap" if status == "ok" else status
+        notes.append("live forecast history has not accumulated yet")
+    if any(count > 0 for count in due.values()):
+        status = "degraded"
+        notes.append("one or more due forecasts are still unresolved")
+
+    return {
+        "generated_at": generated_at,
+        "status": status,
+        "notes": notes,
+        "latest_run": _row_to_dict(latest_run) if latest_run is not None else None,
+        "latest_forecasts_by_horizon": latest,
+        "latest_resolved_by_horizon": resolved,
+        "unresolved_due_count_by_horizon": due,
+        "db_counts": counts,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH))
@@ -146,6 +241,7 @@ def main() -> None:
         latest = export_latest(conn)
         accuracy = export_accuracy(conn)
         history = export_history(conn, limit=args.history_limit)
+        health = export_health(conn)
     finally:
         conn.close()
 
@@ -155,11 +251,14 @@ def main() -> None:
         json.dumps(accuracy, indent=2, default=str), encoding="utf-8")
     (out_dir / "history.json").write_text(
         json.dumps(history, indent=2, default=str), encoding="utf-8")
+    (out_dir / "health.json").write_text(
+        json.dumps(health, indent=2, default=str), encoding="utf-8")
 
     print(f"[export_json] wrote:")
     print(f"  {out_dir / 'latest.json'}    horizons={list(latest['horizons'].keys())}")
     print(f"  {out_dir / 'accuracy.json'}  horizons={list(accuracy['horizons'].keys())}")
     print(f"  {out_dir / 'history.json'}   rows={len(history)}")
+    print(f"  {out_dir / 'health.json'}    status={health['status']}")
 
 
 if __name__ == "__main__":
