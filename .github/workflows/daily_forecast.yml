@@ -341,6 +341,12 @@ jobs:
           cp -f lake/reports/collector_data_quality_audit.csv "$generated_dir/lake/reports/" 2>/dev/null || true
           cp -f lake/reports/collector_learning_exclusion_report.csv "$generated_dir/lake/reports/" 2>/dev/null || true
 
+          # Generated files are now safely copied to RUNNER_TEMP. Clean the
+          # workspace so switching from main to the deploy branch cannot be
+          # blocked by modified/ignored artifacts left by collector/export.
+          git reset --hard "$GITHUB_SHA"
+          git clean -fdx
+
           # Start from the current deploy branch, overlay this workflow
           # commit's code, then restore deploy-branch workflow files so the
           # GITHUB_TOKEN never attempts to update .github/workflows.
