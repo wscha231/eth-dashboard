@@ -154,7 +154,7 @@ jobs:
         # empty, and resolved live accuracy never accumulates.
         run: |
           mkdir -p forecast_site
-          git fetch origin data/daily-forecast || true
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
           if git show origin/data/daily-forecast:forecast_site/predictions.db \
               > forecast_site/predictions.db 2>/dev/null; then
             python - <<'PY'
@@ -184,7 +184,7 @@ jobs:
         # the previous deploy-branch copy before forecasting.
         run: |
           mkdir -p eth_forecast_outputs
-          git fetch origin data/daily-forecast || true
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
           git show origin/data/daily-forecast:eth_forecast_outputs/prediction_history.csv \
             > eth_forecast_outputs/prediction_history.csv || true
           if [ -s eth_forecast_outputs/prediction_history.csv ]; then
@@ -257,7 +257,7 @@ jobs:
         # from the rebuilt deploy branch.
         run: |
           mkdir -p forecast_site/public
-          git fetch origin data/daily-forecast || true
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
           git show origin/data/daily-forecast:forecast_site/public/donations.json \
             > forecast_site/public/donations.json || true
 

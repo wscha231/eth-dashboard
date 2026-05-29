@@ -42,14 +42,18 @@ jobs:
 
       - name: Restore latest deployed master data
         run: |
-          git fetch origin data/daily-forecast || true
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
           mkdir -p lake/gold
           if git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv \
               > lake/gold/eth_master_daily.csv 2>/dev/null; then
             python - <<'PY'
           import csv
           with open("lake/gold/eth_master_daily.csv", newline="", encoding="utf-8") as fh:
-              timestamps = [row.get("timestamp") for row in csv.DictReader(fh) if row.get("timestamp")]
+              reader = csv.DictReader(fh)
+              date_col = next((c for c in ("timestamp", "date", "Date") if c in (reader.fieldnames or [])), None)
+              timestamps = [row.get(date_col) for row in reader if date_col and row.get(date_col)]
+          if not timestamps:
+              raise SystemExit("Restored deployed master has no timestamp/date rows")
           print(f"Restored deployed master rows={len(timestamps)} span={min(timestamps)} -> {max(timestamps)}")
           PY
           else
@@ -144,14 +148,18 @@ jobs:
 
       - name: Restore latest deployed master data
         run: |
-          git fetch origin data/daily-forecast || true
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
           mkdir -p lake/gold
           if git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv \
               > lake/gold/eth_master_daily.csv 2>/dev/null; then
             python - <<'PY'
           import csv
           with open("lake/gold/eth_master_daily.csv", newline="", encoding="utf-8") as fh:
-              timestamps = [row.get("timestamp") for row in csv.DictReader(fh) if row.get("timestamp")]
+              reader = csv.DictReader(fh)
+              date_col = next((c for c in ("timestamp", "date", "Date") if c in (reader.fieldnames or [])), None)
+              timestamps = [row.get(date_col) for row in reader if date_col and row.get(date_col)]
+          if not timestamps:
+              raise SystemExit("Restored deployed master has no timestamp/date rows")
           print(f"Restored deployed master rows={len(timestamps)} span={min(timestamps)} -> {max(timestamps)}")
           PY
           else
@@ -205,14 +213,18 @@ jobs:
 
       - name: Restore latest deployed master data
         run: |
-          git fetch origin data/daily-forecast || true
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
           mkdir -p lake/gold
           if git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv \
               > lake/gold/eth_master_daily.csv 2>/dev/null; then
             python - <<'PY'
           import csv
           with open("lake/gold/eth_master_daily.csv", newline="", encoding="utf-8") as fh:
-              timestamps = [row.get("timestamp") for row in csv.DictReader(fh) if row.get("timestamp")]
+              reader = csv.DictReader(fh)
+              date_col = next((c for c in ("timestamp", "date", "Date") if c in (reader.fieldnames or [])), None)
+              timestamps = [row.get(date_col) for row in reader if date_col and row.get(date_col)]
+          if not timestamps:
+              raise SystemExit("Restored deployed master has no timestamp/date rows")
           print(f"Restored deployed master rows={len(timestamps)} span={min(timestamps)} -> {max(timestamps)}")
           PY
           else
