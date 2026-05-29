@@ -302,19 +302,16 @@ jobs:
 
       - name: Commit updated DB
         # -----------------------------------------------------------------
-        # Deploy-branch pattern: data/daily-forecast is REBUILT from the
-        # workflow commit, with generated artifacts (DB + JSON blobs)
-        # layered on top as a single commit, then force-pushed.
+        # Deploy-branch pattern: data/daily-forecast keeps its own history,
+        # overlays the workflow commit's site code, then layers generated
+        # artifacts (DB + JSON blobs) on top as a single force-pushed commit.
         #
         # Why force-push:
         #   1. Vercel only reads the tip commit -- history on this branch
         #      has no value.
-        #   2. The previous "merge main into data branch" approach silently
-        #      broke under shallow-clone (fetch-depth: 1) because Git's
-        #      merge-base calculation would report "Already up to date"
-        #      even when main had moved forward, then push would be
-        #      rejected as non-fast-forward. Rebuilding from a fixed workflow
-        #      commit sidesteps this class of bug entirely.
+        #   2. Starting from the deploy branch avoids GitHub App workflow-file
+        #      push rejection. The workflow files are preserved from the
+        #      previous deploy tip; Vercel does not need them.
         #   3. Safe: the concurrency group (daily-forecast) guarantees only
         #      one workflow writes to this branch at a time.
         #
@@ -328,20 +325,34 @@ jobs:
           branch="data/daily-forecast"
           generated_dir="$RUNNER_TEMP/eth-generated"
           mkdir -p "$generated_dir/eth_forecast_outputs"
+          mkdir -p "$generated_dir/forecast_site"
           mkdir -p "$generated_dir/forecast_site/public"
+          mkdir -p "$generated_dir/lake/gold"
+          mkdir -p "$generated_dir/lake/reports"
           cp -f eth_forecast_outputs/prediction_history.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
           cp -f eth_forecast_outputs/prediction_feedback_summary.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
           cp -f eth_forecast_outputs/prediction_feedback_state_summary.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
           cp -f eth_forecast_outputs/prediction_feedback_state_winners.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
-          cp -f forecast_site/public/donations.json "$generated_dir/forecast_site/public/" 2>/dev/null || true
+          cp -f forecast_site/predictions.db "$generated_dir/forecast_site/" 2>/dev/null || true
+          cp -f forecast_site/public/*.json "$generated_dir/forecast_site/public/" 2>/dev/null || true
+          cp -f lake/gold/eth_master_daily.csv "$generated_dir/lake/gold/" 2>/dev/null || true
+          cp -f lake/reports/collector_summary.json "$generated_dir/lake/reports/" 2>/dev/null || true
+          cp -f lake/reports/collector_data_quality_audit.json "$generated_dir/lake/reports/" 2>/dev/null || true
+          cp -f lake/reports/collector_data_quality_audit.csv "$generated_dir/lake/reports/" 2>/dev/null || true
+          cp -f lake/reports/collector_learning_exclusion_report.csv "$generated_dir/lake/reports/" 2>/dev/null || true
 
-          # Start fresh from the workflow commit. Scheduled runs use main;
-          # manual branch runs deploy the exact evaluated code.
-          git checkout -B "$branch" "$GITHUB_SHA"
-          mkdir -p eth_forecast_outputs
-          mkdir -p forecast_site/public
-          cp -f "$generated_dir"/eth_forecast_outputs/*.csv eth_forecast_outputs/ 2>/dev/null || true
-          cp -f "$generated_dir"/forecast_site/public/donations.json forecast_site/public/ 2>/dev/null || true
+          # Start from the current deploy branch, overlay this workflow
+          # commit's code, then restore deploy-branch workflow files so the
+          # GITHUB_TOKEN never attempts to update .github/workflows.
+          if git fetch origin "$branch:refs/remotes/origin/$branch"; then
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout --orphan "$branch"
+            git rm -rf . || true
+          fi
+          git checkout "$GITHUB_SHA" -- .
+          git checkout "origin/$branch" -- .github/workflows 2>/dev/null || rm -rf .github/workflows
+          cp -rf "$generated_dir"/. ./
 
           # Force-add generated artifacts. -f bypasses .gitignore which
           # blocks predictions.db / public/*.json on main.
