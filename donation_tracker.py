@@ -80,6 +80,27 @@ DEFAULT_PRICE_CACHE = Path("forecast_site/private/price_cache.json")
 USER_AGENT = "etherforecast-donation-tracker/1.0"
 
 
+def _public_wallets(addr_btc: str, addr_eth: str, addr_sol: str, addr_trx: str) -> list[dict]:
+    """Return public donation destinations without exposing balances."""
+    candidates = [
+        ("Bitcoin", "BTC", addr_btc, "https://blockstream.info/address/{}"),
+        ("Ethereum", "ETH / ERC-20", addr_eth, "https://etherscan.io/address/{}"),
+        ("Solana", "SOL / SPL", addr_sol, "https://solscan.io/account/{}"),
+        ("Tron", "TRX / TRC-20", addr_trx, "https://tronscan.org/#/address/{}"),
+    ]
+    wallets = []
+    for chain, asset, address, explorer in candidates:
+        if not address:
+            continue
+        wallets.append({
+            "chain": chain,
+            "asset": asset,
+            "address": address,
+            "explorer_url": explorer.format(address),
+        })
+    return wallets
+
+
 # ---------------------------------------------------------------
 # .env autoload (zero-dependency; same pattern as eth_data_collector)
 # ---------------------------------------------------------------
@@ -529,6 +550,7 @@ def main() -> int:
         "generated_at_utc": ledger["generated_at_utc"],
         "milestones_reached": reached,
         "next_milestone": next_ml,
+        "wallets": _public_wallets(addr_btc, addr_eth, addr_sol, addr_trx),
     }
     pub_path = Path(args.public_out)
     pub_path.parent.mkdir(parents=True, exist_ok=True)

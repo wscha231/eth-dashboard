@@ -251,6 +251,16 @@ jobs:
           python -m forecast_site.export_backtest_json \
               --db forecast_site/predictions.db
 
+      - name: Restore deployed donation wallet payload
+        # donation_tracker is best-effort. If an explorer is down, keep the
+        # previous public wallet payload instead of dropping the support card
+        # from the rebuilt deploy branch.
+        run: |
+          mkdir -p forecast_site/public
+          git fetch origin data/daily-forecast || true
+          git show origin/data/daily-forecast:forecast_site/public/donations.json \
+            > forecast_site/public/donations.json || true
+
       - name: Refresh donation milestones
         # Rewrites forecast_site/public/donations.json (milestones_reached
         # + next_milestone; NO dollar amounts) from on-chain scans of the
@@ -318,16 +328,20 @@ jobs:
           branch="data/daily-forecast"
           generated_dir="$RUNNER_TEMP/eth-generated"
           mkdir -p "$generated_dir/eth_forecast_outputs"
+          mkdir -p "$generated_dir/forecast_site/public"
           cp -f eth_forecast_outputs/prediction_history.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
           cp -f eth_forecast_outputs/prediction_feedback_summary.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
           cp -f eth_forecast_outputs/prediction_feedback_state_summary.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
           cp -f eth_forecast_outputs/prediction_feedback_state_winners.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
+          cp -f forecast_site/public/donations.json "$generated_dir/forecast_site/public/" 2>/dev/null || true
 
           # Start fresh from the workflow commit. Scheduled runs use main;
           # manual branch runs deploy the exact evaluated code.
           git checkout -B "$branch" "$GITHUB_SHA"
           mkdir -p eth_forecast_outputs
+          mkdir -p forecast_site/public
           cp -f "$generated_dir"/eth_forecast_outputs/*.csv eth_forecast_outputs/ 2>/dev/null || true
+          cp -f "$generated_dir"/forecast_site/public/donations.json forecast_site/public/ 2>/dev/null || true
 
           # Force-add generated artifacts. -f bypasses .gitignore which
           # blocks predictions.db / public/*.json on main.

@@ -151,12 +151,44 @@
       font-size: 13px;
       line-height: 1.65;
     }
+    .donation-panel { margin-top: 18px; }
+    .donation-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .wallet-card {
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.15);
+      border-radius: 18px;
+      padding: 13px;
+      min-width: 0;
+    }
+    .wallet-card a {
+      color: var(--accent);
+      text-decoration: none;
+      overflow-wrap: anywhere;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .wallet-meta {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
 
     footer { color: var(--muted); font-size: 12px; margin-top: 26px; text-align: center; }
     @media (max-width: 860px) {
       .hero, .forecast-grid, .backtest { grid-template-columns: 1fr; }
-      .metric-line { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metric-line, .donation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       header { align-items: flex-start; flex-direction: column; }
+    }
+    @media (max-width: 560px) {
+      .metric-line, .donation-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -227,6 +259,18 @@
       funding, options, exchange-flow, and on-chain data coverage directly affects whether spike/crash conditions can be detected early.
     </div>
 
+    <section class="panel donation-panel" id="donation-panel" style="display:none;">
+      <div class="card-top">
+        <div>
+          <p class="eyebrow">Support</p>
+          <h2>Donation wallets</h2>
+          <p id="donation-note">Public wallet addresses only. Balances and transaction totals are not shown.</p>
+        </div>
+        <span class="pill" id="donation-milestone">loading</span>
+      </div>
+      <div class="donation-grid" id="donation-wallets"></div>
+    </section>
+
     <footer>Last page refresh: <span id="footer-time">--</span></footer>
   </div>
 
@@ -270,6 +314,13 @@ async function loadJSON(path) {
   if (!response.ok) throw new Error(`${path} ${response.status}`);
   return response.json();
 }
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+}[ch]));
 
 let livePrice = null;
 let latestPayload = null;
@@ -396,6 +447,35 @@ function renderMetricLine(rootId, metrics) {
   `).join("");
 }
 
+function renderDonations(donations) {
+  const panel = $("donation-panel");
+  const root = $("donation-wallets");
+  if (!panel || !root) return;
+  const wallets = Array.isArray(donations?.wallets) ? donations.wallets.filter((w) => w?.address) : [];
+  if (!wallets.length) {
+    panel.style.display = "none";
+    return;
+  }
+  const reached = Array.isArray(donations?.milestones_reached) ? donations.milestones_reached : [];
+  $("donation-milestone").textContent = reached.length
+    ? `milestone ${reached[reached.length - 1]}`
+    : `next ${donations?.next_milestone || "--"}`;
+  $("donation-note").textContent = `Updated ${fmtDate(donations.generated_at_utc)}. Public addresses only; balances stay private.`;
+  root.innerHTML = wallets.map((wallet) => {
+    const chain = escapeHtml(wallet.chain || "Wallet");
+    const asset = escapeHtml(wallet.asset || "");
+    const address = escapeHtml(wallet.address);
+    const url = escapeHtml(wallet.explorer_url || "#");
+    return `
+      <div class="wallet-card">
+        <div class="wallet-meta">${chain} · ${asset}</div>
+        <a href="${url}" target="_blank" rel="noopener noreferrer">${address}</a>
+      </div>
+    `;
+  }).join("");
+  panel.style.display = "";
+}
+
 function renderRun(latest) {
   if (!latest?.run) return;
   const run = latest.run;
@@ -463,12 +543,16 @@ function pickLongrunPhase(longrun) {
 function chartRows(longrun, horizon) {
   const points = pickLongrunPhase(longrun)?.points?.[String(horizon)] || [];
   return points
-    .filter((p) => p.predicted_close != null && p.actual_close != null)
+    .filter((p) => (p.model_predicted_close ?? p.raw_predicted_close ?? p.predicted_close) != null && p.actual_close != null)
     .map((p) => ({
-      date: fmtDate(p.target_date),
-      predicted: Number(p.predicted_close),
+      date: fmtDate(p.display_date || p.target_date),
+      predictionDate: fmtDate(p.prediction_date),
+      targetDate: fmtDate(p.target_date),
+      predicted: Number(p.model_predicted_close ?? p.raw_predicted_close ?? p.predicted_close),
       actual: Number(p.actual_close),
-      chartModel: p.chart_model || "model_forecast",
+      chartModel: p.model_predicted_close != null || p.raw_predicted_close != null
+        ? "raw_model_forecast"
+        : (p.chart_model || "model_forecast"),
     }));
 }
 
@@ -479,7 +563,7 @@ function chartInfo(longrun, horizon) {
 
 function formatChartModel(info) {
   const model = info?.chart_model || "model_forecast";
-  if (model === "no_change_anchor") return "no-change anchor";
+  if (model === "no_change_anchor") return "raw model vs actual; no-change wins RMSE";
   return String(model).replaceAll("_", " ");
 }
 
@@ -487,7 +571,7 @@ function renderChart(id, rows) {
   const canvas = $(id);
   if (!canvas || !rows.length) return;
   const chartModel = rows.find((r) => r.chartModel)?.chartModel;
-  const predictedLabel = chartModel === "no_change_anchor" ? "No-change anchor" : "Model forecast";
+  const predictedLabel = chartModel === "no_change_anchor" ? "No-change anchor" : "OOF forecast";
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(canvas, {
     type: "line",
@@ -502,7 +586,17 @@ function renderChart(id, rows) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
-      plugins: { legend: { labels: { color: "#f7f0dc" } } },
+      plugins: {
+        legend: { labels: { color: "#f7f0dc" } },
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const row = rows[items?.[0]?.dataIndex];
+              return row ? [`Target date: ${row.targetDate}`, `Forecast made: ${row.predictionDate}`] : [];
+            },
+          },
+        },
+      },
       scales: {
         x: { ticks: { color: "#b8ad91", maxRotation: 0, autoSkipPadding: 24 }, grid: { color: "rgba(247,240,220,0.06)" } },
         y: { ticks: { color: "#b8ad91", callback: (v) => fmtUSD(v) }, grid: { color: "rgba(247,240,220,0.08)" } },
@@ -524,13 +618,15 @@ async function refreshLivePrice() {
 
 (async function main() {
   $("footer-time").textContent = new Date().toISOString();
-  const [latest, report, longrun] = await Promise.all([
+  const [latest, report, longrun, donations] = await Promise.all([
     loadJSON("latest.json").catch(() => null),
     loadJSON("model_eval_report.json").catch(() => null),
     loadJSON("backtest_longrun_history.json").catch(() => null),
+    loadJSON("donations.json").catch(() => null),
   ]);
   window.__report = report;
   renderForecast(latest, report);
+  renderDonations(donations);
   const h7 = gateMetrics(report, 7);
   const h30 = gateMetrics(report, 30);
   $("h7-model").textContent = `Gate: ${h7.backtestModel}; chart: ${formatChartModel(chartInfo(longrun, 7))}`;
