@@ -1,0 +1,807 @@
+{
+  "root": "/home/runner/work/eth-dashboard/eth-dashboard",
+  "master_data_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/gold/eth_master_daily.csv",
+  "market_cache_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/raw/market/market_data_cache.csv",
+  "schema_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/gold/eth_master_schema.csv",
+  "source_status_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_source_status.csv",
+  "data_quality_audit_json": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_data_quality_audit.json",
+  "learning_exclusion_report_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_learning_exclusion_report.csv",
+  "raw_rows": 3124,
+  "column_count": 118,
+  "start": "2017-11-09 00:00:00",
+  "end": "2026-05-29 00:00:00",
+  "day_boundary_tz": "Asia/Seoul",
+  "refresh_window_start": "2026-04-14 00:00:00",
+  "refresh_window_end": "2026-05-29 00:00:00",
+  "recent_refresh_days": 45,
+  "max_stale_age_days": 30,
+  "manual_feature_file_count": 0,
+  "stale_vendor_column_count": 21,
+  "stale_vendor_columns": [
+    "fred_breakeven_10y",
+    "fred_effr",
+    "fred_fed_funds",
+    "fred_inflation_forward_5y5y",
+    "fred_rrp",
+    "fred_sofr",
+    "fred_stl_fsi",
+    "fred_treasury_10y",
+    "fred_treasury_2y",
+    "fred_treasury_30y",
+    "fred_treasury_3m",
+    "fred_usd_eur",
+    "fred_yield_curve_10y_2y",
+    "fred_fed_balance_sheet",
+    "fred_tga",
+    "fred_cpi",
+    "fred_m2_money_supply",
+    "fred_unemployment_rate",
+    "fred_iorb",
+    "fred_bbb_oas",
+    "fred_hy_oas"
+  ],
+  "macro_selection_readiness": {
+    "status": "warning",
+    "ready": false,
+    "total_columns": 14,
+    "ready_columns": 8,
+    "ready_ratio": 0.5714285714285714,
+    "market_context_ready": true,
+    "missing_columns": [
+      "fred_bbb_oas",
+      "fred_fed_balance_sheet",
+      "fred_tga",
+      "fred_rrp",
+      "artemis_stablecoin_total_supply",
+      "artemis_non_sybil_users"
+    ],
+    "stale_columns": [],
+    "details": [
+      {
+        "column_group": "market_context",
+        "column": "eth_close",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 2011.219970703125
+      },
+      {
+        "column_group": "market_context",
+        "column": "btc_close",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 73649.5234375
+      },
+      {
+        "column_group": "market_context",
+        "column": "spy_close",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 754.5999755859375
+      },
+      {
+        "column_group": "market_context",
+        "column": "qqq_close",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 735.5999755859375
+      },
+      {
+        "column_group": "market_context",
+        "column": "dxy_close",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 99.00700378417969
+      },
+      {
+        "column_group": "market_context",
+        "column": "tnx_close",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 4.454999923706055
+      },
+      {
+        "column_group": "market_context",
+        "column": "oil_close",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 88.0999984741211
+      },
+      {
+        "column_group": "fred_macro",
+        "column": "fred_bbb_oas",
+        "status": "missing",
+        "latest_age_days": NaN,
+        "latest_value": NaN
+      },
+      {
+        "column_group": "fred_macro",
+        "column": "fred_fed_balance_sheet",
+        "status": "missing",
+        "latest_age_days": NaN,
+        "latest_value": NaN
+      },
+      {
+        "column_group": "fred_macro",
+        "column": "fred_tga",
+        "status": "missing",
+        "latest_age_days": NaN,
+        "latest_value": NaN
+      },
+      {
+        "column_group": "fred_macro",
+        "column": "fred_rrp",
+        "status": "missing",
+        "latest_age_days": NaN,
+        "latest_value": NaN
+      },
+      {
+        "column_group": "sentiment",
+        "column": "sentiment_fear_greed",
+        "status": "ready",
+        "latest_age_days": 0.0,
+        "latest_value": 23.0
+      },
+      {
+        "column_group": "network_activity",
+        "column": "artemis_stablecoin_total_supply",
+        "status": "missing",
+        "latest_age_days": NaN,
+        "latest_value": NaN
+      },
+      {
+        "column_group": "network_activity",
+        "column": "artemis_non_sybil_users",
+        "status": "missing",
+        "latest_age_days": NaN,
+        "latest_value": NaN
+      }
+    ]
+  },
+  "data_quality_audit": {
+    "generated_at": "2026-05-29T00:50:41.878122+00:00",
+    "dataset_end": "2026-05-29 00:00:00",
+    "row_count": 3124,
+    "column_count": 118,
+    "source_status_counts": {
+      "ok": 14,
+      "error": 6,
+      "skipped": 5,
+      "warning": 2
+    },
+    "source_errors": [
+      {
+        "source": "fred_macro",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 404: Not Found"
+      },
+      {
+        "source": "coingecko_defi_snapshot",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 429: Too Many Requests"
+      },
+      {
+        "source": "binance_funding_history",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 451: "
+      },
+      {
+        "source": "binance_open_interest_hist",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 451: "
+      },
+      {
+        "source": "binance_basis",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 451: "
+      },
+      {
+        "source": "binance_taker_buy_sell_volume",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 451: "
+      },
+      {
+        "source": "freshness_guardrail",
+        "status": "warning",
+        "rows": 3124,
+        "columns": 21,
+        "start": "2017-11-09 00:00:00",
+        "end": "2026-05-29 00:00:00",
+        "note": "nulled_stale_vendor_columns=21 | max_age_days=30 | columns=fred_breakeven_10y, fred_effr, fred_fed_funds, fred_inflation_forward_5y5y, fred_rrp, fred_sofr, fred_stl_fsi, fred_treasury_10y"
+      },
+      {
+        "source": "macro_selection_readiness",
+        "status": "warning",
+        "rows": 3124,
+        "columns": 8,
+        "start": "2017-11-09 00:00:00",
+        "end": "2026-05-29 00:00:00",
+        "note": "ready_columns=8/14 | ready_ratio=0.57 | market_context_ready=1 | missing=fred_bbb_oas,fred_fed_balance_sheet,fred_tga,fred_rrp,artemis_stablecoin_total_supply,artemis_non_sybil_users"
+      }
+    ],
+    "short_history_vendor_column_count": 24,
+    "learning_exclusion_column_count": 49,
+    "stale_vendor_column_count": 21,
+    "tail_event_readiness": "weak",
+    "group_summary": [
+      {
+        "group": "core_market",
+        "status": "ok",
+        "column_count": 35,
+        "coverage_ratio": 1.0,
+        "ready_column_count": 35,
+        "latest_age_days_max": 0,
+        "history_span_days_max": 3123
+      },
+      {
+        "group": "macro_liquidity_credit",
+        "status": "weak",
+        "column_count": 21,
+        "coverage_ratio": 0.0,
+        "ready_column_count": 0,
+        "latest_age_days_max": null,
+        "history_span_days_max": 0
+      },
+      {
+        "group": "crypto_native",
+        "status": "ok",
+        "column_count": 24,
+        "coverage_ratio": 0.14670027742210842,
+        "ready_column_count": 2,
+        "latest_age_days_max": 1,
+        "history_span_days_max": 2961
+      },
+      {
+        "group": "derivatives_tail",
+        "status": "weak",
+        "column_count": 18,
+        "coverage_ratio": 0.005619576042111254,
+        "ready_column_count": 0,
+        "latest_age_days_max": 0,
+        "history_span_days_max": 72
+      },
+      {
+        "group": "onchain_activity",
+        "status": "weak",
+        "column_count": 0,
+        "coverage_ratio": 0.0,
+        "ready_column_count": 0,
+        "latest_age_days_max": null,
+        "history_span_days_max": 0
+      },
+      {
+        "group": "manual_external",
+        "status": "weak",
+        "column_count": 0,
+        "coverage_ratio": 0.0,
+        "ready_column_count": 0,
+        "latest_age_days_max": null,
+        "history_span_days_max": 0
+      }
+    ],
+    "learning_exclusion_summary": [
+      {
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "column_count": 21
+      },
+      {
+        "column_group": "deribit_derivatives",
+        "learning_status": "short_history",
+        "column_count": 14
+      },
+      {
+        "column_group": "coingecko",
+        "learning_status": "short_history",
+        "column_count": 6
+      },
+      {
+        "column_group": "defillama_onchain",
+        "learning_status": "short_history",
+        "column_count": 4
+      },
+      {
+        "column_group": "deribit_derivatives",
+        "learning_status": "low_coverage",
+        "column_count": 4
+      }
+    ],
+    "learning_exclusion_sample": [
+      {
+        "column": "fred_bbb_oas",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 1096.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_breakeven_10y",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_cpi",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2909.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_effr",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_fed_balance_sheet",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2915.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_fed_funds",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_hy_oas",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 1096.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_inflation_forward_5y5y",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_iorb",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 1724.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_m2_money_supply",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2909.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_rrp",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_sofr",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_stl_fsi",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_tga",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2915.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_treasury_10y",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_treasury_2y",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_treasury_30y",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_treasury_3m",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_unemployment_rate",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2909.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_usd_eur",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2920.0,
+        "latest_age_days": 41.0,
+        "rows_until_min": 93,
+        "days_until_90d": 0
+      }
+    ],
+    "recommendations": [
+      "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
+      "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
+      "24 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
+      "49 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
+      "21 vendor columns are stale beyond 30 days."
+    ]
+  },
+  "sources": [
+    {
+      "source": "market_ohlcv_yfinance",
+      "status": "ok",
+      "rows": 3124,
+      "columns": 55,
+      "start": "2017-11-09 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "manual_external_csv",
+      "status": "skipped",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "No manual CSV features found"
+    },
+    {
+      "source": "fred_macro",
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 404: Not Found"
+    },
+    {
+      "source": "sentiment_fear_greed",
+      "status": "ok",
+      "rows": 46,
+      "columns": 2,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "defillama_stablecoins",
+      "status": "ok",
+      "rows": 45,
+      "columns": 2,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-28 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "defillama_chain_tvl",
+      "status": "ok",
+      "rows": 46,
+      "columns": 1,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "defillama_dex_volume",
+      "status": "ok",
+      "rows": 45,
+      "columns": 1,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-28 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "glassnode",
+      "status": "skipped",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "Glassnode API key missing; set GLASSNODE_API_KEY or pass --glassnode-api-key"
+    },
+    {
+      "source": "coingecko_eth",
+      "status": "ok",
+      "rows": 46,
+      "columns": 3,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "coingecko_btc",
+      "status": "ok",
+      "rows": 46,
+      "columns": 3,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "coingecko_sol",
+      "status": "ok",
+      "rows": 46,
+      "columns": 3,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "coingecko_bnb",
+      "status": "ok",
+      "rows": 46,
+      "columns": 3,
+      "start": "2026-04-14 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "coingecko_global_snapshot",
+      "status": "ok",
+      "rows": 1,
+      "columns": 6,
+      "start": "2026-05-29 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "coingecko_defi_snapshot",
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "source": "coingecko_global_market_chart",
+      "status": "skipped",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "Requires CoinGecko Pro for historical global chart"
+    },
+    {
+      "source": "binance_funding_history",
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 451: "
+    },
+    {
+      "source": "binance_open_interest_hist",
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 451: "
+    },
+    {
+      "source": "binance_basis",
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 451: "
+    },
+    {
+      "source": "binance_taker_buy_sell_volume",
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 451: "
+    },
+    {
+      "source": "deribit_historical_volatility",
+      "status": "ok",
+      "rows": 17,
+      "columns": 1,
+      "start": "2026-05-13 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "deribit_funding_history",
+      "status": "ok",
+      "rows": 32,
+      "columns": 4,
+      "start": "2026-04-28 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "deribit_future_snapshot",
+      "status": "ok",
+      "rows": 1,
+      "columns": 6,
+      "start": "2026-05-29 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "deribit_option_snapshot",
+      "status": "ok",
+      "rows": 1,
+      "columns": 7,
+      "start": "2026-05-29 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": ""
+    },
+    {
+      "source": "etherscan",
+      "status": "skipped",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "Etherscan stats need an API key and several useful endpoints are PRO-only"
+    },
+    {
+      "source": "alchemy_eth_snapshot",
+      "status": "skipped",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "Alchemy API key missing; set ALCHEMY_API_KEY or pass --alchemy-api-key"
+    },
+    {
+      "source": "freshness_guardrail",
+      "status": "warning",
+      "rows": 3124,
+      "columns": 21,
+      "start": "2017-11-09 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": "nulled_stale_vendor_columns=21 | max_age_days=30 | columns=fred_breakeven_10y, fred_effr, fred_fed_funds, fred_inflation_forward_5y5y, fred_rrp, fred_sofr, fred_stl_fsi, fred_treasury_10y"
+    },
+    {
+      "source": "macro_selection_readiness",
+      "status": "warning",
+      "rows": 3124,
+      "columns": 8,
+      "start": "2017-11-09 00:00:00",
+      "end": "2026-05-29 00:00:00",
+      "note": "ready_columns=8/14 | ready_ratio=0.57 | market_context_ready=1 | missing=fred_bbb_oas,fred_fed_balance_sheet,fred_tga,fred_rrp,artemis_stablecoin_total_supply,artemis_non_sybil_users"
+    }
+  ]
+}
