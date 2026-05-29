@@ -247,10 +247,15 @@ def export_longrun_history(conn, model: str = LONGRUN_CHART_MODEL) -> dict:
         predicted_return = r["predicted_return"]
         raw_predicted_close = r["predicted_close"]
         raw_predicted_return = r["predicted_return"]
+        # Plot model and realized target close on the same target date.
+        # The no-change anchor remains a benchmark, but using it as the
+        # plotted forecast makes the line look like actual price shifted by
+        # the horizon, which is visually misleading for 7d/30d charts.
         if chart_model == "no_change_anchor":
             predicted_close = r["reference_close"]
             predicted_return = 0.0
         row = {
+            "display_date":      r["target_date"],
             "target_date":      r["target_date"],
             "prediction_date":  r["prediction_date"],
             "reference_close":  r["reference_close"],
@@ -259,10 +264,14 @@ def export_longrun_history(conn, model: str = LONGRUN_CHART_MODEL) -> dict:
             "predicted_return": predicted_return,
             "actual_return":    r["actual_return"],
             "chart_model":      chart_model,
+            "model_predicted_close":  raw_predicted_close,
+            "model_predicted_return": raw_predicted_return,
         }
         if chart_model == "no_change_anchor":
             row["raw_predicted_close"] = raw_predicted_close
             row["raw_predicted_return"] = raw_predicted_return
+            row["benchmark_predicted_close"] = predicted_close
+            row["benchmark_predicted_return"] = predicted_return
         bucket.append(row)
     return phases
 
