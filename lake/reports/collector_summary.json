@@ -6,13 +6,13 @@
   "source_status_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_source_status.csv",
   "data_quality_audit_json": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_data_quality_audit.json",
   "learning_exclusion_report_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_learning_exclusion_report.csv",
-  "raw_rows": 3126,
-  "column_count": 125,
+  "raw_rows": 3127,
+  "column_count": 118,
   "start": "2017-11-09 00:00:00",
-  "end": "2026-05-31 00:00:00",
+  "end": "2026-06-01 00:00:00",
   "day_boundary_tz": "Asia/Seoul",
-  "refresh_window_start": "2026-04-16 00:00:00",
-  "refresh_window_end": "2026-05-31 00:00:00",
+  "refresh_window_start": "2026-04-17 00:00:00",
+  "refresh_window_end": "2026-06-01 00:00:00",
   "recent_refresh_days": 45,
   "max_stale_age_days": 30,
   "manual_feature_file_count": 0,
@@ -40,14 +40,14 @@
         "column": "eth_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 2029.43994140625
+        "latest_value": 1996.760009765625
       },
       {
         "column_group": "market_context",
         "column": "btc_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 74066.640625
+        "latest_value": 73406.3671875
       },
       {
         "column_group": "market_context",
@@ -68,7 +68,7 @@
         "column": "dxy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 98.91000366210938
+        "latest_value": 99.01200103759766
       },
       {
         "column_group": "market_context",
@@ -82,7 +82,7 @@
         "column": "oil_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 87.36000061035156
+        "latest_value": 89.63999938964844
       },
       {
         "column_group": "fred_macro",
@@ -117,7 +117,7 @@
         "column": "sentiment_fear_greed",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 28.0
+        "latest_value": 29.0
       },
       {
         "column_group": "network_activity",
@@ -136,17 +136,26 @@
     ]
   },
   "data_quality_audit": {
-    "generated_at": "2026-05-31T04:50:03.719031+00:00",
-    "dataset_end": "2026-05-31 00:00:00",
-    "row_count": 3126,
-    "column_count": 125,
+    "generated_at": "2026-06-01T05:15:10.510218+00:00",
+    "dataset_end": "2026-06-01 00:00:00",
+    "row_count": 3127,
+    "column_count": 118,
     "source_status_counts": {
-      "ok": 17,
+      "ok": 16,
       "skipped": 5,
-      "error": 4,
+      "error": 5,
       "warning": 1
     },
     "source_errors": [
+      {
+        "source": "coingecko_defi_snapshot",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 429: Too Many Requests"
+      },
       {
         "source": "binance_funding_history",
         "status": "error",
@@ -186,15 +195,15 @@
       {
         "source": "freshness_guardrail",
         "status": "warning",
-        "rows": 3126,
+        "rows": 3127,
         "columns": 3,
         "start": "2017-11-09 00:00:00",
-        "end": "2026-05-31 00:00:00",
+        "end": "2026-06-01 00:00:00",
         "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=fred_cpi, fred_m2_money_supply, fred_unemployment_rate"
       }
     ],
-    "short_history_vendor_column_count": 30,
-    "learning_exclusion_column_count": 38,
+    "short_history_vendor_column_count": 23,
+    "learning_exclusion_column_count": 31,
     "stale_vendor_column_count": 3,
     "tail_event_readiness": "weak",
     "group_summary": [
@@ -205,34 +214,34 @@
         "coverage_ratio": 1.0,
         "ready_column_count": 35,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3125
+        "history_span_days_max": 3126
       },
       {
         "group": "macro_liquidity_credit",
         "status": "ok",
         "column_count": 21,
-        "coverage_ratio": 0.7386893336989308,
+        "coverage_ratio": 0.7387272145826671,
         "ready_column_count": 18,
         "latest_age_days_max": 0,
-        "history_span_days_max": 2963
+        "history_span_days_max": 2964
       },
       {
         "group": "crypto_native",
         "status": "ok",
-        "column_count": 31,
-        "coverage_ratio": 0.11388355726167629,
+        "column_count": 24,
+        "coverage_ratio": 0.14715915147638844,
         "ready_column_count": 2,
         "latest_age_days_max": 0,
-        "history_span_days_max": 2963
+        "history_span_days_max": 2964
       },
       {
         "group": "derivatives_tail",
         "status": "weak",
         "column_count": 18,
-        "coverage_ratio": 0.005615980663965309,
+        "coverage_ratio": 0.005614184699570052,
         "ready_column_count": 0,
         "latest_age_days_max": 0,
-        "history_span_days_max": 74
+        "history_span_days_max": 75
       },
       {
         "group": "onchain_activity",
@@ -257,12 +266,17 @@
       {
         "column_group": "deribit_derivatives",
         "learning_status": "short_history",
-        "column_count": 14
+        "column_count": 13
       },
       {
         "column_group": "coingecko",
         "learning_status": "short_history",
-        "column_count": 12
+        "column_count": 6
+      },
+      {
+        "column_group": "deribit_derivatives",
+        "learning_status": "low_coverage",
+        "column_count": 5
       },
       {
         "column_group": "defillama_onchain",
@@ -270,33 +284,12 @@
         "column_count": 4
       },
       {
-        "column_group": "deribit_derivatives",
-        "learning_status": "low_coverage",
-        "column_count": 4
-      },
-      {
         "column_group": "fred_macro",
         "learning_status": "empty",
         "column_count": 3
-      },
-      {
-        "column_group": "coingecko",
-        "learning_status": "empty",
-        "column_count": 1
       }
     ],
     "learning_exclusion_sample": [
-      {
-        "column": "cg_defi_top_coin_name",
-        "column_group": "coingecko",
-        "learning_status": "empty",
-        "exclusion_reasons": "empty;low_rows<93;short_history<60d;low_variation",
-        "non_null_rows": 0,
-        "history_span_days": NaN,
-        "latest_age_days": NaN,
-        "rows_until_min": 93,
-        "days_until_90d": 90
-      },
       {
         "column": "fred_cpi",
         "column_group": "fred_macro",
@@ -304,7 +297,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2909.0,
-        "latest_age_days": 43.0,
+        "latest_age_days": 44.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -315,7 +308,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2909.0,
-        "latest_age_days": 43.0,
+        "latest_age_days": 44.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -326,9 +319,20 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2909.0,
-        "latest_age_days": 43.0,
+        "latest_age_days": 44.0,
         "rows_until_min": 93,
         "days_until_90d": 0
+      },
+      {
+        "column": "deribit_eth_historical_volatility",
+        "column_group": "deribit_derivatives",
+        "learning_status": "low_coverage",
+        "exclusion_reasons": "low_rows<93",
+        "non_null_rows": 34,
+        "history_span_days": 60.0,
+        "latest_age_days": 0.0,
+        "rows_until_min": 59,
+        "days_until_90d": 30
       },
       {
         "column": "deribit_eth_funding_index_price",
@@ -336,10 +340,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<93",
         "non_null_rows": 64,
-        "history_span_days": 74.0,
+        "history_span_days": 75.0,
         "latest_age_days": 0.0,
         "rows_until_min": 29,
-        "days_until_90d": 16
+        "days_until_90d": 15
       },
       {
         "column": "deribit_eth_funding_interest_1h",
@@ -347,10 +351,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<93",
         "non_null_rows": 64,
-        "history_span_days": 74.0,
+        "history_span_days": 75.0,
         "latest_age_days": 0.0,
         "rows_until_min": 29,
-        "days_until_90d": 16
+        "days_until_90d": 15
       },
       {
         "column": "deribit_eth_funding_interest_8h",
@@ -358,10 +362,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<93",
         "non_null_rows": 64,
-        "history_span_days": 74.0,
+        "history_span_days": 75.0,
         "latest_age_days": 0.0,
         "rows_until_min": 29,
-        "days_until_90d": 16
+        "days_until_90d": 15
       },
       {
         "column": "deribit_eth_funding_prev_index_price",
@@ -369,76 +373,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<93",
         "non_null_rows": 64,
-        "history_span_days": 74.0,
+        "history_span_days": 75.0,
         "latest_age_days": 0.0,
         "rows_until_min": 29,
-        "days_until_90d": 16
-      },
-      {
-        "column": "cg_defi_defi_dominance",
-        "column_group": "coingecko",
-        "learning_status": "short_history",
-        "exclusion_reasons": "low_rows<93;short_history<60d;low_variation",
-        "non_null_rows": 1,
-        "history_span_days": 0.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 92,
-        "days_until_90d": 90
-      },
-      {
-        "column": "cg_defi_defi_market_cap",
-        "column_group": "coingecko",
-        "learning_status": "short_history",
-        "exclusion_reasons": "low_rows<93;short_history<60d;low_variation",
-        "non_null_rows": 1,
-        "history_span_days": 0.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 92,
-        "days_until_90d": 90
-      },
-      {
-        "column": "cg_defi_defi_to_eth_ratio",
-        "column_group": "coingecko",
-        "learning_status": "short_history",
-        "exclusion_reasons": "low_rows<93;short_history<60d;low_variation",
-        "non_null_rows": 1,
-        "history_span_days": 0.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 92,
-        "days_until_90d": 90
-      },
-      {
-        "column": "cg_defi_eth_market_cap",
-        "column_group": "coingecko",
-        "learning_status": "short_history",
-        "exclusion_reasons": "low_rows<93;short_history<60d;low_variation",
-        "non_null_rows": 1,
-        "history_span_days": 0.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 92,
-        "days_until_90d": 90
-      },
-      {
-        "column": "cg_defi_top_coin_defi_dominance",
-        "column_group": "coingecko",
-        "learning_status": "short_history",
-        "exclusion_reasons": "low_rows<93;short_history<60d;low_variation",
-        "non_null_rows": 1,
-        "history_span_days": 0.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 92,
-        "days_until_90d": 90
-      },
-      {
-        "column": "cg_defi_trading_volume_24h",
-        "column_group": "coingecko",
-        "learning_status": "short_history",
-        "exclusion_reasons": "low_rows<93;short_history<60d;low_variation",
-        "non_null_rows": 1,
-        "history_span_days": 0.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 92,
-        "days_until_90d": 90
+        "days_until_90d": 15
       },
       {
         "column": "cg_global_active_cryptocurrencies",
@@ -446,10 +384,10 @@
         "learning_status": "short_history",
         "exclusion_reasons": "low_rows<93;short_history<60d",
         "non_null_rows": 2,
-        "history_span_days": 43.0,
+        "history_span_days": 44.0,
         "latest_age_days": 0.0,
         "rows_until_min": 91,
-        "days_until_90d": 47
+        "days_until_90d": 46
       },
       {
         "column": "cg_global_btc_dominance_pct",
@@ -457,10 +395,10 @@
         "learning_status": "short_history",
         "exclusion_reasons": "low_rows<93;short_history<60d",
         "non_null_rows": 2,
-        "history_span_days": 43.0,
+        "history_span_days": 44.0,
         "latest_age_days": 0.0,
         "rows_until_min": 91,
-        "days_until_90d": 47
+        "days_until_90d": 46
       },
       {
         "column": "cg_global_eth_dominance_pct",
@@ -468,21 +406,21 @@
         "learning_status": "short_history",
         "exclusion_reasons": "low_rows<93;short_history<60d",
         "non_null_rows": 2,
-        "history_span_days": 43.0,
+        "history_span_days": 44.0,
         "latest_age_days": 0.0,
         "rows_until_min": 91,
-        "days_until_90d": 47
+        "days_until_90d": 46
       },
       {
         "column": "cg_global_markets",
         "column_group": "coingecko",
         "learning_status": "short_history",
-        "exclusion_reasons": "low_rows<93;short_history<60d",
+        "exclusion_reasons": "low_rows<93;short_history<60d;low_variation",
         "non_null_rows": 2,
-        "history_span_days": 43.0,
+        "history_span_days": 44.0,
         "latest_age_days": 0.0,
         "rows_until_min": 91,
-        "days_until_90d": 47
+        "days_until_90d": 46
       },
       {
         "column": "cg_global_total_market_cap_usd",
@@ -490,10 +428,10 @@
         "learning_status": "short_history",
         "exclusion_reasons": "low_rows<93;short_history<60d",
         "non_null_rows": 2,
-        "history_span_days": 43.0,
+        "history_span_days": 44.0,
         "latest_age_days": 0.0,
         "rows_until_min": 91,
-        "days_until_90d": 47
+        "days_until_90d": 46
       },
       {
         "column": "cg_global_total_volume_usd",
@@ -501,17 +439,83 @@
         "learning_status": "short_history",
         "exclusion_reasons": "low_rows<93;short_history<60d",
         "non_null_rows": 2,
-        "history_span_days": 43.0,
+        "history_span_days": 44.0,
         "latest_age_days": 0.0,
         "rows_until_min": 91,
-        "days_until_90d": 47
+        "days_until_90d": 46
+      },
+      {
+        "column": "deribit_eth_future_current_funding_mean",
+        "column_group": "deribit_derivatives",
+        "learning_status": "short_history",
+        "exclusion_reasons": "low_rows<93;short_history<60d",
+        "non_null_rows": 2,
+        "history_span_days": 44.0,
+        "latest_age_days": 0.0,
+        "rows_until_min": 91,
+        "days_until_90d": 46
+      },
+      {
+        "column": "deribit_eth_future_funding_8h_mean",
+        "column_group": "deribit_derivatives",
+        "learning_status": "short_history",
+        "exclusion_reasons": "low_rows<93;short_history<60d",
+        "non_null_rows": 2,
+        "history_span_days": 44.0,
+        "latest_age_days": 0.0,
+        "rows_until_min": 91,
+        "days_until_90d": 46
+      },
+      {
+        "column": "deribit_eth_future_mark_price_mean",
+        "column_group": "deribit_derivatives",
+        "learning_status": "short_history",
+        "exclusion_reasons": "low_rows<93;short_history<60d",
+        "non_null_rows": 2,
+        "history_span_days": 44.0,
+        "latest_age_days": 0.0,
+        "rows_until_min": 91,
+        "days_until_90d": 46
+      },
+      {
+        "column": "deribit_eth_future_open_interest_sum",
+        "column_group": "deribit_derivatives",
+        "learning_status": "short_history",
+        "exclusion_reasons": "low_rows<93;short_history<60d",
+        "non_null_rows": 2,
+        "history_span_days": 44.0,
+        "latest_age_days": 0.0,
+        "rows_until_min": 91,
+        "days_until_90d": 46
+      },
+      {
+        "column": "deribit_eth_future_volume_sum",
+        "column_group": "deribit_derivatives",
+        "learning_status": "short_history",
+        "exclusion_reasons": "low_rows<93;short_history<60d",
+        "non_null_rows": 2,
+        "history_span_days": 44.0,
+        "latest_age_days": 0.0,
+        "rows_until_min": 91,
+        "days_until_90d": 46
+      },
+      {
+        "column": "deribit_eth_future_volume_usd_sum",
+        "column_group": "deribit_derivatives",
+        "learning_status": "short_history",
+        "exclusion_reasons": "low_rows<93;short_history<60d",
+        "non_null_rows": 2,
+        "history_span_days": 44.0,
+        "latest_age_days": 0.0,
+        "rows_until_min": 91,
+        "days_until_90d": 46
       }
     ],
     "recommendations": [
       "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
       "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
-      "30 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
-      "38 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
+      "23 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
+      "31 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
       "3 vendor columns are stale beyond 30 days."
     ]
   },
@@ -519,10 +523,10 @@
     {
       "source": "market_ohlcv_yfinance",
       "status": "ok",
-      "rows": 3126,
+      "rows": 3127,
       "columns": 55,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -539,8 +543,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 18,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -548,8 +552,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 2,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -557,8 +561,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 2,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -566,8 +570,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 1,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -575,8 +579,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 1,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -593,8 +597,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -602,8 +606,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -611,8 +615,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -620,8 +624,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-16 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-04-17 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -629,18 +633,18 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-05-31 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-06-01 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_defi_snapshot",
-      "status": "ok",
-      "rows": 1,
-      "columns": 7,
-      "start": "2026-05-31 00:00:00",
-      "end": "2026-05-31 00:00:00",
-      "note": ""
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 429: Too Many Requests"
     },
     {
       "source": "coingecko_global_market_chart",
@@ -692,8 +696,8 @@
       "status": "ok",
       "rows": 17,
       "columns": 1,
-      "start": "2026-05-15 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-05-16 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -701,8 +705,8 @@
       "status": "ok",
       "rows": 32,
       "columns": 4,
-      "start": "2026-04-30 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-05-01 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -710,8 +714,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-05-31 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-06-01 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -719,8 +723,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 7,
-      "start": "2026-05-31 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "start": "2026-06-01 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": ""
     },
     {
@@ -744,19 +748,19 @@
     {
       "source": "freshness_guardrail",
       "status": "warning",
-      "rows": 3126,
+      "rows": 3127,
       "columns": 3,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=fred_cpi, fred_m2_money_supply, fred_unemployment_rate"
     },
     {
       "source": "macro_selection_readiness",
       "status": "ok",
-      "rows": 3126,
+      "rows": 3127,
       "columns": 12,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-05-31 00:00:00",
+      "end": "2026-06-01 00:00:00",
       "note": "ready_columns=12/14 | ready_ratio=0.86 | market_context_ready=1 | missing=artemis_stablecoin_total_supply,artemis_non_sybil_users"
     }
   ]
