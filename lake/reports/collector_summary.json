@@ -6,13 +6,13 @@
   "source_status_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_source_status.csv",
   "data_quality_audit_json": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_data_quality_audit.json",
   "learning_exclusion_report_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_learning_exclusion_report.csv",
-  "raw_rows": 3130,
+  "raw_rows": 3131,
   "column_count": 118,
   "start": "2017-11-09 00:00:00",
-  "end": "2026-06-04 00:00:00",
+  "end": "2026-06-05 00:00:00",
   "day_boundary_tz": "Asia/Seoul",
-  "refresh_window_start": "2026-04-20 00:00:00",
-  "refresh_window_end": "2026-06-04 00:00:00",
+  "refresh_window_start": "2026-04-21 00:00:00",
+  "refresh_window_end": "2026-06-05 00:00:00",
   "recent_refresh_days": 45,
   "max_stale_age_days": 30,
   "manual_feature_file_count": 0,
@@ -62,49 +62,49 @@
         "column": "eth_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 1793.8599853515625
+        "latest_value": 1728.4100341796875
       },
       {
         "column_group": "market_context",
         "column": "btc_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 63998.98828125
+        "latest_value": 62971.94921875
       },
       {
         "column_group": "market_context",
         "column": "spy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 754.239990234375
+        "latest_value": 754.5597
       },
       {
         "column_group": "market_context",
         "column": "qqq_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 744.2100219726562
+        "latest_value": 735.3685
       },
       {
         "column_group": "market_context",
         "column": "dxy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 99.44200134277344
+        "latest_value": 99.41200256347656
       },
       {
         "column_group": "market_context",
         "column": "tnx_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 4.491000175476074
+        "latest_value": 4.4770002365112305
       },
       {
         "column_group": "market_context",
         "column": "oil_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 95.25
+        "latest_value": 93.13999938964844
       },
       {
         "column_group": "fred_macro",
@@ -158,9 +158,9 @@
     ]
   },
   "data_quality_audit": {
-    "generated_at": "2026-06-04T05:05:42.118773+00:00",
-    "dataset_end": "2026-06-04 00:00:00",
-    "row_count": 3130,
+    "generated_at": "2026-06-05T04:47:26.247859+00:00",
+    "dataset_end": "2026-06-05 00:00:00",
+    "row_count": 3131,
     "column_count": 118,
     "source_status_counts": {
       "ok": 14,
@@ -226,19 +226,19 @@
       {
         "source": "freshness_guardrail",
         "status": "warning",
-        "rows": 3130,
+        "rows": 3131,
         "columns": 21,
         "start": "2017-11-09 00:00:00",
-        "end": "2026-06-04 00:00:00",
+        "end": "2026-06-05 00:00:00",
         "note": "nulled_stale_vendor_columns=21 | max_age_days=30 | columns=fred_breakeven_10y, fred_effr, fred_fed_funds, fred_inflation_forward_5y5y, fred_rrp, fred_sofr, fred_stl_fsi, fred_treasury_10y"
       },
       {
         "source": "macro_selection_readiness",
         "status": "warning",
-        "rows": 3130,
+        "rows": 3131,
         "columns": 8,
         "start": "2017-11-09 00:00:00",
-        "end": "2026-06-04 00:00:00",
+        "end": "2026-06-05 00:00:00",
         "note": "ready_columns=8/14 | ready_ratio=0.57 | market_context_ready=1 | missing=fred_bbb_oas,fred_fed_balance_sheet,fred_tga,fred_rrp,artemis_stablecoin_total_supply,artemis_non_sybil_users"
       }
     ],
@@ -251,10 +251,10 @@
         "group": "core_market",
         "status": "ok",
         "column_count": 35,
-        "coverage_ratio": 0.9996805111821085,
+        "coverage_ratio": 0.9993612264452251,
         "ready_column_count": 35,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3129
+        "history_span_days_max": 3130
       },
       {
         "group": "macro_liquidity_credit",
@@ -269,19 +269,19 @@
         "group": "crypto_native",
         "status": "ok",
         "column_count": 24,
-        "coverage_ratio": 0.1473908413205538,
+        "coverage_ratio": 0.14734376663472798,
         "ready_column_count": 2,
         "latest_age_days_max": 0,
-        "history_span_days_max": 2967
+        "history_span_days_max": 2968
       },
       {
         "group": "derivatives_tail",
         "status": "weak",
         "column_count": 18,
-        "coverage_ratio": 0.0056088036918707845,
+        "coverage_ratio": 0.00560701231413464,
         "ready_column_count": 0,
         "latest_age_days_max": 0,
-        "history_span_days_max": 78
+        "history_span_days_max": 79
       },
       {
         "group": "onchain_activity",
@@ -337,7 +337,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 1096.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -348,7 +348,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -359,7 +359,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2909.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -370,7 +370,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -381,7 +381,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2915.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -392,7 +392,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -403,7 +403,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 1096.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -414,7 +414,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -425,7 +425,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 1724.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -436,7 +436,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2909.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -447,7 +447,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -458,7 +458,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -469,7 +469,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -480,7 +480,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2915.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -491,7 +491,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -502,7 +502,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -513,7 +513,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -524,7 +524,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -535,7 +535,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2909.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       },
@@ -546,7 +546,7 @@
         "exclusion_reasons": "empty;low_rows<93;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2920.0,
-        "latest_age_days": 47.0,
+        "latest_age_days": 48.0,
         "rows_until_min": 93,
         "days_until_90d": 0
       }
@@ -563,10 +563,10 @@
     {
       "source": "market_ohlcv_yfinance",
       "status": "ok",
-      "rows": 3130,
+      "rows": 3131,
       "columns": 55,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -592,8 +592,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 2,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -601,8 +601,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 2,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -610,8 +610,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 1,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -619,8 +619,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 1,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -637,8 +637,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -646,8 +646,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -655,8 +655,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -664,8 +664,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-04-20 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-04-21 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -673,8 +673,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-06-04 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-06-05 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -736,8 +736,8 @@
       "status": "ok",
       "rows": 17,
       "columns": 1,
-      "start": "2026-05-19 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-05-20 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -745,8 +745,8 @@
       "status": "ok",
       "rows": 32,
       "columns": 4,
-      "start": "2026-05-04 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-05-05 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -754,8 +754,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-06-04 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-06-05 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -763,8 +763,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 7,
-      "start": "2026-06-04 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "start": "2026-06-05 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": ""
     },
     {
@@ -788,19 +788,19 @@
     {
       "source": "freshness_guardrail",
       "status": "warning",
-      "rows": 3130,
+      "rows": 3131,
       "columns": 21,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": "nulled_stale_vendor_columns=21 | max_age_days=30 | columns=fred_breakeven_10y, fred_effr, fred_fed_funds, fred_inflation_forward_5y5y, fred_rrp, fred_sofr, fred_stl_fsi, fred_treasury_10y"
     },
     {
       "source": "macro_selection_readiness",
       "status": "warning",
-      "rows": 3130,
+      "rows": 3131,
       "columns": 8,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-06-04 00:00:00",
+      "end": "2026-06-05 00:00:00",
       "note": "ready_columns=8/14 | ready_ratio=0.57 | market_context_ready=1 | missing=fred_bbb_oas,fred_fed_balance_sheet,fred_tga,fred_rrp,artemis_stablecoin_total_supply,artemis_non_sybil_users"
     }
   ]
