@@ -1,24 +1,15 @@
 {
-  "generated_at": "2026-06-16T05:32:02.997313+00:00",
-  "dataset_end": "2026-06-16 00:00:00",
-  "row_count": 3142,
+  "generated_at": "2026-06-17T05:14:53.398595+00:00",
+  "dataset_end": "2026-06-17 00:00:00",
+  "row_count": 3143,
   "column_count": 118,
   "source_status_counts": {
-    "ok": 14,
-    "error": 6,
+    "ok": 16,
     "skipped": 5,
-    "warning": 2
+    "error": 5,
+    "warning": 1
   },
   "source_errors": [
-    {
-      "source": "fred_macro",
-      "status": "error",
-      "rows": 0,
-      "columns": 0,
-      "start": "",
-      "end": "",
-      "note": "The read operation timed out"
-    },
     {
       "source": "coingecko_defi_snapshot",
       "status": "error",
@@ -67,62 +58,53 @@
     {
       "source": "freshness_guardrail",
       "status": "warning",
-      "rows": 3142,
-      "columns": 21,
+      "rows": 3143,
+      "columns": 3,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-06-16 00:00:00",
-      "note": "nulled_stale_vendor_columns=21 | max_age_days=30 | columns=fred_breakeven_10y, fred_effr, fred_fed_funds, fred_inflation_forward_5y5y, fred_rrp, fred_sofr, fred_stl_fsi, fred_treasury_10y"
-    },
-    {
-      "source": "macro_selection_readiness",
-      "status": "warning",
-      "rows": 3142,
-      "columns": 8,
-      "start": "2017-11-09 00:00:00",
-      "end": "2026-06-16 00:00:00",
-      "note": "ready_columns=8/14 | ready_ratio=0.57 | market_context_ready=1 | missing=fred_bbb_oas,fred_fed_balance_sheet,fred_tga,fred_rrp,artemis_stablecoin_total_supply,artemis_non_sybil_users"
+      "end": "2026-06-17 00:00:00",
+      "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=fred_cpi, fred_m2_money_supply, fred_unemployment_rate"
     }
   ],
-  "short_history_vendor_column_count": 23,
-  "learning_exclusion_column_count": 49,
-  "stale_vendor_column_count": 21,
+  "short_history_vendor_column_count": 4,
+  "learning_exclusion_column_count": 31,
+  "stale_vendor_column_count": 3,
   "tail_event_readiness": "weak",
   "group_summary": [
     {
       "group": "core_market",
       "status": "ok",
       "column_count": 35,
-      "coverage_ratio": 0.9958625079567154,
+      "coverage_ratio": 0.9955456570155901,
       "ready_column_count": 35,
       "latest_age_days_max": 0,
-      "history_span_days_max": 3141
+      "history_span_days_max": 3142
     },
     {
       "group": "macro_liquidity_credit",
-      "status": "weak",
+      "status": "ok",
       "column_count": 21,
-      "coverage_ratio": 0.0,
-      "ready_column_count": 0,
-      "latest_age_days_max": null,
-      "history_span_days_max": 0
+      "coverage_ratio": 0.7352393073042135,
+      "ready_column_count": 18,
+      "latest_age_days_max": 0,
+      "history_span_days_max": 2980
     },
     {
       "group": "crypto_native",
       "status": "ok",
       "column_count": 24,
-      "coverage_ratio": 0.1468279227668152,
+      "coverage_ratio": 0.14678120691483723,
       "ready_column_count": 2,
       "latest_age_days_max": 0,
-      "history_span_days_max": 2979
+      "history_span_days_max": 2980
     },
     {
       "group": "derivatives_tail",
       "status": "weak",
       "column_count": 18,
-      "coverage_ratio": 0.005587382417426974,
+      "coverage_ratio": 0.005585604694736098,
       "ready_column_count": 0,
       "latest_age_days_max": 0,
-      "history_span_days_max": 90
+      "history_span_days_max": 91
     },
     {
       "group": "onchain_activity",
@@ -145,54 +127,27 @@
   ],
   "learning_exclusion_summary": [
     {
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "column_count": 21
-    },
-    {
       "column_group": "deribit_derivatives",
-      "learning_status": "short_history",
-      "column_count": 13
+      "learning_status": "low_coverage",
+      "column_count": 18
     },
     {
       "column_group": "coingecko",
-      "learning_status": "short_history",
-      "column_count": 6
-    },
-    {
-      "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
-      "column_count": 5
+      "column_count": 6
     },
     {
       "column_group": "defillama_onchain",
       "learning_status": "short_history",
       "column_count": 4
+    },
+    {
+      "column_group": "fred_macro",
+      "learning_status": "empty",
+      "column_count": 3
     }
   ],
   "learning_exclusion_sample": [
-    {
-      "column": "fred_bbb_oas",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 1096.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_breakeven_10y",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
     {
       "column": "fred_cpi",
       "column_group": "fred_macro",
@@ -200,73 +155,7 @@
       "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
       "non_null_rows": 0,
       "history_span_days": 2909.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_effr",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_fed_balance_sheet",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2915.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_fed_funds",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_hy_oas",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 1096.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_inflation_forward_5y5y",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_iorb",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 1724.0,
-      "latest_age_days": 59.0,
+      "latest_age_days": 60.0,
       "rows_until_min": 94,
       "days_until_90d": 0
     },
@@ -277,95 +166,7 @@
       "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
       "non_null_rows": 0,
       "history_span_days": 2909.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_rrp",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_sofr",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_stl_fsi",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_tga",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2915.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_treasury_10y",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_treasury_2y",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_treasury_30y",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "fred_treasury_3m",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
+      "latest_age_days": 60.0,
       "rows_until_min": 94,
       "days_until_90d": 0
     },
@@ -376,27 +177,203 @@
       "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
       "non_null_rows": 0,
       "history_span_days": 2909.0,
-      "latest_age_days": 59.0,
+      "latest_age_days": 60.0,
       "rows_until_min": 94,
       "days_until_90d": 0
     },
     {
-      "column": "fred_usd_eur",
-      "column_group": "fred_macro",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<94;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 2920.0,
-      "latest_age_days": 59.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
+      "column": "cg_global_active_cryptocurrencies",
+      "column_group": "coingecko",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "cg_global_btc_dominance_pct",
+      "column_group": "coingecko",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "cg_global_eth_dominance_pct",
+      "column_group": "coingecko",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "cg_global_markets",
+      "column_group": "coingecko",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "cg_global_total_market_cap_usd",
+      "column_group": "coingecko",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "cg_global_total_volume_usd",
+      "column_group": "coingecko",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_future_current_funding_mean",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94;low_variation",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_future_funding_8h_mean",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_future_mark_price_mean",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_future_open_interest_sum",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_future_volume_sum",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_future_volume_usd_sum",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_option_mark_iv_mean",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_option_mark_price_mean",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_option_open_interest_sum",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_option_put_call_oi_ratio",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
+    },
+    {
+      "column": "deribit_eth_option_underlying_price_mean",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<94",
+      "non_null_rows": 2,
+      "history_span_days": 60.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 92,
+      "days_until_90d": 30
     }
   ],
   "recommendations": [
     "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
     "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
-    "23 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
-    "49 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
-    "21 vendor columns are stale beyond 30 days."
+    "4 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
+    "31 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
+    "3 vendor columns are stale beyond 30 days."
   ]
 }
