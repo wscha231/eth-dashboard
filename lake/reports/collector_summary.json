@@ -6,19 +6,21 @@
   "source_status_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_source_status.csv",
   "data_quality_audit_json": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_data_quality_audit.json",
   "learning_exclusion_report_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_learning_exclusion_report.csv",
-  "raw_rows": 3172,
+  "raw_rows": 3173,
   "column_count": 118,
   "start": "2017-11-09 00:00:00",
-  "end": "2026-07-16 00:00:00",
+  "end": "2026-07-17 00:00:00",
   "day_boundary_tz": "Asia/Seoul",
-  "refresh_window_start": "2026-06-01 00:00:00",
-  "refresh_window_end": "2026-07-16 00:00:00",
+  "refresh_window_start": "2026-06-02 00:00:00",
+  "refresh_window_end": "2026-07-17 00:00:00",
   "recent_refresh_days": 45,
   "max_stale_age_days": 30,
   "manual_feature_file_count": 0,
-  "stale_vendor_column_count": 1,
+  "stale_vendor_column_count": 3,
   "stale_vendor_columns": [
-    "fred_m2_money_supply"
+    "fred_cpi",
+    "fred_m2_money_supply",
+    "fred_unemployment_rate"
   ],
   "macro_selection_readiness": {
     "status": "ok",
@@ -38,49 +40,49 @@
         "column": "eth_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 1925.1800537109375
+        "latest_value": 1855.280029296875
       },
       {
         "column_group": "market_context",
         "column": "btc_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 64668.44140625
+        "latest_value": 63592.41015625
       },
       {
         "column_group": "market_context",
         "column": "spy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 754.8099975585938
+        "latest_value": 750.719970703125
       },
       {
         "column_group": "market_context",
         "column": "qqq_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 717.739990234375
+        "latest_value": 705.9400024414062
       },
       {
         "column_group": "market_context",
         "column": "dxy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 100.49800109863281
+        "latest_value": 100.75900268554688
       },
       {
         "column_group": "market_context",
         "column": "tnx_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 4.545000076293945
+        "latest_value": 4.568999767303467
       },
       {
         "column_group": "market_context",
         "column": "oil_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 79.76000213623047
+        "latest_value": 78.93000030517578
       },
       {
         "column_group": "fred_macro",
@@ -94,28 +96,28 @@
         "column": "fred_fed_balance_sheet",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 6735609.0
+        "latest_value": 6743028.0
       },
       {
         "column_group": "fred_macro",
         "column": "fred_tga",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 774062.0
+        "latest_value": 756218.0
       },
       {
         "column_group": "fred_macro",
         "column": "fred_rrp",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 0.151
+        "latest_value": 0.125
       },
       {
         "column_group": "sentiment",
         "column": "sentiment_fear_greed",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 25.0
+        "latest_value": 27.0
       },
       {
         "column_group": "network_activity",
@@ -134,9 +136,9 @@
     ]
   },
   "data_quality_audit": {
-    "generated_at": "2026-07-16T03:34:31.631890+00:00",
-    "dataset_end": "2026-07-16 00:00:00",
-    "row_count": 3172,
+    "generated_at": "2026-07-17T03:34:54.453132+00:00",
+    "dataset_end": "2026-07-17 00:00:00",
+    "row_count": 3173,
     "column_count": 118,
     "source_status_counts": {
       "ok": 16,
@@ -193,53 +195,53 @@
       {
         "source": "freshness_guardrail",
         "status": "warning",
-        "rows": 3172,
-        "columns": 1,
+        "rows": 3173,
+        "columns": 3,
         "start": "2017-11-09 00:00:00",
-        "end": "2026-07-16 00:00:00",
-        "note": "nulled_stale_vendor_columns=1 | max_age_days=30 | columns=fred_m2_money_supply"
+        "end": "2026-07-17 00:00:00",
+        "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=fred_cpi, fred_m2_money_supply, fred_unemployment_rate"
       }
     ],
     "short_history_vendor_column_count": 4,
-    "learning_exclusion_column_count": 29,
-    "stale_vendor_column_count": 1,
+    "learning_exclusion_column_count": 31,
+    "stale_vendor_column_count": 3,
     "tail_event_readiness": "weak",
     "group_summary": [
       {
         "group": "core_market",
         "status": "ok",
         "column_count": 35,
-        "coverage_ratio": 0.9864438839848676,
+        "coverage_ratio": 0.9861329971635675,
         "ready_column_count": 35,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3171
+        "history_span_days_max": 3172
       },
       {
         "group": "macro_liquidity_credit",
         "status": "ok",
         "column_count": 21,
-        "coverage_ratio": 0.817510358493965,
-        "ready_column_count": 20,
+        "coverage_ratio": 0.7285729293293114,
+        "ready_column_count": 18,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3009
+        "history_span_days_max": 3010
       },
       {
         "group": "crypto_native",
         "status": "ok",
         "column_count": 24,
-        "coverage_ratio": 0.14543926019335854,
+        "coverage_ratio": 0.14539342367895788,
         "ready_column_count": 2,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3009
+        "history_span_days_max": 3010
       },
       {
         "group": "derivatives_tail",
         "status": "weak",
         "column_count": 18,
-        "coverage_ratio": 0.005534538321423568,
+        "coverage_ratio": 0.005532794061000806,
         "ready_column_count": 0,
         "latest_age_days_max": 0,
-        "history_span_days_max": 120
+        "history_span_days_max": 121
       },
       {
         "group": "onchain_activity",
@@ -279,10 +281,21 @@
       {
         "column_group": "fred_macro",
         "learning_status": "empty",
-        "column_count": 1
+        "column_count": 3
       }
     ],
     "learning_exclusion_sample": [
+      {
+        "column": "fred_cpi",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<95;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2909.0,
+        "latest_age_days": 90.0,
+        "rows_until_min": 95,
+        "days_until_90d": 0
+      },
       {
         "column": "fred_m2_money_supply",
         "column_group": "fred_macro",
@@ -290,7 +303,18 @@
         "exclusion_reasons": "empty;low_rows<95;low_variation;stale>=30d",
         "non_null_rows": 0,
         "history_span_days": 2909.0,
-        "latest_age_days": 89.0,
+        "latest_age_days": 90.0,
+        "rows_until_min": 95,
+        "days_until_90d": 0
+      },
+      {
+        "column": "fred_unemployment_rate",
+        "column_group": "fred_macro",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<95;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2909.0,
+        "latest_age_days": 90.0,
         "rows_until_min": 95,
         "days_until_90d": 0
       },
@@ -300,10 +324,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "cg_global_btc_dominance_pct",
@@ -311,10 +335,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "cg_global_eth_dominance_pct",
@@ -322,10 +346,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "cg_global_markets",
@@ -333,10 +357,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "cg_global_total_market_cap_usd",
@@ -344,10 +368,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "cg_global_total_volume_usd",
@@ -355,21 +379,21 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_future_current_funding_mean",
         "column_group": "deribit_derivatives",
         "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<95;low_variation",
+        "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_future_funding_8h_mean",
@@ -377,10 +401,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_future_mark_price_mean",
@@ -388,10 +412,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_future_open_interest_sum",
@@ -399,10 +423,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_future_volume_sum",
@@ -410,10 +434,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_future_volume_usd_sum",
@@ -421,10 +445,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_option_mark_iv_mean",
@@ -432,10 +456,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_option_mark_price_mean",
@@ -443,10 +467,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_option_open_interest_sum",
@@ -454,10 +478,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_option_put_call_oi_ratio",
@@ -465,10 +489,10 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       },
       {
         "column": "deribit_eth_option_underlying_price_mean",
@@ -476,50 +500,28 @@
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<95",
         "non_null_rows": 2,
-        "history_span_days": 89.0,
+        "history_span_days": 90.0,
         "latest_age_days": 0.0,
         "rows_until_min": 93,
-        "days_until_90d": 1
-      },
-      {
-        "column": "deribit_eth_option_volume_sum",
-        "column_group": "deribit_derivatives",
-        "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<95",
-        "non_null_rows": 2,
-        "history_span_days": 89.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 93,
-        "days_until_90d": 1
-      },
-      {
-        "column": "deribit_eth_option_volume_usd_sum",
-        "column_group": "deribit_derivatives",
-        "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<95",
-        "non_null_rows": 2,
-        "history_span_days": 89.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 93,
-        "days_until_90d": 1
+        "days_until_90d": 0
       }
     ],
     "recommendations": [
       "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
       "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
       "4 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
-      "29 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
-      "1 vendor columns are stale beyond 30 days."
+      "31 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
+      "3 vendor columns are stale beyond 30 days."
     ]
   },
   "sources": [
     {
       "source": "market_ohlcv_yfinance",
       "status": "ok",
-      "rows": 3172,
+      "rows": 3173,
       "columns": 55,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -535,9 +537,9 @@
       "source": "fred_macro",
       "status": "ok",
       "rows": 46,
-      "columns": 20,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "columns": 18,
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -545,8 +547,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 2,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -554,8 +556,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 2,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -563,8 +565,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 1,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -572,8 +574,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 1,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -590,8 +592,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -599,8 +601,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -608,8 +610,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -617,8 +619,8 @@
       "status": "ok",
       "rows": 46,
       "columns": 3,
-      "start": "2026-06-01 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-02 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -626,8 +628,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-07-16 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-07-17 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -689,8 +691,8 @@
       "status": "ok",
       "rows": 17,
       "columns": 1,
-      "start": "2026-06-30 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-07-01 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -698,8 +700,8 @@
       "status": "ok",
       "rows": 32,
       "columns": 4,
-      "start": "2026-06-15 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-06-16 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -707,8 +709,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-07-16 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-07-17 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -716,8 +718,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 7,
-      "start": "2026-07-16 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "start": "2026-07-17 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": ""
     },
     {
@@ -741,19 +743,19 @@
     {
       "source": "freshness_guardrail",
       "status": "warning",
-      "rows": 3172,
-      "columns": 1,
+      "rows": 3173,
+      "columns": 3,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-07-16 00:00:00",
-      "note": "nulled_stale_vendor_columns=1 | max_age_days=30 | columns=fred_m2_money_supply"
+      "end": "2026-07-17 00:00:00",
+      "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=fred_cpi, fred_m2_money_supply, fred_unemployment_rate"
     },
     {
       "source": "macro_selection_readiness",
       "status": "ok",
-      "rows": 3172,
+      "rows": 3173,
       "columns": 12,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-07-16 00:00:00",
+      "end": "2026-07-17 00:00:00",
       "note": "ready_columns=12/14 | ready_ratio=0.86 | market_context_ready=1 | missing=artemis_stablecoin_total_supply,artemis_non_sybil_users"
     }
   ]
