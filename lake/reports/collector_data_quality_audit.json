@@ -1,15 +1,24 @@
 {
-  "generated_at": "2026-07-30T03:26:04.207276+00:00",
-  "dataset_end": "2026-07-30 00:00:00",
-  "row_count": 3186,
-  "column_count": 125,
+  "generated_at": "2026-07-31T03:48:18.850762+00:00",
+  "dataset_end": "2026-07-31 00:00:00",
+  "row_count": 3187,
+  "column_count": 118,
   "source_status_counts": {
-    "ok": 17,
+    "ok": 16,
     "skipped": 5,
-    "error": 4,
+    "error": 5,
     "warning": 1
   },
   "source_errors": [
+    {
+      "source": "coingecko_defi_snapshot",
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 429: Too Many Requests"
+    },
     {
       "source": "binance_funding_history",
       "status": "error",
@@ -49,15 +58,15 @@
     {
       "source": "freshness_guardrail",
       "status": "warning",
-      "rows": 3186,
+      "rows": 3187,
       "columns": 3,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-07-30 00:00:00",
+      "end": "2026-07-31 00:00:00",
       "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=fred_cpi, fred_m2_money_supply, fred_unemployment_rate"
     }
   ],
-  "short_history_vendor_column_count": 10,
-  "learning_exclusion_column_count": 38,
+  "short_history_vendor_column_count": 4,
+  "learning_exclusion_column_count": 31,
   "stale_vendor_column_count": 3,
   "tail_event_readiness": "weak",
   "group_summary": [
@@ -65,37 +74,37 @@
       "group": "core_market",
       "status": "ok",
       "column_count": 35,
-      "coverage_ratio": 0.9821092278719397,
+      "coverage_ratio": 0.9818010668340135,
       "ready_column_count": 35,
       "latest_age_days_max": 0,
-      "history_span_days_max": 3185
+      "history_span_days_max": 3186
     },
     {
       "group": "macro_liquidity_credit",
       "status": "ok",
       "column_count": 21,
-      "coverage_ratio": 0.725555256628703,
+      "coverage_ratio": 0.7253724206971777,
       "ready_column_count": 18,
       "latest_age_days_max": 0,
-      "history_span_days_max": 3023
+      "history_span_days_max": 3024
     },
     {
       "group": "crypto_native",
       "status": "ok",
-      "column_count": 31,
-      "coverage_ratio": 0.11216410505639594,
+      "column_count": 24,
+      "coverage_ratio": 0.14475473276853887,
       "ready_column_count": 2,
       "latest_age_days_max": 0,
-      "history_span_days_max": 3023
+      "history_span_days_max": 3024
     },
     {
       "group": "derivatives_tail",
       "status": "weak",
       "column_count": 18,
-      "coverage_ratio": 0.005510218316244682,
+      "coverage_ratio": 0.005508489349091796,
       "ready_column_count": 0,
       "latest_age_days_max": 0,
-      "history_span_days_max": 134
+      "history_span_days_max": 135
     },
     {
       "group": "onchain_activity",
@@ -128,11 +137,6 @@
       "column_count": 6
     },
     {
-      "column_group": "coingecko",
-      "learning_status": "short_history",
-      "column_count": 6
-    },
-    {
       "column_group": "defillama_onchain",
       "learning_status": "short_history",
       "column_count": 4
@@ -141,25 +145,9 @@
       "column_group": "fred_macro",
       "learning_status": "empty",
       "column_count": 3
-    },
-    {
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "column_count": 1
     }
   ],
   "learning_exclusion_sample": [
-    {
-      "column": "cg_defi_top_coin_name",
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<95;short_history<60d;low_variation",
-      "non_null_rows": 0,
-      "history_span_days": NaN,
-      "latest_age_days": NaN,
-      "rows_until_min": 95,
-      "days_until_90d": 90
-    },
     {
       "column": "fred_cpi",
       "column_group": "fred_macro",
@@ -167,7 +155,7 @@
       "exclusion_reasons": "empty;low_rows<95;low_variation;stale>=30d",
       "non_null_rows": 0,
       "history_span_days": 2909.0,
-      "latest_age_days": 103.0,
+      "latest_age_days": 104.0,
       "rows_until_min": 95,
       "days_until_90d": 0
     },
@@ -178,7 +166,7 @@
       "exclusion_reasons": "empty;low_rows<95;low_variation;stale>=30d",
       "non_null_rows": 0,
       "history_span_days": 2909.0,
-      "latest_age_days": 103.0,
+      "latest_age_days": 104.0,
       "rows_until_min": 95,
       "days_until_90d": 0
     },
@@ -189,7 +177,7 @@
       "exclusion_reasons": "empty;low_rows<95;low_variation;stale>=30d",
       "non_null_rows": 0,
       "history_span_days": 2909.0,
-      "latest_age_days": 103.0,
+      "latest_age_days": 104.0,
       "rows_until_min": 95,
       "days_until_90d": 0
     },
@@ -199,7 +187,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -210,7 +198,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -221,7 +209,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -232,7 +220,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -243,7 +231,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -254,7 +242,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -263,9 +251,9 @@
       "column": "deribit_eth_future_current_funding_mean",
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
-      "exclusion_reasons": "low_rows<95",
+      "exclusion_reasons": "low_rows<95;low_variation",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -276,7 +264,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -287,7 +275,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -298,7 +286,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -309,7 +297,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -320,7 +308,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -331,7 +319,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -342,7 +330,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -353,7 +341,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -364,7 +352,18 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<95",
       "non_null_rows": 2,
-      "history_span_days": 103.0,
+      "history_span_days": 104.0,
+      "latest_age_days": 0.0,
+      "rows_until_min": 93,
+      "days_until_90d": 0
+    },
+    {
+      "column": "deribit_eth_option_underlying_price_mean",
+      "column_group": "deribit_derivatives",
+      "learning_status": "low_coverage",
+      "exclusion_reasons": "low_rows<95",
+      "non_null_rows": 2,
+      "history_span_days": 104.0,
       "latest_age_days": 0.0,
       "rows_until_min": 93,
       "days_until_90d": 0
@@ -373,8 +372,8 @@
   "recommendations": [
     "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
     "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
-    "10 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
-    "38 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
+    "4 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
+    "31 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
     "3 vendor columns are stale beyond 30 days."
   ]
 }
