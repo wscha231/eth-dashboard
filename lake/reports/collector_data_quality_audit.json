@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-15T01:48:29.174952+00:00",
-  "dataset_end": "2026-08-15 00:00:00",
-  "row_count": 3202,
+  "generated_at": "2026-08-16T01:56:27.372362+00:00",
+  "dataset_end": "2026-08-16 00:00:00",
+  "row_count": 3203,
   "column_count": 118,
   "source_status_counts": {
     "ok": 16,
@@ -58,53 +58,53 @@
     {
       "source": "freshness_guardrail",
       "status": "warning",
-      "rows": 3202,
-      "columns": 1,
+      "rows": 3203,
+      "columns": 3,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-08-15 00:00:00",
-      "note": "nulled_stale_vendor_columns=1 | max_age_days=30 | columns=fred_m2_money_supply"
+      "end": "2026-08-16 00:00:00",
+      "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=fred_cpi, fred_m2_money_supply, fred_unemployment_rate"
     }
   ],
   "short_history_vendor_column_count": 4,
-  "learning_exclusion_column_count": 29,
-  "stale_vendor_column_count": 1,
+  "learning_exclusion_column_count": 31,
+  "stale_vendor_column_count": 3,
   "tail_event_readiness": "weak",
   "group_summary": [
     {
       "group": "core_market",
       "status": "ok",
       "column_count": 35,
-      "coverage_ratio": 0.9772017489069333,
+      "coverage_ratio": 0.9768966593818296,
       "ready_column_count": 35,
       "latest_age_days_max": 0,
-      "history_span_days_max": 3201
+      "history_span_days_max": 3202
     },
     {
       "group": "macro_liquidity_credit",
       "status": "ok",
       "column_count": 21,
-      "coverage_ratio": 0.8099402159364683,
-      "ready_column_count": 20,
+      "coverage_ratio": 0.7216300194757892,
+      "ready_column_count": 18,
       "latest_age_days_max": 0,
-      "history_span_days_max": 3039
+      "history_span_days_max": 3040
     },
     {
       "group": "crypto_native",
       "status": "ok",
       "column_count": 24,
-      "coverage_ratio": 0.14403758067874245,
+      "coverage_ratio": 0.1439926110937663,
       "ready_column_count": 2,
       "latest_age_days_max": 1,
-      "history_span_days_max": 3039
+      "history_span_days_max": 3040
     },
     {
       "group": "derivatives_tail",
       "status": "weak",
       "column_count": 18,
-      "coverage_ratio": 0.005482684433340274,
+      "coverage_ratio": 0.005480972699205606,
       "ready_column_count": 0,
       "latest_age_days_max": 0,
-      "history_span_days_max": 150
+      "history_span_days_max": 151
     },
     {
       "group": "onchain_activity",
@@ -144,10 +144,21 @@
     {
       "column_group": "fred_macro",
       "learning_status": "empty",
-      "column_count": 1
+      "column_count": 3
     }
   ],
   "learning_exclusion_sample": [
+    {
+      "column": "fred_cpi",
+      "column_group": "fred_macro",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<96;low_variation;stale>=30d",
+      "non_null_rows": 0,
+      "history_span_days": 2909.0,
+      "latest_age_days": 120.0,
+      "rows_until_min": 96,
+      "days_until_90d": 0
+    },
     {
       "column": "fred_m2_money_supply",
       "column_group": "fred_macro",
@@ -155,7 +166,18 @@
       "exclusion_reasons": "empty;low_rows<96;low_variation;stale>=30d",
       "non_null_rows": 0,
       "history_span_days": 2909.0,
-      "latest_age_days": 119.0,
+      "latest_age_days": 120.0,
+      "rows_until_min": 96,
+      "days_until_90d": 0
+    },
+    {
+      "column": "fred_unemployment_rate",
+      "column_group": "fred_macro",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<96;low_variation;stale>=30d",
+      "non_null_rows": 0,
+      "history_span_days": 2909.0,
+      "latest_age_days": 120.0,
       "rows_until_min": 96,
       "days_until_90d": 0
     },
@@ -165,7 +187,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -176,7 +198,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -187,7 +209,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -198,7 +220,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -209,7 +231,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -220,7 +242,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -231,7 +253,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96;low_variation",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -240,9 +262,9 @@
       "column": "deribit_eth_future_funding_8h_mean",
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
-      "exclusion_reasons": "low_rows<96",
+      "exclusion_reasons": "low_rows<96;low_variation",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -253,7 +275,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -264,7 +286,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -275,7 +297,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -286,7 +308,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -297,7 +319,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -308,7 +330,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -319,7 +341,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -330,7 +352,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -341,29 +363,7 @@
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<96",
       "non_null_rows": 2,
-      "history_span_days": 119.0,
-      "latest_age_days": 0.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "deribit_eth_option_volume_sum",
-      "column_group": "deribit_derivatives",
-      "learning_status": "low_coverage",
-      "exclusion_reasons": "low_rows<96",
-      "non_null_rows": 2,
-      "history_span_days": 119.0,
-      "latest_age_days": 0.0,
-      "rows_until_min": 94,
-      "days_until_90d": 0
-    },
-    {
-      "column": "deribit_eth_option_volume_usd_sum",
-      "column_group": "deribit_derivatives",
-      "learning_status": "low_coverage",
-      "exclusion_reasons": "low_rows<96",
-      "non_null_rows": 2,
-      "history_span_days": 119.0,
+      "history_span_days": 120.0,
       "latest_age_days": 0.0,
       "rows_until_min": 94,
       "days_until_90d": 0
@@ -373,7 +373,7 @@
     "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
     "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
     "4 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
-    "29 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
-    "1 vendor columns are stale beyond 30 days."
+    "31 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
+    "3 vendor columns are stale beyond 30 days."
   ]
 }
