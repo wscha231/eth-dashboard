@@ -138,6 +138,10 @@ def test_export_longrun_history_filters_to_ensemble(temp_db, tmp_path):
     sample = bundle["points"]["7"][0]
     assert {"target_date", "predicted_close", "actual_close"}.issubset(sample.keys())
 
+    metadata = export_backtest_json.longrun_evaluation_metadata(history)
+    assert metadata["evaluation_generated_at"] == "2026-02-05T00:00:00+00:00"
+    assert metadata["evaluated_through_by_horizon"]["7"] == "2024-01-10"
+
 
 def test_export_longrun_history_only_includes_longrun_runs(temp_db, tiny_freeze_json):
     """A non-longrun run that happens to have the requested model name must
@@ -241,4 +245,7 @@ def test_main_writes_expected_files(temp_db_path, tiny_freeze_json, tmp_path, mo
     # asserting is file existence + valid JSON structure.
     longrun = json.loads((out_dir / "backtest_longrun_history.json").read_text(encoding="utf-8"))
     assert "chart_model" in longrun
+    assert longrun["schema_version"] == 2
+    assert "export_generated_at" in longrun
+    assert "evaluated_through_by_horizon" in longrun
     assert "phases" in longrun

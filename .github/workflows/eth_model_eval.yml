@@ -261,33 +261,61 @@ jobs:
           python tests/phase0/threshold_sweep.py
 
       - name: Candidate evaluation gate
+        id: candidate_gate
         run: |
           status=0
           python scripts/evaluate_eth_candidate.py \
             --baseline tests/phase0/model_baseline_manifest.json \
             --candidate tests/phase0/phase6_production_longrun_oof_metrics.json \
-            --threshold-sweep tests/phase0/threshold_sweep_results.json \
-            --profile full || status=$?
-          if [ -f tests/phase0/model_eval_report.md ]; then
+              --threshold-sweep tests/phase0/threshold_sweep_results.json \
+              --profile full || status=$?
+          if [ -s tests/phase0/model_eval_report.md ]; then
             cat tests/phase0/model_eval_report.md >> "$GITHUB_STEP_SUMMARY"
           fi
-          exit "$status"
+          if [ ! -s tests/phase0/model_eval_report.json ]; then
+            echo "Candidate evaluator did not produce a report." >&2
+            exit "${status:-1}"
+          fi
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -eq 0 ]; then
+            echo "gate_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gate_passed=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Publish full evaluation artifacts
-        if: ${{ github.ref == 'refs/heads/main' && success() }}
+      - name: Prepare public evaluation evidence
         run: |
           mkdir -p forecast_site/public
-          cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_report.json
+          cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_latest.json
+          python -m forecast_site.export_candidate_eval \
+              --candidate tests/phase0/phase6_production_longrun_oof_metrics.json \
+              --report tests/phase0/model_eval_report.json \
+              --output forecast_site/public/backtest_longrun_candidate_history.json
+          if [ "${{ steps.candidate_gate.outputs.gate_passed }}" = "true" ]; then
+            cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_last_pass.json
+            cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_report.json
+          fi
+
+      - name: Publish latest evidence and gated production artifacts
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
           git config user.name  "eth-forecast-bot"
           git config user.email "eth-forecast-bot@users.noreply.github.com"
           git add \
-              tests/phase0/phase6_production_longrun_oof_metrics.json \
-              forecast_site/public/model_eval_report.json
+              forecast_site/public/model_eval_latest.json \
+              forecast_site/public/backtest_longrun_candidate_history.json
+          if [ "${{ steps.candidate_gate.outputs.gate_passed }}" = "true" ]; then
+            git add \
+                tests/phase0/phase6_production_longrun_oof_metrics.json \
+                forecast_site/public/model_eval_last_pass.json \
+                forecast_site/public/model_eval_report.json
+          fi
           if git diff --cached --quiet; then
-            echo "Full evaluation artifacts are already current."
+            echo "Evaluation evidence is already current."
             exit 0
           fi
-          git commit -m "chore(eval): refresh long-run backtest $(date -u +%Y-%m-%d)"
+          git commit -m "chore(eval): publish latest OOF evidence $(date -u +%Y-%m-%d)" \
+                     -m "gate_passed=${{ steps.candidate_gate.outputs.gate_passed }}"
           git push origin HEAD:main
 
       - name: Upload full evaluation artifacts
@@ -300,4 +328,12 @@ jobs:
             tests/phase0/model_eval_report.md
             tests/phase0/phase6_production_longrun_oof_metrics.json
             tests/phase0/threshold_sweep_results.json
+            forecast_site/public/model_eval_latest.json
+            forecast_site/public/model_eval_last_pass.json
+            forecast_site/public/backtest_longrun_candidate_history.json
           retention-days: 21
+
+      - name: Enforce candidate promotion gate
+        if: ${{ always() && steps.candidate_gate.outputs.exit_code != '' }}
+        run: |
+          exit "${{ steps.candidate_gate.outputs.exit_code }}"

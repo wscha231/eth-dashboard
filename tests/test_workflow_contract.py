@@ -1,0 +1,33 @@
+from pathlib import Path
+
+
+def _read(path: str) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+
+def test_weekly_eval_publishes_failure_evidence_before_enforcing_gate() -> None:
+    workflow = _read(".github/workflows/eth_model_eval.yml")
+
+    assert "id: candidate_gate" in workflow
+    assert "forecast_site/public/model_eval_latest.json" in workflow
+    assert "forecast_site/public/model_eval_last_pass.json" in workflow
+    assert "forecast_site/public/backtest_longrun_candidate_history.json" in workflow
+    assert "Enforce candidate promotion gate" in workflow
+    assert workflow.index("Publish latest evidence and gated production artifacts") < workflow.index("Enforce candidate promotion gate")
+
+
+def test_daily_workflow_deploys_live_history_and_verifies_site() -> None:
+    workflow = _read(".github/workflows/daily_forecast.yml")
+
+    assert "forecast_site/public/history.json" in workflow
+    assert "forecast_site/public/model_eval_latest.json" in workflow
+    assert "Verify deployed freshness" in workflow
+    assert "scripts/check_site_freshness.py" in workflow
+
+
+def test_watchdog_will_not_dispatch_while_daily_run_is_active() -> None:
+    workflow = _read(".github/workflows/site_freshness_watchdog.yml")
+
+    assert "active_runs" in workflow
+    assert "recovery dispatch skipped" in workflow
+    assert "gh workflow run daily_forecast.yml" in workflow

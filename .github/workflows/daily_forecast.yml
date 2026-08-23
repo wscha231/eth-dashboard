@@ -96,9 +96,9 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.model_phase != 'eval_oof_smoke' }}
     # Free-tier runner has 7GB RAM + 2 cores.
     # Phase 5 full run (CatBoost + MLP + 3-fold CV) takes ~50-70 min on 2 cores.
-    # Timeout bumped to 90 min; pip cache (requirements.txt) saves ~10 min on repeat runs.
+    # Allow time for the 65-85 minute model run plus post-deploy freshness polling.
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     env:
       # Secrets — configure under Settings > Secrets and variables > Actions.
@@ -227,8 +227,8 @@ jobs:
         # Cheap daily gate: re-score the committed long-run OOF metrics and
         # publish the same report the frontend reads. This does not rerun the
         # expensive 36-fold OOF job daily; that remains in eth_model_eval.yml.
-        # If the committed production metrics fail the full gate, stop before
-        # deploying a fresh forecast generated from an untrusted model version.
+        # This is the last-passing production evidence. The weekly workflow
+        # publishes the newest candidate evidence separately even on FAIL.
         run: |
           python tests/phase0/threshold_sweep.py
           python scripts/evaluate_eth_candidate.py \
@@ -237,6 +237,10 @@ jobs:
               --threshold-sweep tests/phase0/threshold_sweep_results.json \
               --profile full
           cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_report.json
+          cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_last_pass.json
+          if [ ! -s forecast_site/public/model_eval_latest.json ]; then
+            cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_latest.json
+          fi
 
       - name: Backfill actuals + refresh accuracy
         run: |
@@ -250,6 +254,10 @@ jobs:
               --db forecast_site/predictions.db
           python -m forecast_site.export_backtest_json \
               --db forecast_site/predictions.db
+          if [ ! -s forecast_site/public/backtest_longrun_candidate_history.json ]; then
+            cp forecast_site/public/backtest_longrun_history.json \
+               forecast_site/public/backtest_longrun_candidate_history.json
+          fi
 
       - name: Restore deployed donation wallet payload
         # donation_tracker is best-effort. If an explorer is down, keep the
@@ -295,6 +303,9 @@ jobs:
             lake/reports/collector_data_quality_audit.csv
             lake/reports/collector_learning_exclusion_report.csv
             forecast_site/public/model_eval_report.json
+            forecast_site/public/model_eval_latest.json
+            forecast_site/public/model_eval_last_pass.json
+            forecast_site/public/backtest_longrun_candidate_history.json
             tests/phase0/model_eval_report.json
             tests/phase0/model_eval_report.md
             tests/phase0/threshold_sweep_results.json
@@ -379,7 +390,9 @@ jobs:
               forecast_site/public/accuracy.json \
               forecast_site/public/history.json \
               forecast_site/public/health.json \
-              forecast_site/public/model_eval_report.json || true
+              forecast_site/public/model_eval_report.json \
+              forecast_site/public/model_eval_latest.json \
+              forecast_site/public/model_eval_last_pass.json || true
           # Donation milestones — tiny public payload (milestones_reached +
           # next_milestone); full USD ledger stays in forecast_site/private/
           # which is hard-gitignored and never reaches the deploy branch.
@@ -388,7 +401,8 @@ jobs:
           git add -f \
               forecast_site/public/backtest.json \
               forecast_site/public/backtest_versions.json \
-              forecast_site/public/backtest_longrun_history.json || true
+              forecast_site/public/backtest_longrun_history.json \
+              forecast_site/public/backtest_longrun_candidate_history.json || true
           # Glob paths: git add with a pathspec that matches zero files is
           # a fatal error. Expand via shell with nullglob so empty globs
           # become no-ops rather than literal "backtest_diff_*.json".
@@ -411,3 +425,12 @@ jobs:
           # Force-push: see header comment. Concurrency group ensures no
           # concurrent writer can be clobbered.
           git push --force origin "$branch"
+
+      - name: Verify deployed freshness
+        run: |
+          python scripts/check_site_freshness.py \
+              --url https://etherforecast.live/health.json \
+              --max-live-age-hours 27 \
+              --max-health-age-hours 30 \
+              --retries 10 \
+              --retry-seconds 60
