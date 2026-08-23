@@ -17,6 +17,10 @@ blobs into forecast_site/public/ on every cron tick:
           "actual_close": ..., "direction_correct": ...}, ...]
         -- Past predictions for the "track record" chart.
 
+    public/health.json
+        Component-level freshness for live input, resolved history, the newest
+        OOF candidate, and collector data quality.
+
 Run:
     python -m forecast_site.export_json
 """
@@ -26,6 +30,7 @@ import argparse
 import datetime as _dt
 import json
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 from forecast_site.db import DEFAULT_DB_PATH, connect  # noqa: E402
@@ -116,7 +121,11 @@ def export_history(conn, limit: int = 200) -> list[dict]:
         """
         SELECT r.run_timestamp_utc, r.input_timestamp_utc, r.reference_price,
                f.horizon_days, f.forecast_target_timestamp_utc,
-               f.regression_predicted_close, f.classification_probability_up,
+               f.regression_model, f.regression_predicted_close,
+               f.active_predicted_close, f.active_predicted_direction,
+               f.forecast_decision_mode, f.forecast_actionability,
+               f.forecast_point_price_reliable,
+               f.classification_probability_up,
                f.classification_predicted_direction, f.hybrid_signal_tier,
                a.actual_close, a.actual_return, a.direction_actual,
                a.direction_correct, a.price_absolute_error, a.brier_contribution
@@ -139,9 +148,80 @@ def _scalar(conn, sql: str, params: tuple = ()) -> int:
     return int(value or 0)
 
 
-def export_health(conn) -> dict:
-    """Operational freshness report for the daily forecast pipeline."""
-    generated_at = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
+def _parse_utc(value: Any) -> _dt.datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = _dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_dt.timezone.utc)
+    return parsed.astimezone(_dt.timezone.utc)
+
+
+def _age_hours(value: Any, now: _dt.datetime) -> float | None:
+    parsed = _parse_utc(value)
+    if parsed is None:
+        return None
+    return max(0.0, (now - parsed).total_seconds() / 3600.0)
+
+
+def _evaluation_age_hours(report: dict[str, Any] | None, now: _dt.datetime) -> float | None:
+    if not isinstance(report, dict):
+        return None
+    through = report.get("evaluated_through_by_horizon") or {}
+    ages = [
+        age
+        for age in (_age_hours(value, now) for value in through.values())
+        if age is not None
+    ]
+    if ages:
+        # Every advertised horizon must meet the SLO, so use the oldest one.
+        return max(ages)
+    return _age_hours(
+        report.get("candidate_checkpoint_utc") or report.get("candidate_frozen_at"),
+        now,
+    )
+
+
+def _data_quality_component(data_quality_report: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(data_quality_report, dict):
+        return {
+            "status": "unknown",
+            "tail_event_readiness": None,
+            "reason": "data-quality report is unavailable",
+        }
+    readiness = (
+        data_quality_report.get("tail_event_readiness")
+        or (data_quality_report.get("summary") or {}).get("tail_event_readiness")
+    )
+    reported_status = str(data_quality_report.get("status") or "").strip().lower()
+    weak_values = {"weak", "degraded", "poor", "fail", "failed", "error"}
+    status = "degraded" if str(readiness).lower() in weak_values or reported_status in weak_values else "ok"
+    return {
+        "status": status,
+        "tail_event_readiness": readiness,
+        "reported_status": reported_status or None,
+        "reason": "tail-event feature coverage is weak" if status == "degraded" else None,
+    }
+
+
+def export_health(
+    conn,
+    *,
+    model_eval_report: dict[str, Any] | None = None,
+    data_quality_report: dict[str, Any] | None = None,
+    now: _dt.datetime | None = None,
+    live_slo_hours: float = 27.0,
+    oof_slo_hours: float = 8.0 * 24.0,
+) -> dict:
+    """Operational freshness report split by independently updated component."""
+    now = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_dt.timezone.utc)
+    now = now.astimezone(_dt.timezone.utc)
+    generated_at = now.isoformat()
     latest_run = conn.execute(
         """
         SELECT run_id, run_timestamp_utc, input_timestamp_utc, model_phase, code_version
@@ -202,22 +282,91 @@ def export_health(conn) -> dict:
         str(row["horizon_days"]): int(row["due_count"])
         for row in due_by_horizon
     }
-    notes: list[str] = []
-    status = "ok"
-    if latest_run is None:
+    live_age = _age_hours(latest_run["input_timestamp_utc"], now) if latest_run is not None else None
+    if latest_run is None or live_age is None:
+        live_status = "stale"
+        live_reason = "no usable forecast run in DB"
+    elif live_age > live_slo_hours:
+        live_status = "stale"
+        live_reason = f"latest input is older than {live_slo_hours:g} hours"
+    else:
+        live_status = "ok"
+        live_reason = None
+
+    if counts["actuals"] == 0:
+        resolved_status = "bootstrap"
+        resolved_reason = "live forecast history has not accumulated yet"
+    elif any(count > 0 for count in due.values()):
+        resolved_status = "degraded"
+        resolved_reason = "one or more due forecasts are still unresolved"
+    else:
+        resolved_status = "ok"
+        resolved_reason = None
+
+    evaluation_age = _evaluation_age_hours(model_eval_report, now)
+    gate_status = str((model_eval_report or {}).get("gate_status") or "").upper() or None
+    if evaluation_age is None:
+        evaluation_status = "unknown"
+        evaluation_reason = "latest candidate evaluation metadata is unavailable"
+    elif evaluation_age > oof_slo_hours:
+        evaluation_status = "stale"
+        evaluation_reason = f"latest OOF target is older than {oof_slo_hours / 24:g} days"
+    elif gate_status == "FAIL":
+        evaluation_status = "degraded"
+        evaluation_reason = "latest candidate failed its promotion gate"
+    else:
+        evaluation_status = "ok"
+        evaluation_reason = None
+
+    components = {
+        "live_forecast": {
+            "status": live_status,
+            "input_timestamp_utc": latest_run["input_timestamp_utc"] if latest_run is not None else None,
+            "age_hours": round(live_age, 2) if live_age is not None else None,
+            "slo_hours": live_slo_hours,
+            "reason": live_reason,
+        },
+        "resolved_history": {
+            "status": resolved_status,
+            "latest_by_horizon": resolved,
+            "unresolved_due_count_by_horizon": due,
+            "reason": resolved_reason,
+        },
+        "oof_evaluation": {
+            "status": evaluation_status,
+            "gate_status": gate_status,
+            "evaluated_through_by_horizon": (model_eval_report or {}).get("evaluated_through_by_horizon") or {},
+            "age_hours": round(evaluation_age, 2) if evaluation_age is not None else None,
+            "slo_hours": oof_slo_hours,
+            "reason": evaluation_reason,
+        },
+        "data_quality": _data_quality_component(data_quality_report),
+    }
+    component_statuses = [component["status"] for component in components.values()]
+    if "stale" in component_statuses:
         status = "stale"
-        notes.append("no forecast run in DB")
-    if counts["forecast_runs"] <= 1 and counts["actuals"] == 0:
-        status = "bootstrap" if status == "ok" else status
-        notes.append("live forecast history has not accumulated yet")
-    if any(count > 0 for count in due.values()):
+    elif "degraded" in component_statuses:
         status = "degraded"
-        notes.append("one or more due forecasts are still unresolved")
+    elif "bootstrap" in component_statuses:
+        status = "bootstrap"
+    else:
+        status = "ok"
+    notes = [
+        component["reason"]
+        for component in components.values()
+        if component.get("reason")
+    ]
 
     return {
+        "schema_version": 2,
         "generated_at": generated_at,
         "status": status,
         "notes": notes,
+        "components": components,
+        "slos": {
+            "live_forecast_max_age_hours": live_slo_hours,
+            "oof_evaluation_max_age_hours": oof_slo_hours,
+        },
         "latest_run": _row_to_dict(latest_run) if latest_run is not None else None,
         "latest_forecasts_by_horizon": latest,
         "latest_resolved_by_horizon": resolved,
@@ -231,17 +380,44 @@ def main() -> None:
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--history-limit", type=int, default=200)
+    parser.add_argument(
+        "--model-eval-report",
+        default=str(DEFAULT_OUTPUT_DIR / "model_eval_latest.json"),
+    )
+    parser.add_argument(
+        "--data-quality-report",
+        default=str(PROJECT_ROOT / "lake" / "reports" / "collector_data_quality_audit.json"),
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    def load_optional_json(path_value: str) -> dict[str, Any] | None:
+        path = Path(path_value)
+        if not path.exists():
+            return None
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return loaded if isinstance(loaded, dict) else None
+
+    model_eval_report = load_optional_json(args.model_eval_report)
+    if model_eval_report is None:
+        model_eval_report = load_optional_json(str(DEFAULT_OUTPUT_DIR / "model_eval_report.json"))
+    data_quality_report = load_optional_json(args.data_quality_report)
 
     conn = connect(args.db)
     try:
         latest = export_latest(conn)
         accuracy = export_accuracy(conn)
         history = export_history(conn, limit=args.history_limit)
-        health = export_health(conn)
+        health = export_health(
+            conn,
+            model_eval_report=model_eval_report,
+            data_quality_report=data_quality_report,
+        )
     finally:
         conn.close()
 

@@ -25,11 +25,23 @@ static frontend can render — no server needed.
     export_json.py
             │
             ▼
-    public/{latest,accuracy,history}.json
+    public/{latest,accuracy,history,health}.json
             │
             ▼
     public/index.html   (vanilla JS + Chart.js, no build step)
 ```
+
+The homepage keeps two evidence streams separate:
+
+* `history.json` is the daily, post-deployment track record. A chart point is
+  added only after the forecast target has resolved.
+* `backtest_longrun_candidate_history.json` is the newest weekly OOF
+  candidate, published on PASS or FAIL.
+* `model_eval_latest.json` is the newest candidate gate.  The production
+  forecast continues to use `model_eval_last_pass.json`; a failed candidate
+  is visible but cannot silently become the production gate.
+* `health.json` reports live forecast, resolved-history, OOF-evaluation and
+  data-quality freshness independently.
 
 ## Running the full pipeline locally
 
@@ -101,6 +113,10 @@ vercel --prod                  # first production deploy
 After that, every GitHub Actions run that bumps `public/*.json` on the
 `data/daily-forecast` branch triggers an automatic Vercel redeploy — no
 further action needed.
+
+The daily job verifies the deployed `health.json` after pushing. A separate
+13:30 KST watchdog dispatches at most one recovery run when the site is stale
+and no daily run is already active.
 
 ## Schema notes
 

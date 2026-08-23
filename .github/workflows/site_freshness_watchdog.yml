@@ -1,0 +1,66 @@
+name: ETH site freshness watchdog
+
+on:
+  schedule:
+    # Check after the daily forecast's usual delayed start + 65-85 minute runtime.
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: site-freshness-watchdog
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check deployed freshness
+        id: freshness
+        continue-on-error: true
+        run: |
+          python scripts/check_site_freshness.py \
+              --url https://etherforecast.live/health.json \
+              --max-live-age-hours 27 \
+              --max-health-age-hours 30
+
+      - name: Dispatch one recovery run when idle
+        if: ${{ steps.freshness.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          active_runs="$(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/daily_forecast.yml/runs?per_page=20" \
+              --jq '[.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "waiting" or .status == "requested" or .status == "pending")] | length'
+          )"
+          if [ "$active_runs" -gt 0 ]; then
+            echo "Daily forecast already has $active_runs active run(s); recovery dispatch skipped." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh workflow run daily_forecast.yml \
+              --ref main \
+              -f fast_mode=false \
+              -f model_phase=phase6_production
+          echo "Deployed forecast was stale; dispatched one recovery run." \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Mark stale deployment
+        if: ${{ steps.freshness.outcome == 'failure' }}
+        run: |
+          echo "The deployed forecast failed its freshness SLO. A recovery run was dispatched only if no daily run was already active." \
+            >> "$GITHUB_STEP_SUMMARY"
+          exit 1

@@ -327,6 +327,32 @@ def export_predictions_by_phase(conn) -> dict[str, dict]:
     return bundles
 
 
+def longrun_evaluation_metadata(phases: dict[str, dict]) -> dict[str, object]:
+    """Describe the newest stored OOF phase without confusing export time for eval time."""
+    if not phases:
+        return {
+            "evaluation_generated_at": None,
+            "evaluated_through_by_horizon": {},
+        }
+    newest = max(
+        phases.values(),
+        key=lambda bundle: str(bundle.get("frozen_utc") or ""),
+    )
+    evaluated_through: dict[str, str] = {}
+    for horizon, points in (newest.get("points") or {}).items():
+        target_dates = [
+            str(point["target_date"])
+            for point in points
+            if isinstance(point, dict) and point.get("target_date")
+        ]
+        if target_dates:
+            evaluated_through[str(horizon)] = max(target_dates)
+    return {
+        "evaluation_generated_at": newest.get("frozen_utc"),
+        "evaluated_through_by_horizon": evaluated_through,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH))
@@ -374,7 +400,10 @@ def main() -> None:
     }
 
     payload_longrun = {
+        "schema_version": 2,
         "generated_at": now_iso,
+        "export_generated_at": now_iso,
+        **longrun_evaluation_metadata(longrun_history),
         "chart_model":  LONGRUN_CHART_MODEL,
         "raw_chart_model":  LONGRUN_CHART_MODEL,
         "chart_selection": "fallback_to_no_change_when_point_rmse_has_no_edge",

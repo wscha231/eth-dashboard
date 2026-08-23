@@ -134,6 +134,21 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 18px;
     }
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      margin: 28px 2px 14px;
+    }
+    .section-heading p { margin-top: 6px; }
+    .freshness-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .freshness-grid .stat { min-height: 96px; }
     .chart-wrap { height: 285px; margin-top: 18px; }
     .metric-line {
       display: grid;
@@ -184,11 +199,12 @@
     footer { color: var(--muted); font-size: 12px; margin-top: 26px; text-align: center; }
     @media (max-width: 860px) {
       .hero, .forecast-grid, .backtest { grid-template-columns: 1fr; }
-      .metric-line, .donation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metric-line, .donation-grid, .freshness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       header { align-items: flex-start; flex-direction: column; }
     }
     @media (max-width: 560px) {
-      .metric-line, .donation-grid { grid-template-columns: 1fr; }
+      .metric-line, .donation-grid, .freshness-grid { grid-template-columns: 1fr; }
+      .section-heading { align-items: flex-start; flex-direction: column; }
     }
   </style>
 </head>
@@ -199,6 +215,7 @@
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <span class="pill" id="model-phase">loading</span>
         <span class="pill" id="run-status">waiting</span>
+        <span class="pill" id="eval-status">eval loading</span>
       </div>
     </header>
 
@@ -207,8 +224,8 @@
         <p class="eyebrow">Simple signal view</p>
         <h1>ETH forecast, stripped to essentials.</h1>
         <p class="hero-copy">
-          Only the current 7-day and 30-day forecast, the historical hit rate, and two backtest charts are shown.
-          The model is useful only when the signal gate is strong; otherwise treat the forecast as a risk range.
+          Current 7-day and 30-day forecasts, daily resolved live results, and weekly out-of-sample research are shown separately.
+          A failed candidate stays visible here but is not promoted into the production forecast gate.
         </p>
       </div>
       <aside class="panel">
@@ -226,31 +243,81 @@
       <div class="panel">Loading forecast...</div>
     </section>
 
+    <section class="freshness-grid" id="freshness-grid">
+      <div class="stat"><span>Pipeline status</span><b>Loading</b></div>
+    </section>
+
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Daily live evidence</p>
+        <h2>Resolved forecasts</h2>
+        <p>Each point is added only after its target date has matured.</p>
+      </div>
+      <span class="pill good">updates daily</span>
+    </div>
+
     <section class="backtest">
       <article class="panel">
         <div class="card-top">
           <div>
-            <p class="eyebrow">Backtest h=7</p>
-            <h2>7-day track record</h2>
-            <p id="h7-model">model loading</p>
+            <p class="eyebrow">Live h=7</p>
+            <h2>7-day resolved record</h2>
+            <p id="live-h7-meta">history loading</p>
           </div>
           <span class="pill good">primary</span>
         </div>
-        <div class="metric-line" id="h7-metrics"></div>
-        <div class="chart-wrap"><canvas id="chart-h7"></canvas></div>
+        <div class="metric-line" id="live-h7-metrics"></div>
+        <div class="chart-wrap"><canvas id="chart-live-h7"></canvas></div>
       </article>
 
       <article class="panel">
         <div class="card-top">
           <div>
-            <p class="eyebrow">Backtest h=30</p>
-            <h2>30-day track record</h2>
-            <p id="h30-model">model loading</p>
+            <p class="eyebrow">Live h=30</p>
+            <h2>30-day resolved record</h2>
+            <p id="live-h30-meta">history loading</p>
           </div>
           <span class="pill warn">macro range</span>
         </div>
-        <div class="metric-line" id="h30-metrics"></div>
-        <div class="chart-wrap"><canvas id="chart-h30"></canvas></div>
+        <div class="metric-line" id="live-h30-metrics"></div>
+        <div class="chart-wrap"><canvas id="chart-live-h30"></canvas></div>
+      </article>
+    </section>
+
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Weekly research evidence</p>
+        <h2>Latest OOF candidate</h2>
+        <p id="oof-summary">evaluation loading</p>
+      </div>
+      <span class="pill" id="oof-status">loading</span>
+    </div>
+
+    <section class="backtest">
+      <article class="panel">
+        <div class="card-top">
+          <div>
+            <p class="eyebrow">OOF h=7</p>
+            <h2>7-day research backtest</h2>
+            <p id="oof-h7-model">model loading</p>
+          </div>
+          <span class="pill">candidate</span>
+        </div>
+        <div class="metric-line" id="oof-h7-metrics"></div>
+        <div class="chart-wrap"><canvas id="chart-oof-h7"></canvas></div>
+      </article>
+
+      <article class="panel">
+        <div class="card-top">
+          <div>
+            <p class="eyebrow">OOF h=30</p>
+            <h2>30-day research backtest</h2>
+            <p id="oof-h30-model">model loading</p>
+          </div>
+          <span class="pill">candidate</span>
+        </div>
+        <div class="metric-line" id="oof-h30-metrics"></div>
+        <div class="chart-wrap"><canvas id="chart-oof-h30"></canvas></div>
       </article>
     </section>
 
@@ -314,6 +381,25 @@ async function loadJSON(path) {
   if (!response.ok) throw new Error(`${path} ${response.status}`);
   return response.json();
 }
+async function loadJSONFallback(paths) {
+  for (const path of paths) {
+    try {
+      return await loadJSON(path);
+    } catch (_) {}
+  }
+  return null;
+}
+const statusClass = (status) => {
+  const value = String(status || "unknown").toLowerCase();
+  if (value === "ok" || value === "pass" || value === "fresh") return "good";
+  if (value === "stale" || value === "fail" || value === "failed") return "bad";
+  return "warn";
+};
+const evaluationStatus = (report) => {
+  if (report?.gate_status) return String(report.gate_status).toUpperCase();
+  return Array.isArray(report?.failures) && report.failures.length ? "FAIL" : "PASS";
+};
+const evaluationThrough = (report, horizon) => report?.evaluated_through_by_horizon?.[String(horizon)] || null;
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
   "&": "&amp;",
   "<": "&lt;",
@@ -447,6 +533,46 @@ function renderMetricLine(rootId, metrics) {
   `).join("");
 }
 
+function accuracyMetrics(accuracy, horizon) {
+  const rows = accuracy?.horizons?.[String(horizon)] || {};
+  return { recent: rows["30"] || {}, all: rows.all || {} };
+}
+
+function renderLiveMetricLine(rootId, metrics) {
+  const items = [
+    ["30d dir acc", fmtPct(metrics.recent.direction_accuracy), `${metrics.recent.resolved_count ?? 0} resolved rows`],
+    ["30d Brier", Number.isFinite(Number(metrics.recent.brier_score)) ? Number(metrics.recent.brier_score).toFixed(3) : "--", "lower is better"],
+    ["All dir acc", fmtPct(metrics.all.direction_accuracy), `${metrics.all.resolved_count ?? 0} resolved rows`],
+    ["All return MAE", fmtPct(metrics.all.return_mae), "live deployed output"],
+  ];
+  $(rootId).innerHTML = items.map(([label, value, note]) => `
+    <div class="stat"><span>${label}</span><b>${value}</b><div class="small">${note}</div></div>
+  `).join("");
+}
+
+function renderFreshness(latest, health, latestReport, lastPassReport) {
+  const components = health?.components || {};
+  const live = components.live_forecast || {};
+  const resolved = components.resolved_history || {};
+  const oof = components.oof_evaluation || {};
+  const latestResolvedDates = Object.values(resolved.latest_by_horizon || {})
+    .map((row) => row?.latest_resolved_target_utc)
+    .filter(Boolean)
+    .sort();
+  const cards = [
+    ["Live input", String(live.status || health?.status || "unknown").toUpperCase(), `cutoff ${fmtDate(latest?.run?.input_timestamp_utc)}`],
+    ["Resolved history", String(resolved.status || "unknown").toUpperCase(), `through ${fmtDate(latestResolvedDates.at(-1))}`],
+    ["Latest OOF", evaluationStatus(latestReport), `through ${fmtDate(evaluationThrough(latestReport, 7) || evaluationThrough(latestReport, 30))}`],
+    ["Last promoted", evaluationStatus(lastPassReport), `through ${fmtDate(evaluationThrough(lastPassReport, 7) || evaluationThrough(lastPassReport, 30))}`],
+  ];
+  $("freshness-grid").innerHTML = cards.map(([label, value, note]) => `
+    <div class="stat"><span>${label}</span><b class="${statusClass(value)}">${value}</b><div class="small">${note}</div></div>
+  `).join("");
+  const latestStatus = evaluationStatus(latestReport);
+  $("eval-status").textContent = `latest eval ${latestStatus}`;
+  $("eval-status").className = `pill ${statusClass(latestStatus)}`;
+}
+
 function renderDonations(donations) {
   const panel = $("donation-panel");
   const root = $("donation-wallets");
@@ -476,25 +602,27 @@ function renderDonations(donations) {
   panel.style.display = "";
 }
 
-function renderRun(latest) {
+function renderRun(latest, health) {
   if (!latest?.run) return;
   const run = latest.run;
   $("model-phase").textContent = run.model_phase || "model";
-  const runDate = new Date(run.run_timestamp_utc || latest.generated_at);
+  const healthStatus = health?.components?.live_forecast?.status;
+  const runDate = new Date(run.input_timestamp_utc || run.run_timestamp_utc || latest.generated_at);
   const ageHours = (Date.now() - runDate.getTime()) / 36e5;
-  $("run-status").textContent = ageHours < 36 ? "fresh" : ageHours < 72 ? "aging" : "stale";
-  $("run-status").className = `pill ${ageHours < 36 ? "good" : ageHours < 72 ? "warn" : "bad"}`;
+  const status = healthStatus || (ageHours < 27 ? "ok" : ageHours < 48 ? "aging" : "stale");
+  $("run-status").textContent = `live ${status}`;
+  $("run-status").className = `pill ${statusClass(status)}`;
   $("ref-price").textContent = fmtUSD(run.reference_price);
   $("generated-at").textContent = `generated ${fmtDate(latest.generated_at)}; cutoff ${fmtDate(run.input_timestamp_utc)}`;
 }
 
-function renderForecast(latest, report) {
+function renderForecast(latest, report, health) {
   latestPayload = latest;
   if (!latest?.run || !latest.horizons) {
     $("forecast-grid").innerHTML = `<article class="panel">latest.json is not available.</article>`;
     return;
   }
-  renderRun(latest);
+  renderRun(latest, health);
   const refPrice = Number(latest.run.reference_price);
   $("forecast-grid").innerHTML = ["7", "30"].map((horizon) => {
     const f = latest.horizons[horizon] || {};
@@ -540,19 +668,43 @@ function pickLongrunPhase(longrun) {
   return phases.phase6_production_longrun_oof || phases.phase6_production_longrun_oof_36x30 || phases[Object.keys(phases).pop()] || null;
 }
 
-function chartRows(longrun, horizon) {
+function liveHistoryRows(history, horizon) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter((row) => Number(row.horizon_days) === Number(horizon) && row.actual_close != null)
+    .map((row) => {
+      const rangeOnly = String(row.forecast_actionability || "").toLowerCase() === "range_only"
+        || Number(row.forecast_point_price_reliable) === 0;
+      const raw = Number(row.active_predicted_close ?? row.regression_predicted_close);
+      const selected = Number(rangeOnly ? row.reference_price : (row.active_predicted_close ?? row.regression_predicted_close));
+      return {
+        date: fmtDate(row.forecast_target_timestamp_utc),
+        predictionDate: fmtDate(row.input_timestamp_utc || row.run_timestamp_utc),
+        targetDate: fmtDate(row.forecast_target_timestamp_utc),
+        predicted: selected,
+        raw: rangeOnly && Number.isFinite(raw) && raw !== selected ? raw : null,
+        actual: Number(row.actual_close),
+        chartModel: rangeOnly ? "no_change_anchor" : (row.regression_model || "live_forecast"),
+      };
+    })
+    .filter((row) => Number.isFinite(row.predicted) && Number.isFinite(row.actual))
+    .sort((a, b) => a.targetDate.localeCompare(b.targetDate));
+}
+
+function oofChartRows(longrun, horizon) {
   const points = pickLongrunPhase(longrun)?.points?.[String(horizon)] || [];
   return points
-    .filter((p) => (p.model_predicted_close ?? p.raw_predicted_close ?? p.predicted_close) != null && p.actual_close != null)
+    .filter((p) => p.predicted_close != null && p.actual_close != null)
     .map((p) => ({
       date: fmtDate(p.display_date || p.target_date),
       predictionDate: fmtDate(p.prediction_date),
       targetDate: fmtDate(p.target_date),
-      predicted: Number(p.model_predicted_close ?? p.raw_predicted_close ?? p.predicted_close),
+      predicted: Number(p.predicted_close),
+      raw: p.model_predicted_close != null && Number(p.model_predicted_close) !== Number(p.predicted_close)
+        ? Number(p.model_predicted_close)
+        : null,
       actual: Number(p.actual_close),
-      chartModel: p.model_predicted_close != null || p.raw_predicted_close != null
-        ? "raw_model_forecast"
-        : (p.chart_model || "model_forecast"),
+      chartModel: p.chart_model || "model_forecast",
     }));
 }
 
@@ -563,24 +715,36 @@ function chartInfo(longrun, horizon) {
 
 function formatChartModel(info) {
   const model = info?.chart_model || "model_forecast";
-  if (model === "no_change_anchor") return "raw model vs actual; no-change wins RMSE";
+  if (model === "no_change_anchor") return "no-change selected; raw candidate had no RMSE edge";
   return String(model).replaceAll("_", " ");
 }
 
-function renderChart(id, rows) {
+function renderChart(id, rows, labels = {}) {
   const canvas = $(id);
   if (!canvas || !rows.length) return;
   const chartModel = rows.find((r) => r.chartModel)?.chartModel;
-  const predictedLabel = chartModel === "no_change_anchor" ? "No-change anchor" : "OOF forecast";
+  const predictedLabel = labels.predicted || (chartModel === "no_change_anchor" ? "No-change anchor" : "Forecast");
+  const datasets = [
+    { label: predictedLabel, data: rows.map((r) => r.predicted), borderColor: "#75e0b8", pointRadius: 0, borderWidth: 1.8, tension: 0.12 },
+  ];
+  if (rows.some((row) => Number.isFinite(row.raw))) {
+    datasets.push({
+      label: labels.raw || "Raw model (not selected)",
+      data: rows.map((row) => row.raw),
+      borderColor: "#e6c36a",
+      pointRadius: 0,
+      borderWidth: 1.1,
+      borderDash: [3, 5],
+      tension: 0.12,
+    });
+  }
+  datasets.push({ label: "Actual", data: rows.map((r) => r.actual), borderColor: "#f7f0dc", pointRadius: 0, borderWidth: 1.4, borderDash: [6, 5], tension: 0.12 });
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(canvas, {
     type: "line",
     data: {
       labels: rows.map((r) => r.date),
-      datasets: [
-        { label: predictedLabel, data: rows.map((r) => r.predicted), borderColor: "#75e0b8", pointRadius: 0, borderWidth: 1.8, tension: 0.12 },
-        { label: "Actual", data: rows.map((r) => r.actual), borderColor: "#f7f0dc", pointRadius: 0, borderWidth: 1.4, borderDash: [6, 5], tension: 0.12 },
-      ],
+      datasets,
     },
     options: {
       responsive: true,
@@ -610,7 +774,7 @@ async function refreshLivePrice() {
     livePrice = await fetchLiveEthPrice();
     $("live-price").textContent = fmtUSD(livePrice);
     $("live-updated").textContent = `updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-    if (latestPayload) renderForecast(latestPayload, window.__report);
+    if (latestPayload) renderForecast(latestPayload, window.__productionReport, window.__health);
   } catch (_) {
     $("live-updated").textContent = "spot unavailable";
   }
@@ -618,23 +782,52 @@ async function refreshLivePrice() {
 
 (async function main() {
   $("footer-time").textContent = new Date().toISOString();
-  const [latest, report, longrun, donations] = await Promise.all([
+  const [latest, latestReport, lastPassReport, candidateLongrun, history, accuracy, health, donations] = await Promise.all([
     loadJSON("latest.json").catch(() => null),
-    loadJSON("model_eval_report.json").catch(() => null),
-    loadJSON("backtest_longrun_history.json").catch(() => null),
+    loadJSONFallback(["model_eval_latest.json", "model_eval_report.json"]),
+    loadJSONFallback(["model_eval_last_pass.json", "model_eval_report.json"]),
+    loadJSONFallback(["backtest_longrun_candidate_history.json", "backtest_longrun_history.json"]),
+    loadJSON("history.json").catch(() => []),
+    loadJSON("accuracy.json").catch(() => null),
+    loadJSON("health.json").catch(() => null),
     loadJSON("donations.json").catch(() => null),
   ]);
-  window.__report = report;
-  renderForecast(latest, report);
+  window.__productionReport = lastPassReport;
+  window.__health = health;
+  renderForecast(latest, lastPassReport, health);
+  renderFreshness(latest, health, latestReport, lastPassReport);
   renderDonations(donations);
-  const h7 = gateMetrics(report, 7);
-  const h30 = gateMetrics(report, 30);
-  $("h7-model").textContent = `Gate: ${h7.backtestModel}; chart: ${formatChartModel(chartInfo(longrun, 7))}`;
-  $("h30-model").textContent = `Gate: ${h30.backtestModel}; chart: ${formatChartModel(chartInfo(longrun, 30))}`;
-  renderMetricLine("h7-metrics", h7);
-  renderMetricLine("h30-metrics", h30);
-  renderChart("chart-h7", chartRows(longrun, 7));
-  renderChart("chart-h30", chartRows(longrun, 30));
+
+  const liveH7 = liveHistoryRows(history, 7);
+  const liveH30 = liveHistoryRows(history, 30);
+  $("live-h7-meta").textContent = liveH7.length
+    ? `${liveH7.length} resolved; latest target ${liveH7.at(-1).targetDate}`
+    : "No resolved 7-day forecasts yet";
+  $("live-h30-meta").textContent = liveH30.length
+    ? `${liveH30.length} resolved; latest target ${liveH30.at(-1).targetDate}`
+    : "No resolved 30-day forecasts yet";
+  renderLiveMetricLine("live-h7-metrics", accuracyMetrics(accuracy, 7));
+  renderLiveMetricLine("live-h30-metrics", accuracyMetrics(accuracy, 30));
+  renderChart("chart-live-h7", liveH7, { predicted: "Selected live output", raw: "Raw point output (range-only)" });
+  renderChart("chart-live-h30", liveH30, { predicted: "Selected live output", raw: "Raw point output (range-only)" });
+
+  const latestStatus = evaluationStatus(latestReport);
+  const lastPassDate = evaluationThrough(lastPassReport, 7) || evaluationThrough(lastPassReport, 30);
+  const latestDate = evaluationThrough(latestReport, 7) || evaluationThrough(latestReport, 30)
+    || candidateLongrun?.evaluated_through_by_horizon?.["7"]
+    || candidateLongrun?.evaluated_through_by_horizon?.["30"];
+  $("oof-status").textContent = latestStatus;
+  $("oof-status").className = `pill ${statusClass(latestStatus)}`;
+  $("oof-summary").textContent = `Latest evaluated through ${fmtDate(latestDate)} (${latestStatus}); last promoted evidence through ${fmtDate(lastPassDate)}.`;
+
+  const h7 = gateMetrics(latestReport, 7);
+  const h30 = gateMetrics(latestReport, 30);
+  $("oof-h7-model").textContent = `Gate: ${h7.backtestModel}; chart: ${formatChartModel(chartInfo(candidateLongrun, 7))}`;
+  $("oof-h30-model").textContent = `Gate: ${h30.backtestModel}; chart: ${formatChartModel(chartInfo(candidateLongrun, 30))}`;
+  renderMetricLine("oof-h7-metrics", h7);
+  renderMetricLine("oof-h30-metrics", h30);
+  renderChart("chart-oof-h7", oofChartRows(candidateLongrun, 7), { predicted: "Selected OOF line", raw: "Raw OOF candidate" });
+  renderChart("chart-oof-h30", oofChartRows(candidateLongrun, 30), { predicted: "Selected OOF line", raw: "Raw OOF candidate" });
   await refreshLivePrice();
   setInterval(refreshLivePrice, 60 * 1000);
 })();
