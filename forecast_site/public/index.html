@@ -396,8 +396,10 @@ const statusClass = (status) => {
   return "warn";
 };
 const evaluationStatus = (report) => {
+  if (!report) return "UNKNOWN";
   if (report?.gate_status) return String(report.gate_status).toUpperCase();
-  return Array.isArray(report?.failures) && report.failures.length ? "FAIL" : "PASS";
+  if (Array.isArray(report?.failures)) return report.failures.length ? "FAIL" : "PASS";
+  return "UNKNOWN";
 };
 const evaluationThrough = (report, horizon) => report?.evaluated_through_by_horizon?.[String(horizon)] || null;
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
@@ -673,8 +675,10 @@ function liveHistoryRows(history, horizon) {
   return history
     .filter((row) => Number(row.horizon_days) === Number(horizon) && row.actual_close != null)
     .map((row) => {
+      const reliability = row.forecast_point_price_reliable;
+      const explicitlyUnreliable = reliability === 0 || reliability === false || reliability === "0";
       const rangeOnly = String(row.forecast_actionability || "").toLowerCase() === "range_only"
-        || Number(row.forecast_point_price_reliable) === 0;
+        || explicitlyUnreliable;
       const raw = Number(row.active_predicted_close ?? row.regression_predicted_close);
       const selected = Number(rangeOnly ? row.reference_price : (row.active_predicted_close ?? row.regression_predicted_close));
       return {

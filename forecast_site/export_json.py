@@ -116,7 +116,7 @@ def export_accuracy(conn) -> dict:
 
 
 def export_history(conn, limit: int = 200) -> list[dict]:
-    """Chronological list of resolved forecasts for chart rendering."""
+    """Newest resolved forecasts; the frontend sorts this window for charts."""
     rows = conn.execute(
         """
         SELECT r.run_timestamp_utc, r.input_timestamp_utc, r.reference_price,
@@ -345,7 +345,7 @@ def export_health(
     component_statuses = [component["status"] for component in components.values()]
     if "stale" in component_statuses:
         status = "stale"
-    elif "degraded" in component_statuses:
+    elif "degraded" in component_statuses or "unknown" in component_statuses:
         status = "degraded"
     elif "bootstrap" in component_statuses:
         status = "bootstrap"

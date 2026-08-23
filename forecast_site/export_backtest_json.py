@@ -247,10 +247,10 @@ def export_longrun_history(conn, model: str = LONGRUN_CHART_MODEL) -> dict:
         predicted_return = r["predicted_return"]
         raw_predicted_close = r["predicted_close"]
         raw_predicted_return = r["predicted_return"]
-        # Plot model and realized target close on the same target date.
-        # The no-change anchor remains a benchmark, but using it as the
-        # plotted forecast makes the line look like actual price shifted by
-        # the horizon, which is visually misleading for 7d/30d charts.
+        # The selected line follows the RMSE decision. The payload retains the
+        # raw model separately so the frontend can show it as a secondary,
+        # explicitly unselected candidate instead of silently overriding the
+        # no-change decision.
         if chart_model == "no_change_anchor":
             predicted_close = r["reference_close"]
             predicted_return = 0.0
