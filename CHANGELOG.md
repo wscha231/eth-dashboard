@@ -21,6 +21,9 @@ are UTC.
 - Cached fold-internal feature selection by target and train positions in the
   long-run runner, eliminating repeated correlation/ranking work without
   changing selected features.
+- GitHub Actions smoke evaluations now run folds 33-35 (the newest three
+  purged OOF windows) instead of folds 0-2, so PR and manual smoke checks
+  measure the current market regime rather than the oldest validation slice.
 
 Latest-data local ablation (three most recent 30-row folds, fast model set):
 
