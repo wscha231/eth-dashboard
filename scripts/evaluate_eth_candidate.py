@@ -7,6 +7,7 @@ the candidate fails the profile configured in model_baseline_manifest.json.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import math
 import sys
@@ -52,6 +53,22 @@ def rows_for_horizon(payload: dict[str, Any], horizon: str, key: str) -> list[di
     horizon_payload = (payload.get("horizons") or {}).get(str(horizon)) or {}
     rows = horizon_payload.get(key) or []
     return [row for row in rows if isinstance(row, dict)]
+
+
+def evaluated_through_by_horizon(candidate: dict[str, Any]) -> dict[str, str]:
+    """Return the latest realized target represented in each OOF horizon."""
+    result: dict[str, str] = {}
+    for horizon, payload in (candidate.get("horizons") or {}).items():
+        if not isinstance(payload, dict):
+            continue
+        target_dates = [
+            str(row["target_date"])
+            for row in (payload.get("predictions") or [])
+            if isinstance(row, dict) and row.get("target_date")
+        ]
+        if target_dates:
+            result[str(horizon)] = max(target_dates)
+    return result
 
 
 def best_min(rows: list[dict[str, Any]], key: str) -> float | None:
@@ -438,6 +455,11 @@ def evaluate(
     failures: list[str] = []
     warnings: list[str] = []
     report: dict[str, Any] = {
+        "schema_version": 2,
+        "evaluated_at_utc": dt.datetime.now(tz=dt.timezone.utc).isoformat(),
+        "candidate_frozen_at": candidate.get("frozen_at"),
+        "candidate_checkpoint_utc": candidate.get("last_checkpoint_utc"),
+        "evaluated_through_by_horizon": evaluated_through_by_horizon(candidate),
         "profile": profile_name,
         "candidate_mode": candidate.get("mode"),
         "partial": bool(candidate.get("partial")),
@@ -715,6 +737,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     report["failures"] = failures
     report["warnings"] = warnings
+    report["gate_status"] = "FAIL" if failures else "PASS"
 
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(json_safe(report), indent=2, allow_nan=False), encoding="utf-8")
