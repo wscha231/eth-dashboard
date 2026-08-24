@@ -24,6 +24,9 @@ are UTC.
 - GitHub Actions smoke evaluations now run folds 33-35 (the newest three
   purged OOF windows) instead of folds 0-2, so PR and manual smoke checks
   measure the current market regime rather than the oldest validation slice.
+- Corrected chunk progress accounting so folds 33-35 are recorded as three
+  completed folds with resume cursor 36, rather than being misreported as a
+  complete 36-fold run.
 
 Latest-data local ablation (three most recent 30-row folds, fast model set):
 
@@ -32,7 +35,18 @@ Latest-data local ablation (three most recent 30-row folds, fast model set):
 - 7-day Extra Trees direction: ROC AUC **0.9000**, balanced accuracy
   **0.8333**, Brier **0.1969**.
 - The matching fixed-overlay run peaked at balanced accuracy **0.5444** in the
-  same folds. Full 36-fold promotion remains gated by GitHub Actions.
+  same folds.
+
+Full purged OOF (36 × 30-day folds, deployed data through 2026-08-24):
+
+- 7-day Random Forest direction: balanced accuracy **0.5854**, ROC AUC
+  **0.6407**, Brier **0.2405**.
+- 7-day trimmed classification ensemble: balanced accuracy **0.5863**.
+- Selective Random Forest signals at probability 0.55: **59.03%** accuracy,
+  **33.09%** actionable-day coverage, **227** signals.
+- The full candidate gate passed. Point-price forecasts still do not beat the
+  no-change anchor consistently, so the improvement is promoted as direction
+  and confidence skill rather than as a reliable point-price edge.
 
 ---
 

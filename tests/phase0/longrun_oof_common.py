@@ -108,6 +108,24 @@ def load_checkpoint(path: Path) -> dict | None:
         return None
 
 
+def prediction_fold_indices(
+    rows: Iterable[dict[str, Any]],
+    horizon: int | None = None,
+) -> set[int]:
+    """Return valid absolute fold ids represented by persisted OOF rows."""
+    indices: set[int] = set()
+    for row in rows:
+        if horizon is not None and row.get("horizon_days") != horizon:
+            continue
+        try:
+            fold_index = int(row.get("fold_index"))
+        except (TypeError, ValueError):
+            continue
+        if fold_index >= 0:
+            indices.add(fold_index)
+    return indices
+
+
 # ---------------------------------------------------------------------------
 # Per-fold execution — mirrors walk_forward_leaderboard / walk_forward_
 # classification inner loops so the output is numerically identical to running
@@ -761,13 +779,19 @@ def run_longrun(
         "partial": True,
         "fold_start": int(max(fold_start, 0)),
         "max_folds_requested": max_folds,
-        "folds_completed": {},  # per-horizon
+        # Count completed folds rather than storing ``last_fold + 1``.  A
+        # chunk that runs folds 33-35 has completed three folds, not 36.
+        "folds_completed": {},  # per-horizon count
+        "next_fold_index": {},  # per-horizon absolute resume cursor
         "folds_target":    {h: p["n_splits"] for h, p in horizon_payloads.items()},
         "horizons": {},          # per-horizon predictions + summary
         **{k: v for k, v in run_metadata.items() if k not in {"mode", "master_data_csv"}},
     }
     predictions_by_horizon: dict[int, list[dict[str, Any]]] = {
         h: [] for h in horizon_payloads
+    }
+    completed_fold_indices: dict[int, set[int]] = {
+        h: set() for h in horizon_payloads
     }
 
     prev = load_checkpoint(checkpoint_path) if resume else None
@@ -783,9 +807,19 @@ def run_longrun(
             preds = h_payload.get("predictions") or []
             predictions_by_horizon[h] = list(preds)
             runners[h].restore_oof_from_rows(preds)
-            done = prev.get("folds_completed", {}).get(str(h)) or prev.get("folds_completed", {}).get(h) or 0
-            state["folds_completed"][h] = int(done)
-            print(f"  h={h}: restored {len(preds)} rows, folds_completed={done}")
+            completed_fold_indices[h] = prediction_fold_indices(preds, horizon=h)
+            done = len(completed_fold_indices[h])
+            next_fold = (
+                max(completed_fold_indices[h]) + 1
+                if completed_fold_indices[h]
+                else int(max(fold_start, 0))
+            )
+            state["folds_completed"][h] = done
+            state["next_fold_index"][h] = next_fold
+            print(
+                f"  h={h}: restored {len(preds)} rows, "
+                f"folds_completed={done}, next_fold={next_fold}"
+            )
 
     # Folds are per-horizon independent; iterate each horizon's folds sequentially.
     # For smoke runs, --max-folds is intentionally interpreted per horizon so
@@ -795,7 +829,10 @@ def run_longrun(
 
     for horizon, payload in horizon_payloads.items():
         runner = runners[horizon]
-        start_fold = max(int(state["folds_completed"].get(horizon, 0)), int(max(fold_start, 0)))
+        start_fold = max(
+            int(state["next_fold_index"].get(horizon, 0)),
+            int(max(fold_start, 0)),
+        )
         total_folds = runner.n_splits
         print(f"[longrun] horizon={horizon}: start_fold={start_fold}/{total_folds}")
         folds_used_this_horizon = 0
@@ -807,7 +844,9 @@ def run_longrun(
             t0 = time.time()
             rows = runner.run_fold(fold_idx)
             predictions_by_horizon[horizon].extend(rows)
-            state["folds_completed"][horizon] = fold_idx + 1
+            completed_fold_indices[horizon].add(int(fold_idx))
+            state["folds_completed"][horizon] = len(completed_fold_indices[horizon])
+            state["next_fold_index"][horizon] = fold_idx + 1
             elapsed = time.time() - t0
             print(
                 f"[longrun]   h={horizon} fold {fold_idx+1:>2}/{total_folds}: "

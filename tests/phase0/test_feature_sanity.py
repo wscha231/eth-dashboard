@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 import eth_price_forecast as efp
+from tests.phase0.longrun_oof_common import prediction_fold_indices
 
 
 def test_build_features_returns_nonempty_columns(synthetic_ohlcv_with_companions: pd.DataFrame) -> None:
@@ -128,3 +129,17 @@ def test_classifier_uses_recent_train_probability_reference() -> None:
     probability = fitted.predict_proba(X.tail(5))[:, 1]
     assert np.all((probability > 0.0) & (probability < 1.0))
     assert np.all(np.diff(probability) >= 0.0)
+
+
+def test_chunk_fold_progress_counts_rows_instead_of_last_index() -> None:
+    rows = [
+        {"horizon_days": 7, "fold_index": 33},
+        {"horizon_days": 7, "fold_index": 33},
+        {"horizon_days": 7, "fold_index": 34},
+        {"horizon_days": 7, "fold_index": 35},
+        {"horizon_days": 30, "fold_index": 35},
+        {"horizon_days": 7, "fold_index": -1},
+        {"horizon_days": 7, "fold_index": None},
+    ]
+
+    assert prediction_fold_indices(rows, horizon=7) == {33, 34, 35}
