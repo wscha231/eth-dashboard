@@ -86,6 +86,7 @@ jobs:
             echo "EVAL_PROFILE=smoke" >> "$GITHUB_ENV"
             python tests/phase0/longrun_oof_phase6_production.py \
               --master-data-csv lake/gold/eth_master_daily.csv \
+              --fold-start 33 \
               --max-folds 3
           fi
 

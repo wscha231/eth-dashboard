@@ -418,11 +418,15 @@ class CalibratedProbabilityModel(BaseEstimator, ClassifierMixin):
         calibrator: Any | None = None,
         calibration_rows: int = 0,
         calibration_method: str = "none",
+        probability_reference: np.ndarray | list[float] | None = None,
+        probability_mapping: str = "none",
     ) -> None:
         self.base_estimator = base_estimator
         self.calibrator = calibrator
         self.calibration_rows = int(calibration_rows)
         self.calibration_method = calibration_method
+        self.probability_reference = probability_reference
+        self.probability_mapping = probability_mapping
         self.classes_ = np.array([0, 1], dtype=int)
 
     def fit(self, X: pd.DataFrame, y: pd.Series | np.ndarray) -> "CalibratedProbabilityModel":
@@ -430,14 +434,21 @@ class CalibratedProbabilityModel(BaseEstimator, ClassifierMixin):
         self.base_estimator.fit(X, y_series)
         self.classes_ = np.unique(y_series)
 
-        if self.calibrator is None or y_series.nunique() < 2:
-            return self
-
         raw_probabilities = np.clip(
             self.base_estimator.predict_proba(X)[:, 1],
             1e-6,
             1.0 - 1e-6,
         )
+        if self.probability_mapping == "empirical_cdf":
+            reference_rows = min(max(int(self.calibration_rows), 1), len(raw_probabilities))
+            self.probability_reference = raw_probabilities[-reference_rows:].copy()
+            raw_probabilities = empirical_probability_percentiles(
+                raw_probabilities,
+                self.probability_reference,
+            )
+        if self.calibrator is None or y_series.nunique() < 2:
+            return self
+
         recalibrator, calibration_method = fit_probability_calibrator(raw_probabilities, y_series)
         if recalibrator is None:
             self.calibrator = None
@@ -460,6 +471,11 @@ class CalibratedProbabilityModel(BaseEstimator, ClassifierMixin):
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         probabilities = np.clip(self.base_estimator.predict_proba(X)[:, 1], 1e-6, 1.0 - 1e-6)
+        if self.probability_mapping == "empirical_cdf":
+            probabilities = empirical_probability_percentiles(
+                probabilities,
+                self.probability_reference,
+            )
         if self.calibrator is not None:
             if hasattr(self.calibrator, "predict_proba"):
                 probabilities = self.calibrator.predict_proba(probabilities.reshape(-1, 1))[:, 1]
@@ -470,6 +486,35 @@ class CalibratedProbabilityModel(BaseEstimator, ClassifierMixin):
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+
+
+def empirical_probability_percentiles(
+    probabilities: pd.Series | np.ndarray | list[float],
+    reference_probabilities: pd.Series | np.ndarray | list[float] | None,
+) -> np.ndarray:
+    """Map raw classifier scores to their percentile in a recent train window.
+
+    Tree probability levels drift materially between expanding time-series
+    folds even when their within-fold ranking remains useful. Comparing a
+    score with a recent *training* distribution makes confidence comparable
+    across regimes without inspecting the test window or its labels. The
+    half-rank correction avoids exact zero/one outputs at the tails.
+    """
+    values = np.asarray(probabilities, dtype=float).reshape(-1)
+    if reference_probabilities is None:
+        return np.clip(values, 1e-6, 1.0 - 1e-6)
+
+    reference = np.asarray(reference_probabilities, dtype=float).reshape(-1)
+    reference = np.sort(reference[np.isfinite(reference)])
+    if reference.size < 2 or np.unique(reference).size < 2:
+        return np.clip(values, 1e-6, 1.0 - 1e-6)
+
+    mapped = np.full(values.shape, np.nan, dtype=float)
+    valid = np.isfinite(values)
+    mapped[valid] = (
+        np.searchsorted(reference, values[valid], side="right") + 0.5
+    ) / (reference.size + 1.0)
+    return np.clip(mapped, 1e-6, 1.0 - 1e-6)
 
 
 def log_progress(enabled: bool, message: str) -> None:
@@ -3411,13 +3456,14 @@ def make_state_classification_models(horizon: int | None = None) -> dict[str, An
     return models
 
 
-def fit_calibrated_classifier(
+def fit_holdout_calibrated_classifier(
     model_template: Any,
     X_train: pd.DataFrame,
     y_train: pd.Series,
     min_calibration_rows: int = DEFAULT_CALIBRATION_MIN_ROWS,
     sample_weight: pd.Series | np.ndarray | list[float] | None = None,
 ) -> CalibratedProbabilityModel:
+    """Retain the established holdout calibration for the 30-day head."""
     y_train = y_train.astype(int)
     aligned_sample_weight = align_sample_weight(sample_weight, X_train.index)
     base_model = clone(model_template)
@@ -3435,40 +3481,105 @@ def fit_calibrated_classifier(
         max(len(y_train) - 80, 0),
     )
     if calibration_rows <= 0 or len(y_train) - calibration_rows < 80:
-        base_model.fit(X_train, y_train)
+        fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
     X_fit = X_train.iloc[:-calibration_rows]
     y_fit = y_train.iloc[:-calibration_rows]
     X_calibration = X_train.iloc[-calibration_rows:]
     y_calibration = y_train.iloc[-calibration_rows:]
-    fit_sample_weight = aligned_sample_weight.iloc[:-calibration_rows] if aligned_sample_weight is not None else None
+    fit_sample_weight = (
+        aligned_sample_weight.iloc[:-calibration_rows]
+        if aligned_sample_weight is not None
+        else None
+    )
     calibration_sample_weight = (
-        aligned_sample_weight.iloc[-calibration_rows:] if aligned_sample_weight is not None else None
+        aligned_sample_weight.iloc[-calibration_rows:]
+        if aligned_sample_weight is not None
+        else None
     )
     if y_fit.nunique() < 2 or y_calibration.nunique() < 2:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
     fit_model_with_optional_sample_weight(base_model, X_fit, y_fit, fit_sample_weight)
-    raw_probabilities = np.clip(base_model.predict_proba(X_calibration)[:, 1], 1e-6, 1.0 - 1e-6)
+    raw_probabilities = np.clip(
+        base_model.predict_proba(X_calibration)[:, 1],
+        1e-6,
+        1.0 - 1e-6,
+    )
     calibrator, calibration_method = fit_probability_calibrator(
         raw_probabilities,
         y_calibration,
         sample_weight=calibration_sample_weight,
     )
-    if calibrator is None:
-        refit_model = clone(model_template)
-        fit_model_with_optional_sample_weight(refit_model, X_train, y_train, aligned_sample_weight)
-        return CalibratedProbabilityModel(refit_model)
-
     refit_model = clone(model_template)
     fit_model_with_optional_sample_weight(refit_model, X_train, y_train, aligned_sample_weight)
+    if calibrator is None:
+        return CalibratedProbabilityModel(refit_model)
     return CalibratedProbabilityModel(
         refit_model,
         calibrator=calibrator,
         calibration_rows=calibration_rows,
         calibration_method=calibration_method,
+    )
+
+
+def fit_calibrated_classifier(
+    model_template: Any,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    min_calibration_rows: int = DEFAULT_CALIBRATION_MIN_ROWS,
+    sample_weight: pd.Series | np.ndarray | list[float] | None = None,
+    horizon: int | None = None,
+) -> CalibratedProbabilityModel:
+    """Fit the short-horizon classifier with recent-train CDF normalization.
+
+    The former holdout-isotonic path calibrated one fitted estimator and then
+    attached that calibrator to a *different*, full-data refit. In expanding
+    crypto folds the two estimators often had different probability scales,
+    which made otherwise useful rankings incomparable across dates. The new
+    mapping is estimated from the final estimator's own recent training scores
+    and therefore stays on the same scale. It is label-free and never reads a
+    test row, so it remains safe for purged walk-forward evaluation. The
+    already-passing 30-day head deliberately stays on the established holdout
+    calibration path until its own full OOF evidence supports a change.
+    """
+    if horizon is not None and horizon > 7:
+        return fit_holdout_calibrated_classifier(
+            model_template,
+            X_train,
+            y_train,
+            min_calibration_rows=min_calibration_rows,
+            sample_weight=sample_weight,
+        )
+
+    y_train = y_train.astype(int)
+    aligned_sample_weight = align_sample_weight(sample_weight, X_train.index)
+    base_model = clone(model_template)
+    if y_train.nunique() < 2:
+        fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
+        return CalibratedProbabilityModel(base_model)
+
+    minimum_rows = max(min_calibration_rows, 160)
+    if len(y_train) < minimum_rows:
+        fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
+        return CalibratedProbabilityModel(base_model)
+
+    calibration_rows = min(int(min_calibration_rows), len(y_train))
+    fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
+    probability_reference = np.clip(
+        base_model.predict_proba(X_train.iloc[-calibration_rows:])[:, 1],
+        1e-6,
+        1.0 - 1e-6,
+    )
+    return CalibratedProbabilityModel(
+        base_model,
+        calibrator=None,
+        calibration_rows=calibration_rows,
+        calibration_method="empirical_cdf_recent_train",
+        probability_reference=probability_reference,
+        probability_mapping="empirical_cdf",
     )
 
 
@@ -3923,6 +4034,7 @@ def build_permutation_importance_report(
             model_template,
             X.iloc[train_idx],
             y.iloc[train_idx],
+            horizon=horizon,
         )
     else:
         model = clone(model_template)
@@ -4146,6 +4258,7 @@ def build_explainability_artifacts(
             model_template,
             dataset[feature_columns],
             target,
+            horizon=horizon,
         )
     else:
         fitted_model = clone(model_template)
@@ -5737,17 +5850,19 @@ def build_recent_holdout_report(
             direction_train_dataset[feature_columns],
             direction_train_target,
             sample_weight=direction_train_sample_weight,
+            horizon=horizon,
         )
         probabilities = pd.Series(
             model.predict_proba(holdout_dataset[feature_columns])[:, 1],
             index=holdout_dataset.index,
             dtype=float,
         )
-        probabilities = apply_direction_regime_overlay(
-            probabilities,
-            holdout_dataset[feature_columns],
-            horizon=horizon,
-        )
+        if horizon > 7:
+            probabilities = apply_direction_regime_overlay(
+                probabilities,
+                holdout_dataset[feature_columns],
+                horizon=horizon,
+            )
         classification_holdout_probabilities[model_name] = probabilities.copy()
         selected_threshold = float((classification_thresholds or {}).get(model_name, DEFAULT_CLASSIFICATION_SIGNAL_THRESHOLD))
         _, effective_threshold = resolve_classification_signal_thresholds(selected_threshold)
@@ -8047,18 +8162,24 @@ def walk_forward_classification(
                 X_fold.iloc[train_positions],
                 y_train,
                 sample_weight=aligned_sample_weight.iloc[train_positions] if aligned_sample_weight is not None else None,
+                horizon=gap,
             )
             prob_up = pd.Series(
                 model.predict_proba(X_fold.iloc[prediction_positions])[:, 1],
                 index=X_fold.iloc[prediction_positions].index,
                 dtype=float,
             )
-            overlay_frame = dataset.iloc[prediction_positions] if fold_feature_selection else X_fold.iloc[prediction_positions]
-            prob_up = apply_direction_regime_overlay(
-                prob_up,
-                overlay_frame,
-                horizon=gap,
-            )
+            if gap > 7:
+                overlay_frame = (
+                    dataset.iloc[prediction_positions]
+                    if fold_feature_selection
+                    else X_fold.iloc[prediction_positions]
+                )
+                prob_up = apply_direction_regime_overlay(
+                    prob_up,
+                    overlay_frame,
+                    horizon=gap,
+                )
             probabilities.iloc[prediction_positions] = prob_up.to_numpy()
             fold_count += 1
 
@@ -8238,6 +8359,7 @@ def fit_best_classifier(
         training_dataset[feature_columns],
         target,
         sample_weight=aligned_sample_weight,
+        horizon=horizon,
     )
 
 
@@ -10449,18 +10571,19 @@ def forecast_direction(
                 )
             except ValueError:
                 continue
-            component_probability = float(
-                apply_direction_regime_overlay(
-                    pd.Series(
-                        component_classifier.predict_proba(latest_features)[:, 1],
-                        index=latest_features.index,
-                        dtype=float,
-                    ),
+            component_probability_series = pd.Series(
+                component_classifier.predict_proba(latest_features)[:, 1],
+                index=latest_features.index,
+                dtype=float,
+            )
+            if horizon > 7:
+                component_probability_series = apply_direction_regime_overlay(
+                    component_probability_series,
                     latest_features,
                     horizon=horizon,
                     live_gap=live_gap,
-                ).iloc[0]
-            )
+                )
+            component_probability = float(component_probability_series.iloc[0])
             component_probabilities[component_model] = component_probability
         if len(component_probabilities) < 2:
             probability_up = 0.5
@@ -10485,14 +10608,19 @@ def forecast_direction(
                 horizon=horizon,
                 sample_weight=sample_weight,
             )
-            probability_up = float(
-                apply_direction_regime_overlay(
-                    pd.Series(model.predict_proba(latest_features)[:, 1], index=latest_features.index, dtype=float),
+            probability_series = pd.Series(
+                model.predict_proba(latest_features)[:, 1],
+                index=latest_features.index,
+                dtype=float,
+            )
+            if horizon > 7:
+                probability_series = apply_direction_regime_overlay(
+                    probability_series,
                     latest_features,
                     horizon=horizon,
                     live_gap=live_gap,
-                ).iloc[0]
-            )
+                )
+            probability_up = float(probability_series.iloc[0])
         except ValueError:
             probability_up = 0.5
             selection_basis = f"{selection_basis}+insufficient_actionable_labels"
