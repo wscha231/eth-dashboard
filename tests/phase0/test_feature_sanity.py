@@ -89,3 +89,42 @@ def test_prediction_history_loader_allows_empty_file(tmp_path) -> None:
     history = efp.load_prediction_history_csv(history_path)
 
     assert history.empty
+
+
+def test_empirical_probability_percentiles_are_monotonic() -> None:
+    reference = np.array([0.10, 0.20, 0.40, 0.80])
+    values = np.array([0.05, 0.10, 0.30, 0.80, 0.95])
+
+    mapped = efp.empirical_probability_percentiles(values, reference)
+
+    assert np.all(np.diff(mapped) >= 0.0)
+    assert np.all((mapped > 0.0) & (mapped < 1.0))
+    assert mapped[0] < 0.5 < mapped[-1]
+
+
+def test_classifier_uses_recent_train_probability_reference() -> None:
+    index = pd.date_range("2024-01-01", periods=240, freq="D")
+    x = np.linspace(-3.0, 3.0, len(index))
+    X = pd.DataFrame(
+        {
+            "trend": x,
+            "cycle": np.sin(np.arange(len(index)) / 9.0),
+        },
+        index=index,
+    )
+    y = pd.Series((x + 0.35 * X["cycle"].to_numpy() > 0.0).astype(int), index=index)
+
+    fitted = efp.fit_calibrated_classifier(
+        efp.make_classification_models(horizon=7)["logistic"],
+        X,
+        y,
+        min_calibration_rows=80,
+        horizon=7,
+    )
+
+    assert fitted.calibration_method == "empirical_cdf_recent_train"
+    assert fitted.probability_mapping == "empirical_cdf"
+    assert len(np.asarray(fitted.probability_reference)) == 80
+    probability = fitted.predict_proba(X.tail(5))[:, 1]
+    assert np.all((probability > 0.0) & (probability < 1.0))
+    assert np.all(np.diff(probability) >= 0.0)

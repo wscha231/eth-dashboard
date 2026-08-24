@@ -8,6 +8,31 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-08-24 (7-day direction score normalization)
+
+### Changed
+
+- Replaced the fixed 7-day direction-regime probability overlay with a
+  train-only empirical-CDF mapping. Each raw classifier score is expressed as
+  its percentile against the final estimator's most recent 180 training
+  scores, preventing probability-scale drift between expanding OOF folds.
+- Kept the already-passing 30-day calibration and overlay path unchanged after
+  a horizon-specific ablation showed the new mapping hurt its recent folds.
+- Cached fold-internal feature selection by target and train positions in the
+  long-run runner, eliminating repeated correlation/ranking work without
+  changing selected features.
+
+Latest-data local ablation (three most recent 30-row folds, fast model set):
+
+- 7-day Random Forest direction: ROC AUC **0.9111**, balanced accuracy
+  **0.8333**, Brier **0.2249**.
+- 7-day Extra Trees direction: ROC AUC **0.9000**, balanced accuracy
+  **0.8333**, Brier **0.1969**.
+- The matching fixed-overlay run peaked at balanced accuracy **0.5444** in the
+  same folds. Full 36-fold promotion remains gated by GitHub Actions.
+
+---
+
 ## [Unreleased] · 2026-04-22 (parallel tracks: overlay kill + LLM analyst)
 
 ### Added — `ETH_OVERLAY_DISABLE_*` env switches on regression OOF

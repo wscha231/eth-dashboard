@@ -169,6 +169,7 @@ class FoldRunner:
         # Model templates cloned per fold.
         self._reg_models = efp.make_models(horizon=horizon)
         self._cls_models = efp.make_classification_models(horizon=horizon)
+        self._fold_feature_cache: dict[tuple[str, tuple[int, ...]], list[str]] = {}
 
     # ------------------------------------------------------------------
     # Single-fold execution
@@ -300,16 +301,17 @@ class FoldRunner:
 
             model = efp.fit_calibrated_classifier(
                 template, X_full.iloc[train_positions], y_train, sample_weight=train_sw,
+                horizon=self.horizon,
             )
             prob_up = pd.Series(
                 model.predict_proba(X_full.iloc[prediction_positions])[:, 1],
                 index=X_full.iloc[prediction_positions].index, dtype=float,
             )
-            overlay_frame = self.dataset.iloc[prediction_positions]
-            prob_up = efp.apply_direction_regime_overlay(
-                prob_up, overlay_frame, horizon=self.horizon,
-            )
-
+            if self.horizon > 7:
+                overlay_frame = self.dataset.iloc[prediction_positions]
+                prob_up = efp.apply_direction_regime_overlay(
+                    prob_up, overlay_frame, horizon=self.horizon,
+                )
             self.cls_oof.loc[prob_up.index, f"{model_name}_prob_up"] = prob_up
 
             ref_close = current_close.iloc[test_idx]
@@ -349,6 +351,11 @@ class FoldRunner:
     # ------------------------------------------------------------------
     def _fold_features(self, train_idx: np.ndarray, target_column: str = "target_return") -> list[str]:
         """Fold-internal feature selection — uses train rows only."""
+        positions = tuple(np.asarray(train_idx, dtype=int).tolist())
+        cache_key = (target_column, positions)
+        cached = self._fold_feature_cache.get(cache_key)
+        if cached is not None:
+            return list(cached)
         selected = efp.select_fold_features(
             dataset=self.dataset,
             candidate_feature_columns=self.feature_columns,
@@ -357,7 +364,9 @@ class FoldRunner:
             horizon=self.horizon,
             target_column=target_column,
         )
-        return selected or list(self.feature_columns)
+        resolved = selected or list(self.feature_columns)
+        self._fold_feature_cache[cache_key] = list(resolved)
+        return resolved
 
     # ------------------------------------------------------------------
     # Resume: repopulate internal OOF from previously-saved prediction rows
