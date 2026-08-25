@@ -113,7 +113,7 @@ def test_classifier_uses_recent_train_probability_reference() -> None:
         },
         index=index,
     )
-    y = pd.Series((x + 0.35 * X["cycle"].to_numpy() > 0.0).astype(int), index=index)
+    y = pd.Series((X["cycle"].to_numpy() + 0.15 * x > 0.0).astype(int), index=index)
 
     fitted = efp.fit_calibrated_classifier(
         efp.make_classification_models(horizon=7)["logistic"],
@@ -123,12 +123,102 @@ def test_classifier_uses_recent_train_probability_reference() -> None:
         horizon=7,
     )
 
-    assert fitted.calibration_method == "empirical_cdf_recent_train"
+    assert fitted.calibration_method == "isotonic_empirical_cdf_holdout_shrunk"
     assert fitted.probability_mapping == "empirical_cdf"
+    assert fitted.calibrator is not None
     assert len(np.asarray(fitted.probability_reference)) == 80
     probability = fitted.predict_proba(X.tail(5))[:, 1]
+    raw_probability = fitted.base_estimator.predict_proba(X.tail(5))[:, 1]
+    percentile = efp.empirical_probability_percentiles(
+        raw_probability,
+        fitted.probability_reference,
+    )
+    direction_score = fitted.predict_direction_score(X.tail(5))
     assert np.all((probability > 0.0) & (probability < 1.0))
-    assert np.all(np.diff(probability) >= 0.0)
+    assert np.all(np.diff(probability[np.argsort(raw_probability)]) >= 0.0)
+    assert not np.allclose(probability, percentile)
+    assert np.allclose(direction_score, percentile)
+
+
+def test_rank_calibration_does_not_expose_weak_score_tails_as_certainty() -> None:
+    rng = np.random.default_rng(42)
+    index = pd.date_range("2023-01-01", periods=360, freq="D")
+    X = pd.DataFrame(
+        rng.normal(size=(len(index), 3)),
+        columns=["a", "b", "c"],
+        index=index,
+    )
+    y = pd.Series(rng.integers(0, 2, size=len(index)), index=index)
+
+    fitted = efp.fit_calibrated_classifier(
+        efp.make_classification_models(horizon=7)["logistic"],
+        X,
+        y,
+        min_calibration_rows=100,
+        horizon=7,
+    )
+    raw_train = fitted.base_estimator.predict_proba(X)[:, 1]
+    extreme_rows = X.iloc[[int(np.argmin(raw_train)), int(np.argmax(raw_train))]]
+    raw_extremes = fitted.base_estimator.predict_proba(extreme_rows)[:, 1]
+    percentiles = efp.empirical_probability_percentiles(
+        raw_extremes,
+        fitted.probability_reference,
+    )
+    calibrated = fitted.predict_proba(extreme_rows)[:, 1]
+    direction_scores = fitted.predict_direction_score(extreme_rows)
+
+    assert percentiles[0] < 0.05 and percentiles[1] > 0.95
+    assert np.allclose(direction_scores, percentiles)
+    assert np.max(np.abs(calibrated - 0.5)) < np.max(np.abs(percentiles - 0.5))
+
+
+def test_rank_calibration_respects_time_decay_effective_sample_size() -> None:
+    scores = np.linspace(0.05, 0.95, 100)
+    labels = np.tile([0, 1], 50)
+    sample_weight = np.full(100, 0.5)
+
+    calibrator, method = efp.fit_rank_probability_calibrator(
+        scores,
+        labels,
+        sample_weight=sample_weight,
+    )
+
+    assert method == "isotonic_empirical_cdf_holdout_shrunk"
+    assert isinstance(calibrator, efp.ShrunkIsotonicProbabilityCalibrator)
+    assert np.isclose(calibrator.learned_weight, 50.0 / 250.0)
+
+
+def test_threshold_selection_uses_direction_score_but_brier_uses_probability() -> None:
+    index = pd.date_range("2024-01-01", periods=120, freq="D")
+    actual = pd.Series(([0, 1] * 60), index=index)
+    direction_score = pd.Series(np.where(actual.eq(1), 0.70, 0.30), index=index)
+    calibrated_probability = pd.Series(np.where(actual.eq(1), 0.56, 0.44), index=index)
+
+    threshold, metrics = efp.choose_classification_evaluation_threshold(
+        actual_label=actual,
+        probability_up=calibrated_probability,
+        direction_score_up=direction_score,
+        horizon=7,
+    )
+
+    assert 0.50 <= threshold <= 0.70
+    assert np.isclose(metrics["balanced_accuracy"], 1.0)
+    assert np.isclose(metrics["roc_auc"], 1.0)
+    assert np.isclose(metrics["brier_score"], (0.44**2))
+
+
+def test_live_gap_adjustment_is_signed_and_bounded() -> None:
+    index = pd.date_range("2026-08-20", periods=1, freq="D")
+    frame = pd.DataFrame(index=index)
+    base = pd.Series([0.50], index=index)
+
+    up = efp.apply_direction_live_gap_adjustment(base, frame, live_gap=0.08)
+    down = efp.apply_direction_live_gap_adjustment(base, frame, live_gap=-0.08)
+    capped = efp.apply_direction_live_gap_adjustment(base, frame, live_gap=0.50)
+
+    assert np.isclose(up.iloc[0], 0.515)
+    assert np.isclose(down.iloc[0], 0.485)
+    assert np.isclose(capped.iloc[0], 0.515)
 
 
 def test_chunk_fold_progress_counts_rows_instead_of_last_index() -> None:

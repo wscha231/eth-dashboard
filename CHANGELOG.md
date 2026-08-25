@@ -48,6 +48,21 @@ Full purged OOF (36 × 30-day folds, deployed data through 2026-08-24):
   no-change anchor consistently, so the improvement is promoted as direction
   and confidence skill rather than as a reliable point-price edge.
 
+### Follow-up hardening
+
+- Empirical-CDF values are now retained as separate directional ranking
+  scores. Threshold selection, signals, and AUC use those scores, while Brier
+  scoring and user-facing `probability_up`/confidence use a monotone
+  label-frequency calibration shrunk toward the held-out base rate.
+- Restored the signed post-candle live-price adjustment for 7-day forecasts as
+  a standalone, bounded ±1.5 percentage-point correction without
+  reintroducing the rejected momentum/RSI/regime overlay.
+- In the 36-fold core-model replay, balanced-accuracy weighting of the
+  directional scores reached `0.5980` balanced accuracy and `0.6381` ROC AUC;
+  its separately calibrated probability blend recorded `0.2472` Brier. At a
+  symmetric `0.60` decision threshold, 92/686 actionable dates emitted a
+  signal with `59.78%` accuracy.
+
 ---
 
 ## [Unreleased] · 2026-04-22 (parallel tracks: overlay kill + LLM analyst)
