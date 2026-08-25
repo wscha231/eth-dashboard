@@ -21,6 +21,9 @@ FORECAST_OPTIONAL_COLUMNS: dict[str, str] = {
     "forecast_lower_return": "REAL",
     "forecast_upper_return": "REAL",
 }
+BACKTEST_PREDICTION_OPTIONAL_COLUMNS: dict[str, str] = {
+    "direction_score_up": "REAL",
+}
 
 
 def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
@@ -49,13 +52,18 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
 def _ensure_optional_columns(conn: sqlite3.Connection) -> None:
     """Add new nullable columns when an existing committed DB predates schema.sql."""
-    existing = {
-        str(row["name"])
-        for row in conn.execute("PRAGMA table_info(forecasts)").fetchall()
+    optional_columns_by_table = {
+        "forecasts": FORECAST_OPTIONAL_COLUMNS,
+        "backtest_predictions": BACKTEST_PREDICTION_OPTIONAL_COLUMNS,
     }
-    for column, column_type in FORECAST_OPTIONAL_COLUMNS.items():
-        if column not in existing:
-            conn.execute(f"ALTER TABLE forecasts ADD COLUMN {column} {column_type}")
+    for table, optional_columns in optional_columns_by_table.items():
+        existing = {
+            str(row["name"])
+            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        for column, column_type in optional_columns.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
 
 
 def table_names(conn: sqlite3.Connection) -> list[str]:

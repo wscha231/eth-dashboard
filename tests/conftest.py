@@ -168,6 +168,7 @@ def _make_tiny_freeze_payload(
                     "fold_index":       d // 2,
                     "actual_label":     1,
                     "probability_up":   0.6,
+                    "direction_score_up": 0.65,
                     "predicted_label":  1,
                 }
                 for d in range(n_pred_dates)

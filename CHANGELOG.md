@@ -62,6 +62,14 @@ Full purged OOF (36 × 30-day folds, deployed data through 2026-08-24):
   its separately calibrated probability blend recorded `0.2472` Brier. At a
   symmetric `0.60` decision threshold, 92/686 actionable dates emitted a
   signal with `59.78%` accuracy.
+- Purged the internal probability-calibration boundary by the full forecast
+  horizon, preventing fit labels from reaching into the held-out calibration
+  tail for both 7-day and 30-day classifiers.
+- Long-run resume and ensemble paths now fall back from `direction_score_up`
+  to `probability_up` per row, preserving legacy checkpoint history instead
+  of discarding older folds after a resumed run.
+- Backtest schema v4 persists and exports `direction_score_up`, so published
+  OOF rows can reproduce the exact threshold decisions shown by the site.
 
 ---
 

@@ -424,11 +424,21 @@ class FoldRunner:
                     self.reg_oof.at[date, f"{model}_pred_close"] = float(pc)
             elif head == "classification":
                 pu = row.get("probability_up")
-                if pu is not None:
-                    self.cls_oof.at[date, f"{model}_prob_up"] = float(pu)
+                try:
+                    probability = float(pu)
+                except (TypeError, ValueError):
+                    probability = float("nan")
+                if np.isfinite(probability):
+                    self.cls_oof.at[date, f"{model}_prob_up"] = probability
                 score = row.get("direction_score_up")
-                if score is not None:
-                    self.cls_oof.at[date, f"{model}_direction_score_up"] = float(score)
+                try:
+                    direction_score = float(score)
+                except (TypeError, ValueError):
+                    direction_score = float("nan")
+                if not np.isfinite(direction_score):
+                    direction_score = probability
+                if np.isfinite(direction_score):
+                    self.cls_oof.at[date, f"{model}_direction_score_up"] = direction_score
 
 
 # ---------------------------------------------------------------------------
@@ -490,11 +500,10 @@ def finalize_run(
     y_cls = efp.get_direction_classification_target(dataset, horizon)
     for model_name in cls_models_with_oof:
         prob_col = runner.cls_oof[f"{model_name}_prob_up"].dropna()
-        score_column = f"{model_name}_direction_score_up"
-        score_col = runner.cls_oof[f"{model_name}_prob_up"].copy()
-        if score_column in runner.cls_oof.columns:
-            score_col = runner.cls_oof[score_column].combine_first(score_col)
-        score_col = score_col.dropna()
+        score_col = efp.classification_oof_direction_scores(
+            runner.cls_oof,
+            model_name,
+        ).dropna()
         valid_index = prob_col.index.intersection(score_col.index)
         if len(valid_index) == 0:
             continue
@@ -518,9 +527,10 @@ def finalize_run(
         cls_thresholds[model_name] = float(threshold)
 
         # Fill predicted_label in internal OOF + in the flat predictions list.
-        full_direction_score = runner.cls_oof[f"{model_name}_prob_up"].copy()
-        if score_column in runner.cls_oof.columns:
-            full_direction_score = runner.cls_oof[score_column].combine_first(full_direction_score)
+        full_direction_score = efp.classification_oof_direction_scores(
+            runner.cls_oof,
+            model_name,
+        )
         predicted_label = (full_direction_score >= threshold).astype(float)
         predicted_label[full_direction_score.isna()] = np.nan
         runner.cls_oof[f"{model_name}_pred_label"] = predicted_label
@@ -531,8 +541,16 @@ def finalize_run(
         if row.get("head") != "classification":
             continue
         model = row.get("model")
-        score = row.get("direction_score_up", row.get("probability_up"))
-        if model in cls_thresholds and score is not None:
+        try:
+            score = float(row.get("direction_score_up"))
+        except (TypeError, ValueError):
+            score = float("nan")
+        if not np.isfinite(score):
+            try:
+                score = float(row.get("probability_up"))
+            except (TypeError, ValueError):
+                score = float("nan")
+        if model in cls_thresholds and np.isfinite(score):
             row["predicted_label"] = int(float(score) >= cls_thresholds[model])
 
     cls_lb = pd.DataFrame(cls_rows).sort_values(
@@ -623,12 +641,15 @@ def _append_equal_weight_classification_row(leaderboard, oof, dataset, horizon, 
     blended = efp.trimmed_equal_weight_average(
         oof[[f"{m}_prob_up" for m in available]]
     ).clip(lower=0.0, upper=1.0)
-    direction_columns = [
-        f"{m}_direction_score_up" if f"{m}_direction_score_up" in oof.columns else f"{m}_prob_up"
-        for m in available
-    ]
+    direction_frame = pd.DataFrame(
+        {
+            model_name: efp.classification_oof_direction_scores(oof, model_name)
+            for model_name in available
+        },
+        index=oof.index,
+    )
     blended_direction_score = efp.trimmed_equal_weight_average(
-        oof[direction_columns]
+        direction_frame
     ).clip(lower=0.0, upper=1.0)
     valid_index = blended.dropna().index.intersection(blended_direction_score.dropna().index)
     if len(valid_index) == 0:
@@ -738,9 +759,12 @@ def _emit_ensemble_prediction_rows(
 
     # Classification ensemble rows.
     prob_col = f"{ensemble_cls_model}_prob_up"
-    score_col = f"{ensemble_cls_model}_direction_score_up"
     label_col = f"{ensemble_cls_model}_pred_label"
     if prob_col in runner.cls_oof.columns:
+        direction_scores = efp.classification_oof_direction_scores(
+            runner.cls_oof,
+            ensemble_cls_model,
+        )
         threshold = runner.cls_oof.attrs.get(f"{ensemble_cls_model}_threshold")
         for date, prob in runner.cls_oof[prob_col].dropna().items():
             if not np.isfinite(prob):
@@ -756,11 +780,7 @@ def _emit_ensemble_prediction_rows(
             if label_col in runner.cls_oof.columns and not pd.isna(runner.cls_oof.loc[date, label_col]):
                 pred_label = int(runner.cls_oof.loc[date, label_col])
             elif threshold is not None:
-                decision_score = (
-                    runner.cls_oof.loc[date, score_col]
-                    if score_col in runner.cls_oof.columns
-                    else prob
-                )
+                decision_score = direction_scores.loc[date]
                 pred_label = int(float(decision_score) >= threshold)
             rows_sink.append({
                 "horizon_days":    horizon,
@@ -774,12 +794,7 @@ def _emit_ensemble_prediction_rows(
                 "actual_return":   actual_return,
                 "actual_label":    int(actual_target) if pd.notna(actual_target) else None,
                 "probability_up":  float(prob),
-                "direction_score_up": (
-                    float(runner.cls_oof.loc[date, score_col])
-                    if score_col in runner.cls_oof.columns
-                    and pd.notna(runner.cls_oof.loc[date, score_col])
-                    else float(prob)
-                ),
+                "direction_score_up": float(direction_scores.loc[date]),
                 "predicted_label": pred_label,
             })
 

@@ -3,9 +3,29 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 import eth_price_forecast as efp
 from tests.phase0.longrun_oof_common import prediction_fold_indices
+
+
+class _RecordingClassifier(BaseEstimator, ClassifierMixin):
+    """Cloneable test estimator that records every temporal fit window."""
+
+    fit_windows: list[pd.Index] = []
+
+    def fit(self, X, y, sample_weight=None):
+        del y, sample_weight
+        type(self).fit_windows.append(X.index.copy())
+        self.classes_ = np.array([0, 1])
+        self.center_ = float(pd.to_numeric(X.iloc[:, 0], errors="coerce").median())
+        return self
+
+    def predict_proba(self, X):
+        values = pd.to_numeric(X.iloc[:, 0], errors="coerce").to_numpy(dtype=float)
+        probability_up = 1.0 / (1.0 + np.exp(-(values - self.center_)))
+        return np.column_stack([1.0 - probability_up, probability_up])
 
 
 def test_build_features_returns_nonempty_columns(synthetic_ohlcv_with_companions: pd.DataFrame) -> None:
@@ -138,6 +158,50 @@ def test_classifier_uses_recent_train_probability_reference() -> None:
     assert np.all(np.diff(probability[np.argsort(raw_probability)]) >= 0.0)
     assert not np.allclose(probability, percentile)
     assert np.allclose(direction_score, percentile)
+
+
+@pytest.mark.parametrize(
+    ("horizon", "expected_shadow_rows"),
+    [(7, 153), (30, 130)],
+)
+def test_classifier_calibration_boundary_is_purged(
+    horizon: int,
+    expected_shadow_rows: int,
+) -> None:
+    index = pd.date_range("2024-01-01", periods=240, freq="D")
+    X = pd.DataFrame({"signal": np.linspace(-3.0, 3.0, len(index))}, index=index)
+    y = pd.Series(np.arange(len(index)) % 2, index=index)
+    _RecordingClassifier.fit_windows.clear()
+
+    efp.fit_calibrated_classifier(
+        _RecordingClassifier(),
+        X,
+        y,
+        min_calibration_rows=80,
+        horizon=horizon,
+    )
+
+    assert len(_RecordingClassifier.fit_windows) == 2
+    shadow_window, final_window = _RecordingClassifier.fit_windows
+    calibration_start = index[-80]
+    assert len(shadow_window) == expected_shadow_rows
+    assert shadow_window[-1] + pd.Timedelta(days=horizon) < calibration_start
+    assert final_window.equals(index)
+
+
+def test_oof_direction_scores_fall_back_per_legacy_row() -> None:
+    index = pd.date_range("2024-01-01", periods=4, freq="D")
+    oof = pd.DataFrame(
+        {
+            "model_prob_up": [0.41, 0.42, 0.43, 0.44],
+            "model_direction_score_up": [np.nan, np.nan, 0.71, 0.72],
+        },
+        index=index,
+    )
+
+    scores = efp.classification_oof_direction_scores(oof, "model")
+
+    assert np.allclose(scores.to_numpy(), [0.41, 0.42, 0.71, 0.72])
 
 
 def test_rank_calibration_does_not_expose_weak_score_tails_as_certainty() -> None:

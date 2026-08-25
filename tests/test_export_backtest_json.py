@@ -172,6 +172,23 @@ def test_export_predictions_omits_phases_without_predictions(temp_db, tiny_freez
     assert list(bundles.keys()) == ["phase_withpreds_longrun_oof"]
 
 
+def test_export_predictions_preserves_direction_score(temp_db, tiny_freeze_json):
+    persist_backtest.ingest_file(temp_db, tiny_freeze_json(
+        name="phase_score_longrun_oof_metrics.json",
+        mode="longrun_oof_phase_score_36x30",
+        include_predictions=True,
+        n_pred_dates=1,
+    ))
+
+    predictions = export_backtest_json.export_predictions_by_phase(temp_db)[
+        "phase_score_longrun_oof"
+    ]["predictions"]
+    classification = next(row for row in predictions if row["head"] == "classification")
+
+    assert classification["probability_up"] == pytest.approx(0.6)
+    assert classification["direction_score_up"] == pytest.approx(0.65)
+
+
 # ---------------------------------------------------------------------------
 # Empty-DB behaviour — all export_* functions must return empty containers
 # (not raise). The frontend treats empty as "not yet available" and

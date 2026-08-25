@@ -246,7 +246,7 @@ _PREDICTION_COLUMNS = (
     "prediction_date", "target_date", "fold_index",
     "reference_close", "actual_close", "actual_return", "actual_label",
     "predicted_return", "predicted_close",
-    "probability_up", "predicted_label",
+    "probability_up", "direction_score_up", "predicted_label",
 )
 
 
@@ -292,6 +292,7 @@ def _insert_predictions(
                 _coerce_float(row.get("predicted_return")),
                 _coerce_float(row.get("predicted_close")),
                 _coerce_float(row.get("probability_up")),
+                _coerce_float(row.get("direction_score_up")),
                 _coerce_int(row.get("predicted_label")),
             )
             conn.execute(sql, values)

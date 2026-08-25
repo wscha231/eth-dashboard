@@ -550,6 +550,36 @@ def classifier_direction_scores(model: Any, X: pd.DataFrame) -> np.ndarray:
     return np.clip(np.asarray(values, dtype=float).reshape(-1), 1e-6, 1.0 - 1e-6)
 
 
+def classification_oof_direction_scores(
+    oof_predictions: pd.DataFrame,
+    model_name: str,
+) -> pd.Series:
+    """Return row-complete OOF decision scores for current and legacy rows.
+
+    Checkpoints created before directional scores were persisted only contain
+    ``*_prob_up``. A resumed checkpoint can therefore have a score column for
+    new folds but NaN values for older folds. Always fall back *per row* so
+    thresholding, diversification, and ensembles retain the full OOF window.
+    """
+    probability_column = f"{model_name}_prob_up"
+    if probability_column not in oof_predictions.columns:
+        return pd.Series(index=oof_predictions.index, dtype=float)
+
+    probabilities = pd.to_numeric(
+        oof_predictions[probability_column],
+        errors="coerce",
+    ).replace([np.inf, -np.inf], np.nan)
+    direction_score_column = f"{model_name}_direction_score_up"
+    if direction_score_column not in oof_predictions.columns:
+        return probabilities.clip(lower=0.0, upper=1.0)
+
+    direction_scores = pd.to_numeric(
+        oof_predictions[direction_score_column],
+        errors="coerce",
+    ).replace([np.inf, -np.inf], np.nan)
+    return direction_scores.combine_first(probabilities).clip(lower=0.0, upper=1.0)
+
+
 def empirical_probability_percentiles(
     probabilities: pd.Series | np.ndarray | list[float],
     reference_probabilities: pd.Series | np.ndarray | list[float] | None,
@@ -3585,6 +3615,7 @@ def fit_holdout_calibrated_classifier(
     y_train: pd.Series,
     min_calibration_rows: int = DEFAULT_CALIBRATION_MIN_ROWS,
     sample_weight: pd.Series | np.ndarray | list[float] | None = None,
+    horizon: int | None = None,
 ) -> CalibratedProbabilityModel:
     """Retain the established holdout calibration for the 30-day head."""
     y_train = y_train.astype(int)
@@ -3594,30 +3625,33 @@ def fit_holdout_calibrated_classifier(
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    minimum_rows = max(min_calibration_rows + 80, 160)
+    calibration_gap_rows = max(int(horizon or 1), 1)
+    minimum_rows = max(min_calibration_rows + 80 + calibration_gap_rows, 160)
     if len(y_train) < minimum_rows:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
     calibration_rows = min(
         max(min_calibration_rows, len(y_train) // 5),
-        max(len(y_train) - 80, 0),
+        max(len(y_train) - 80 - calibration_gap_rows, 0),
     )
-    if calibration_rows <= 0 or len(y_train) - calibration_rows < 80:
+    calibration_start = len(y_train) - calibration_rows
+    fit_stop = calibration_start - calibration_gap_rows
+    if calibration_rows <= 0 or fit_stop < 80:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    X_fit = X_train.iloc[:-calibration_rows]
-    y_fit = y_train.iloc[:-calibration_rows]
-    X_calibration = X_train.iloc[-calibration_rows:]
-    y_calibration = y_train.iloc[-calibration_rows:]
+    X_fit = X_train.iloc[:fit_stop]
+    y_fit = y_train.iloc[:fit_stop]
+    X_calibration = X_train.iloc[calibration_start:]
+    y_calibration = y_train.iloc[calibration_start:]
     fit_sample_weight = (
-        aligned_sample_weight.iloc[:-calibration_rows]
+        aligned_sample_weight.iloc[:fit_stop]
         if aligned_sample_weight is not None
         else None
     )
     calibration_sample_weight = (
-        aligned_sample_weight.iloc[-calibration_rows:]
+        aligned_sample_weight.iloc[calibration_start:]
         if aligned_sample_weight is not None
         else None
     )
@@ -3676,6 +3710,7 @@ def fit_calibrated_classifier(
             y_train,
             min_calibration_rows=min_calibration_rows,
             sample_weight=sample_weight,
+            horizon=horizon,
         )
 
     y_train = y_train.astype(int)
@@ -3685,27 +3720,33 @@ def fit_calibrated_classifier(
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    minimum_rows = max(min_calibration_rows + 80, 160)
+    calibration_gap_rows = max(int(horizon or 1), 1)
+    minimum_rows = max(min_calibration_rows + 80 + calibration_gap_rows, 160)
     if len(y_train) < minimum_rows:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    calibration_rows = min(int(min_calibration_rows), max(len(y_train) - 80, 0))
+    calibration_rows = min(
+        int(min_calibration_rows),
+        max(len(y_train) - 80 - calibration_gap_rows, 0),
+    )
     if calibration_rows < 25:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    X_fit = X_train.iloc[:-calibration_rows]
-    y_fit = y_train.iloc[:-calibration_rows]
-    X_calibration = X_train.iloc[-calibration_rows:]
-    y_calibration = y_train.iloc[-calibration_rows:]
+    calibration_start = len(y_train) - calibration_rows
+    fit_stop = calibration_start - calibration_gap_rows
+    X_fit = X_train.iloc[:fit_stop]
+    y_fit = y_train.iloc[:fit_stop]
+    X_calibration = X_train.iloc[calibration_start:]
+    y_calibration = y_train.iloc[calibration_start:]
     fit_sample_weight = (
-        aligned_sample_weight.iloc[:-calibration_rows]
+        aligned_sample_weight.iloc[:fit_stop]
         if aligned_sample_weight is not None
         else None
     )
     calibration_sample_weight = (
-        aligned_sample_weight.iloc[-calibration_rows:]
+        aligned_sample_weight.iloc[calibration_start:]
         if aligned_sample_weight is not None
         else None
     )
@@ -5590,13 +5631,7 @@ def backtest_classification_models(
 
     for model_name in model_names:
         probabilities = pd.to_numeric(oof_predictions[f"{model_name}_prob_up"], errors="coerce")
-        direction_score_column = f"{model_name}_direction_score_up"
-        direction_scores = probabilities.copy()
-        if direction_score_column in oof_predictions.columns:
-            direction_scores = pd.to_numeric(
-                oof_predictions[direction_score_column],
-                errors="coerce",
-            ).combine_first(probabilities)
+        direction_scores = classification_oof_direction_scores(oof_predictions, model_name)
         valid_index = probabilities.dropna().index.intersection(direction_scores.dropna().index)
         if len(valid_index) == 0:
             continue
@@ -6826,15 +6861,18 @@ def select_trimmed_classification_ensemble_members(
     ).reset_index(drop=True)
     pool_size = max_members + 2
     skill_ordered = [str(model_name) for model_name in frame["model"].tolist()[:pool_size]]
+    diversification_oof = oof_predictions
     direction_score_suffix = "_prob_up"
-    if oof_predictions is not None and all(
-        f"{model_name}_direction_score_up" in oof_predictions.columns
-        for model_name in skill_ordered
-    ):
+    if oof_predictions is not None:
+        diversification_oof = oof_predictions.copy()
+        for model_name in skill_ordered:
+            diversification_oof[f"{model_name}_direction_score_up"] = (
+                classification_oof_direction_scores(oof_predictions, model_name)
+            )
         direction_score_suffix = "_direction_score_up"
     members = _greedy_diversify_members(
         skill_ordered_candidates=skill_ordered,
-        oof_predictions=oof_predictions,
+        oof_predictions=diversification_oof,
         prediction_column_suffix=direction_score_suffix,
         max_members=max_members,
     )
@@ -8852,27 +8890,22 @@ def append_trimmed_classification_ensemble_candidate(
         oof_predictions[[f"{model_name}_prob_up" for model_name in available_models]],
         weights=weights_by_column,
     ).clip(lower=0.0, upper=1.0)
-    direction_columns = {
-        model_name: (
-            f"{model_name}_direction_score_up"
-            if f"{model_name}_direction_score_up" in oof_predictions.columns
-            else f"{model_name}_prob_up"
-        )
-        for model_name in available_models
-    }
+    direction_frame = pd.DataFrame(
+        {
+            model_name: classification_oof_direction_scores(oof_predictions, model_name)
+            for model_name in available_models
+        },
+        index=oof_predictions.index,
+    )
     direction_weights_by_model = derive_ensemble_weights_from_leaderboard(
         leaderboard,
         available_models,
         "balanced_accuracy",
         higher_is_better=True,
     )
-    direction_weights_by_column = {
-        direction_columns[model_name]: direction_weights_by_model.get(model_name, 0.0)
-        for model_name in available_models
-    }
     ensemble_direction_score = skill_weighted_trimmed_mean(
-        oof_predictions[list(direction_columns.values())],
-        weights=direction_weights_by_column,
+        direction_frame,
+        weights=direction_weights_by_model,
     ).clip(lower=0.0, upper=1.0)
     valid_index = ensemble_probability.dropna().index.intersection(
         ensemble_direction_score.dropna().index
@@ -11429,9 +11462,9 @@ def run_horizon_pipeline(
     classification_backtest = augment_backtest_with_macro_bucket(
         classification_backtest,
         signal_builder=lambda model_name, row: classification_signal_from_probabilities(
-            classification_oof_predictions.get(
-                f"{model_name}_direction_score_up",
-                classification_oof_predictions[f"{model_name}_prob_up"],
+            classification_oof_direction_scores(
+                classification_oof_predictions,
+                model_name,
             ),
             threshold=float(
                 pd.to_numeric(row.get("signal_threshold"), errors="coerce")

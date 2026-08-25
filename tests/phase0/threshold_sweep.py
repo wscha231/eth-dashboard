@@ -25,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 
@@ -65,8 +66,11 @@ def sweep_one_model(predictions: list[dict], horizon: int, model: str) -> list[d
     base_up_rate = sum(1 for r in rows if r["actual_label"] == 1) / n_total
 
     def decision_score_up(row: dict) -> float:
-        score = row.get("direction_score_up")
-        return float(row["probability_up"] if score is None else score)
+        try:
+            score = float(row.get("direction_score_up"))
+        except (TypeError, ValueError):
+            score = float("nan")
+        return score if math.isfinite(score) else float(row["probability_up"])
 
     out = []
     for thr in THRESHOLDS:
