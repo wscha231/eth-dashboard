@@ -7,7 +7,10 @@ import pytest
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 import eth_price_forecast as efp
-from tests.phase0.longrun_oof_common import prediction_fold_indices
+from tests.phase0.longrun_oof_common import (
+    backfill_classification_prediction_rows,
+    prediction_fold_indices,
+)
 
 
 class _RecordingClassifier(BaseEstimator, ClassifierMixin):
@@ -392,3 +395,17 @@ def test_chunk_fold_progress_counts_rows_instead_of_last_index() -> None:
     ]
 
     assert prediction_fold_indices(rows, horizon=7) == {33, 34, 35}
+
+
+def test_legacy_checkpoint_row_is_backfilled_with_direction_score() -> None:
+    rows = [{
+        "head": "classification",
+        "model": "legacy_model",
+        "probability_up": 0.72,
+        "predicted_label": None,
+    }]
+
+    backfill_classification_prediction_rows(rows, {"legacy_model": 0.60})
+
+    assert rows[0]["direction_score_up"] == pytest.approx(0.72)
+    assert rows[0]["predicted_label"] == 1

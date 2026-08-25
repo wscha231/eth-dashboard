@@ -126,6 +126,38 @@ def prediction_fold_indices(
     return indices
 
 
+def backfill_classification_prediction_rows(
+    rows: Iterable[dict[str, Any]],
+    thresholds_by_model: dict[str, float],
+) -> None:
+    """Make legacy classification rows persistently score-complete.
+
+    Old checkpoints have ``probability_up`` but no ``direction_score_up``.
+    Resume logic repairs the in-memory OOF frame; this companion repair writes
+    the fallback into each source row as well so the next checkpoint, SQLite
+    archive, and public JSON all remain auditable.
+    """
+    for row in rows:
+        if row.get("head") != "classification":
+            continue
+        try:
+            score = float(row.get("direction_score_up"))
+        except (TypeError, ValueError):
+            score = float("nan")
+        if not np.isfinite(score):
+            try:
+                score = float(row.get("probability_up"))
+            except (TypeError, ValueError):
+                score = float("nan")
+        if not np.isfinite(score):
+            continue
+
+        row["direction_score_up"] = float(score)
+        model = row.get("model")
+        if model in thresholds_by_model:
+            row["predicted_label"] = int(score >= thresholds_by_model[model])
+
+
 # ---------------------------------------------------------------------------
 # Per-fold execution — mirrors walk_forward_leaderboard / walk_forward_
 # classification inner loops so the output is numerically identical to running
@@ -535,23 +567,10 @@ def finalize_run(
         predicted_label[full_direction_score.isna()] = np.nan
         runner.cls_oof[f"{model_name}_pred_label"] = predicted_label
 
-    # Back-fill predicted_label into the flat row list so the DB gets it.
+    # Back-fill scores + labels into the flat row list so resumed legacy rows
+    # remain reproducible after the next checkpoint and DB export.
     rows_this_horizon = predictions_by_horizon.get(horizon, [])
-    for row in rows_this_horizon:
-        if row.get("head") != "classification":
-            continue
-        model = row.get("model")
-        try:
-            score = float(row.get("direction_score_up"))
-        except (TypeError, ValueError):
-            score = float("nan")
-        if not np.isfinite(score):
-            try:
-                score = float(row.get("probability_up"))
-            except (TypeError, ValueError):
-                score = float("nan")
-        if model in cls_thresholds and np.isfinite(score):
-            row["predicted_label"] = int(float(score) >= cls_thresholds[model])
+    backfill_classification_prediction_rows(rows_this_horizon, cls_thresholds)
 
     cls_lb = pd.DataFrame(cls_rows).sort_values(
         ["balanced_accuracy", "f1", "roc_auc", "signal_threshold"],

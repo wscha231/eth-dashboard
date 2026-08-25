@@ -67,7 +67,8 @@ Full purged OOF (36 × 30-day folds, deployed data through 2026-08-24):
   tail for both 7-day and 30-day classifiers.
 - Long-run resume and ensemble paths now fall back from `direction_score_up`
   to `probability_up` per row, preserving legacy checkpoint history instead
-  of discarding older folds after a resumed run.
+  of discarding older folds after a resumed run. Recovered scores are written
+  back into the checkpoint rows before SQLite/public export.
 - Backtest schema v4 persists and exports `direction_score_up`, so published
   OOF rows can reproduce the exact threshold decisions shown by the site.
 - Live forecast summaries, SQLite history, and public JSON now retain
