@@ -28,6 +28,17 @@ class _RecordingClassifier(BaseEstimator, ClassifierMixin):
         return np.column_stack([1.0 - probability_up, probability_up])
 
 
+class _DefaultAttributes:
+    """Small forecast-artifact stub for summary contract tests."""
+
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+    def __getattr__(self, name):
+        del name
+        return 0.0
+
+
 def test_build_features_returns_nonempty_columns(synthetic_ohlcv_with_companions: pd.DataFrame) -> None:
     frame, columns = efp.build_features(synthetic_ohlcv_with_companions, horizon=7)
     assert len(columns) > 50, f"Expected >50 feature columns, got {len(columns)}"
@@ -269,6 +280,90 @@ def test_threshold_selection_uses_direction_score_but_brier_uses_probability() -
     assert np.isclose(metrics["balanced_accuracy"], 1.0)
     assert np.isclose(metrics["roc_auc"], 1.0)
     assert np.isclose(metrics["brier_score"], (0.44**2))
+
+
+@pytest.mark.parametrize(
+    ("predicted_direction", "probability_up", "direction_score_up"),
+    [("UP", 0.40, 0.95), ("DOWN", 0.60, 0.05)],
+)
+def test_direction_confidence_is_capped_by_selected_class_probability(
+    predicted_direction: str,
+    probability_up: float,
+    direction_score_up: float,
+) -> None:
+    leaderboard = pd.DataFrame([{
+        "model": "model",
+        "balanced_accuracy": 0.60,
+        "roc_auc": 0.70,
+        "f1": 0.60,
+    }])
+    backtest = pd.DataFrame([{"model": "model", "total_return": 0.10, "sharpe": 1.0}])
+    holdout = pd.DataFrame([{
+        "task": "classification",
+        "model": "model",
+        "total_return": 0.10,
+        "sharpe": 1.0,
+    }])
+
+    confidence = efp.calibrate_direction_confidence(
+        model_name="model",
+        selection_basis="validated",
+        predicted_direction=predicted_direction,
+        probability_up=probability_up,
+        direction_score_up=direction_score_up,
+        lower_threshold=0.40,
+        upper_threshold=0.60,
+        classification_leaderboard=leaderboard,
+        classification_backtest=backtest,
+        recent_holdout_report=holdout,
+        horizon=7,
+    )
+
+    selected_probability = (
+        probability_up if predicted_direction == "UP" else 1.0 - probability_up
+    )
+    assert confidence == pytest.approx(selected_probability)
+
+
+def test_latest_summary_carries_live_direction_score() -> None:
+    regression = _DefaultAttributes(
+        model_name="regression",
+        selection_basis="test",
+        prediction_timestamp="2026-09-01 00:00:00",
+        last_close=2000.0,
+        reference_price_source="test",
+        reference_price_timestamp="2026-08-25 00:00:00",
+        model_input_close=2000.0,
+    )
+    classification = _DefaultAttributes(
+        model_name="classification",
+        selection_basis="test",
+        predicted_direction="UP",
+        signal_threshold=0.60,
+        direction_score_up=0.73,
+        probability_up=0.56,
+        probability_down=0.44,
+        confidence=0.56,
+    )
+    horizon_artifacts = _DefaultAttributes(
+        data_window_summary=pd.DataFrame([{
+            "latest_prediction_input_timestamp": "2026-08-25 00:00:00",
+        }]),
+        regression_backtest=pd.DataFrame(),
+        classification_backtest=pd.DataFrame(),
+        regime_backtest=pd.DataFrame(),
+        reversal_backtest=pd.DataFrame(),
+        regression_forecast=regression,
+        classification_forecast=classification,
+        regime_forecast=_DefaultAttributes(model_name="regime", selection_basis="test"),
+        reversal_forecast=_DefaultAttributes(model_name="reversal", selection_basis="test"),
+        hybrid_forecast=_DefaultAttributes(model_name="hybrid", selection_basis="test"),
+    )
+    artifacts = _DefaultAttributes(horizons={7: horizon_artifacts})
+
+    summary = efp.build_latest_forecast_summary(artifacts)
+
+    assert summary.loc[0, "classification_direction_score_up"] == pytest.approx(0.73)
 
 
 def test_live_gap_adjustment_is_signed_and_bounded() -> None:

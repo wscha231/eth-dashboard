@@ -70,6 +70,11 @@ Full purged OOF (36 × 30-day folds, deployed data through 2026-08-24):
   of discarding older folds after a resumed run.
 - Backtest schema v4 persists and exports `direction_score_up`, so published
   OOF rows can reproduce the exact threshold decisions shown by the site.
+- Live forecast summaries, SQLite history, and public JSON now retain
+  `classification_direction_score_up` together with its signal threshold.
+- Direction confidence is capped by the calibrated probability of the class
+  actually selected by the direction score, avoiding opposite-class
+  confidence when the ranking score and event probability straddle 0.5.
 
 ---
 

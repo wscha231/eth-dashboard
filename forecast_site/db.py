@@ -13,6 +13,7 @@ from pathlib import Path
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path(__file__).parent / "predictions.db"
 FORECAST_OPTIONAL_COLUMNS: dict[str, str] = {
+    "classification_direction_score_up": "REAL",
     "forecast_decision_mode": "TEXT",
     "forecast_actionability": "TEXT",
     "forecast_point_price_reliable": "INTEGER",

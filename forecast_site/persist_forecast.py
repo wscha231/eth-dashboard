@@ -47,6 +47,7 @@ FORECAST_CSV_COLUMNS: list[str] = [
     "classification_model_name",
     "classification_selection_basis",
     "classification_predicted_direction",
+    "classification_direction_score_up",
     "classification_probability_up",
     "classification_probability_down",
     "classification_confidence",

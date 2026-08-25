@@ -67,36 +67,47 @@ def test_reconnect_is_idempotent(temp_db_path):
     assert first_count == second_count == 4
 
 
-def test_backtest_direction_score_column_exists(temp_db_path):
+def test_direction_score_columns_exist(temp_db_path):
     conn = dbmod.connect(temp_db_path)
     try:
-        columns = {
+        backtest_columns = {
             str(row["name"])
             for row in conn.execute("PRAGMA table_info(backtest_predictions)").fetchall()
+        }
+        forecast_columns = {
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(forecasts)").fetchall()
         }
     finally:
         conn.close()
 
-    assert "direction_score_up" in columns
+    assert "direction_score_up" in backtest_columns
+    assert "classification_direction_score_up" in forecast_columns
 
 
-def test_reconnect_migrates_legacy_backtest_prediction_table(temp_db_path):
+def test_reconnect_migrates_legacy_direction_score_columns(temp_db_path):
     legacy = dbmod.connect(temp_db_path)
     try:
         legacy.execute("ALTER TABLE backtest_predictions DROP COLUMN direction_score_up")
+        legacy.execute("ALTER TABLE forecasts DROP COLUMN classification_direction_score_up")
     finally:
         legacy.close()
 
     migrated = dbmod.connect(temp_db_path)
     try:
-        columns = {
+        backtest_columns = {
             str(row["name"])
             for row in migrated.execute("PRAGMA table_info(backtest_predictions)").fetchall()
+        }
+        forecast_columns = {
+            str(row["name"])
+            for row in migrated.execute("PRAGMA table_info(forecasts)").fetchall()
         }
     finally:
         migrated.close()
 
-    assert "direction_score_up" in columns
+    assert "direction_score_up" in backtest_columns
+    assert "classification_direction_score_up" in forecast_columns
 
 
 def test_foreign_key_cascade_predictions_follow_runs(temp_db_path):

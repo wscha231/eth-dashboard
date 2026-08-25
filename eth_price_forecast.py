@@ -9577,7 +9577,16 @@ def calibrate_direction_confidence(
     recent_holdout_report: pd.DataFrame | None,
     horizon: int,
 ) -> float:
-    raw_confidence = float(max(probability_up, 1.0 - probability_up))
+    probability_up = float(np.clip(probability_up, 0.0, 1.0))
+    if predicted_direction == "UP":
+        raw_confidence = probability_up
+    elif predicted_direction == "DOWN":
+        raw_confidence = 1.0 - probability_up
+    else:
+        # The binary probability head has no explicit FLAT class. Treat an
+        # abstention conservatively instead of presenting either directional
+        # class probability as confidence in FLAT.
+        raw_confidence = min(probability_up, 1.0 - probability_up)
     decision_score = float(probability_up if direction_score_up is None else direction_score_up)
     selection_basis_text = str(selection_basis)
     leaderboard_row = selected_leaderboard_row(classification_leaderboard, model_name)
@@ -11978,6 +11987,7 @@ def build_latest_forecast_summary(artifacts: PipelineArtifacts) -> pd.DataFrame:
                 "classification_selection_basis": horizon_artifacts.classification_forecast.selection_basis,
                 "classification_predicted_direction": horizon_artifacts.classification_forecast.predicted_direction,
                 "classification_signal_threshold": horizon_artifacts.classification_forecast.signal_threshold,
+                "classification_direction_score_up": horizon_artifacts.classification_forecast.direction_score_up,
                 "classification_probability_up": horizon_artifacts.classification_forecast.probability_up,
                 "classification_probability_down": horizon_artifacts.classification_forecast.probability_down,
                 "classification_confidence": horizon_artifacts.classification_forecast.confidence,
@@ -12152,6 +12162,7 @@ def build_compact_dashboard(artifacts: PipelineArtifacts) -> pd.DataFrame:
                 "classification_selection_basis": horizon_artifacts.classification_forecast.selection_basis,
                 "classification_predicted_direction": horizon_artifacts.classification_forecast.predicted_direction,
                 "classification_signal_threshold": horizon_artifacts.classification_forecast.signal_threshold,
+                "classification_direction_score_up": horizon_artifacts.classification_forecast.direction_score_up,
                 "classification_probability_up": horizon_artifacts.classification_forecast.probability_up,
                 "classification_probability_down": horizon_artifacts.classification_forecast.probability_down,
                 "classification_backtest_total_return": classification_backtest.get("total_return"),
