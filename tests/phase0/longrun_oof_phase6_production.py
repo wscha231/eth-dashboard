@@ -51,6 +51,17 @@ def parse_horizons(raw: str) -> tuple[int, ...]:
     return tuple(horizons)
 
 
+def parse_model_names(raw: str) -> tuple[str, ...]:
+    names: list[str] = []
+    for part in str(raw).split(","):
+        name = part.strip()
+        if name and name not in names:
+            names.append(name)
+    if not names:
+        raise argparse.ArgumentTypeError("at least one model name is required")
+    return tuple(names)
+
+
 def build_horizon_payload(market_data, horizon: int) -> dict:
     embargo = max(1, horizon // 2)
     feature_frame, raw_candidates = efp.build_features(market_data, horizon=horizon)
@@ -124,6 +135,20 @@ def main(argv: list[str] | None = None) -> None:
         default=OUTPUT_JSON,
         help="Checkpoint/output JSON path.",
     )
+    parser.add_argument(
+        "--regression-models",
+        type=parse_model_names,
+        default=None,
+        help=(
+            "Optional comma-separated regression model subset. The no-change "
+            "anchor is always emitted separately."
+        ),
+    )
+    parser.add_argument(
+        "--skip-classification",
+        action="store_true",
+        help="Skip every classification model for a regression-only ablation.",
+    )
     args = parser.parse_args(argv)
 
     market_data = efp.load_market_data_csv(Path(args.master_data_csv))
@@ -134,6 +159,11 @@ def main(argv: list[str] | None = None) -> None:
         horizon: build_horizon_payload(market_data, horizon)
         for horizon in args.horizons
     }
+    for payload in horizon_payloads.values():
+        if args.regression_models is not None:
+            payload["regression_model_names"] = list(args.regression_models)
+        if args.skip_classification:
+            payload["classification_model_names"] = []
 
     state = run_longrun(
         checkpoint_path=args.output_json,
@@ -144,6 +174,14 @@ def main(argv: list[str] | None = None) -> None:
             "horizons_requested": ",".join(str(h) for h in args.horizons),
             "fold_start":      int(max(args.fold_start, 0)),
             "max_folds":       args.max_folds,
+            "regression_models_requested": (
+                ",".join(args.regression_models)
+                if args.regression_models is not None
+                else "all"
+            ),
+            "classification_models_requested": (
+                "none" if args.skip_classification else "all"
+            ),
         },
         resume=args.resume,
         flush_every=args.flush_every,

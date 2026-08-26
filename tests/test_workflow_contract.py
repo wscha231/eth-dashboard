@@ -26,6 +26,20 @@ def test_full_model_eval_label_dispatches_parallel_gate() -> None:
     assert "chunk: [0, 1, 2, 3, 4, 5]" in workflow
 
 
+def test_compact_h30_gate_is_focused_and_full_run_is_explicit() -> None:
+    workflow = _read(".github/workflows/eth_model_eval.yml")
+
+    compact_job = workflow.split("\n  evaluate-compact-h30:\n", maxsplit=1)[1].split(
+        "\n  evaluate-full-gate:\n", maxsplit=1
+    )[0]
+    assert "github.event_name == 'pull_request'" in compact_job
+    assert "compact_h30_full" in compact_job
+    assert 'ETH_ENABLE_COMPACT_H30_REGRESSOR: "1"' in compact_job
+    assert "--horizons 30" in compact_job
+    assert "--skip-classification" in compact_job
+    assert "github.event.inputs.compact_h30_full" in compact_job
+
+
 def test_daily_workflow_deploys_live_history_and_verifies_site() -> None:
     workflow = _read(".github/workflows/daily_forecast.yml")
 

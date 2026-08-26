@@ -43,7 +43,7 @@ def test_append_no_change_anchor_adds_first_class_regression_candidate() -> None
     assert updated_oof[f"{efp.NO_CHANGE_ANCHOR_MODEL}_pred_return"].dropna().eq(0.0).all()
 
 
-def test_30d_selection_uses_anchor_when_point_models_have_no_edge() -> None:
+def test_30d_selection_uses_full_oof_promoted_anchor() -> None:
     leaderboard = pd.DataFrame(
         [
             {
@@ -68,7 +68,35 @@ def test_30d_selection_uses_anchor_when_point_models_have_no_edge() -> None:
     )
 
     assert model_name == efp.NO_CHANGE_ANCHOR_MODEL
-    assert basis.startswith("no_change_anchor_regime_range")
+    assert basis.startswith("promoted_full_oof_champion[no_change_anchor]")
+
+
+def test_short_cv_cannot_displace_promoted_30d_point_champion() -> None:
+    leaderboard = pd.DataFrame(
+        [
+            {
+                "model": efp.NO_CHANGE_ANCHOR_MODEL,
+                "price_rmse": 100.0,
+                "price_mae": 80.0,
+                "directional_accuracy": 0.0,
+            },
+            {
+                "model": "extra_trees",
+                "price_rmse": 50.0,
+                "price_mae": 40.0,
+                "directional_accuracy": 0.60,
+            },
+        ]
+    )
+
+    model_name, basis = efp.select_regression_forecast_model(
+        leaderboard,
+        horizon=30,
+        latest_features=pd.Series(dtype=float),
+    )
+
+    assert model_name == efp.NO_CHANGE_ANCHOR_MODEL
+    assert "promoted_full_oof_champion[no_change_anchor]" in basis
 
 
 def test_anchor_forecast_returns_reference_close_with_empirical_interval() -> None:

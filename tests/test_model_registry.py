@@ -14,6 +14,7 @@ from forecasting import model_registry
 from tests.phase0.longrun_oof_common import (
     active_model_registry_manifest,
     checkpoint_model_registry_compatible,
+    select_model_subset,
 )
 
 
@@ -127,6 +128,64 @@ def test_catboost_parameter_contract_survives_registry_extraction() -> None:
     )
 
 
+def test_compact_h30_selector_keeps_first_192_fold_ranked_features() -> None:
+    frame = pd.DataFrame(
+        np.arange(4 * 240, dtype=float).reshape(4, 240),
+        columns=[f"feature_{index:03d}" for index in range(240)],
+    )
+    selector = model_registry.LeadingFeatureSelector(max_features=192)
+
+    transformed = selector.fit_transform(frame)
+
+    assert transformed.shape == (4, 192)
+    assert list(transformed.columns) == list(frame.columns[:192])
+    assert selector.get_feature_names_out().tolist() == list(frame.columns[:192])
+
+
+def test_compact_h30_regressor_is_strictly_opt_in_and_horizon_scoped() -> None:
+    class FakeCatBoostRegressor:
+        def __init__(self, **params):
+            self.params = params
+
+    disabled = model_registry.build_regression_models(
+        horizon=30,
+        fast_mode=False,
+        imputer_factory=efp._make_median_imputer,
+        catboost_regressor_cls=FakeCatBoostRegressor,
+        compact_h30_regressor_enabled=False,
+    )
+    short_horizon = model_registry.build_regression_models(
+        horizon=7,
+        fast_mode=False,
+        imputer_factory=efp._make_median_imputer,
+        catboost_regressor_cls=FakeCatBoostRegressor,
+        compact_h30_regressor_enabled=True,
+    )
+    enabled = model_registry.build_regression_models(
+        horizon=30,
+        fast_mode=False,
+        imputer_factory=efp._make_median_imputer,
+        catboost_regressor_cls=FakeCatBoostRegressor,
+        compact_h30_regressor_enabled=True,
+    )
+
+    assert "catboost_compact_h30_regressor" not in disabled
+    assert "catboost_compact_h30_regressor" not in short_horizon
+    selector = enabled["catboost_compact_h30_regressor"].named_steps["feature_budget"]
+    assert selector.max_features == 192
+
+
+def test_focused_evaluation_model_subset_can_disable_a_head() -> None:
+    models = {"ridge": Ridge(alpha=1.0), "ridge_alt": Ridge(alpha=2.0)}
+
+    assert list(select_model_subset(models, ["ridge_alt"], head="regression")) == [
+        "ridge_alt"
+    ]
+    assert select_model_subset(models, [], head="classification") == {}
+    with pytest.raises(ValueError, match="Unknown regression model"):
+        select_model_subset(models, ["missing"], head="regression")
+
+
 def test_model_eval_workflows_enable_challengers_but_daily_forecast_does_not() -> None:
     eval_workflow = Path(".github/workflows/eth_model_eval.yml").read_text(encoding="utf-8")
     daily_workflow = Path(".github/workflows/daily_forecast.yml").read_text(encoding="utf-8")
@@ -136,10 +195,12 @@ def test_model_eval_workflows_enable_challengers_but_daily_forecast_does_not() -
     model_eval_job, forecast_job = daily_workflow.split("\n  forecast:\n", maxsplit=1)
     assert 'ETH_ENABLE_CHALLENGER_MODELS: "1"' in model_eval_job
     assert "ETH_ENABLE_CHALLENGER_MODELS" not in forecast_job
+    assert 'ETH_ENABLE_COMPACT_H30_REGRESSOR: "1"' in eval_workflow
+    assert "ETH_ENABLE_COMPACT_H30_REGRESSOR" not in daily_workflow
 
 
 def test_summary_resolves_challenger_provenance_at_export_time() -> None:
-    efp.set_runtime_options(challenger_models=True)
+    efp.set_runtime_options(challenger_models=True, compact_h30_regressor=True)
 
     payload = efp.summarize_artifacts(
         efp.PipelineArtifacts(raw_data=pd.DataFrame(), horizons={})
@@ -149,6 +210,8 @@ def test_summary_resolves_challenger_provenance_at_export_time() -> None:
     assert bool(payload["optional_models"]["lightgbm_available"]) is bool(
         efp.LGBMRegressor is not None and efp.LGBMClassifier is not None
     )
+    assert bool(payload["optional_models"]["compact_h30_regressor_enabled"]) is True
+    assert payload["optional_models"]["compact_h30_feature_count"] == 192
 
 
 def test_resume_checkpoint_requires_exact_model_registry_manifest() -> None:

@@ -43,6 +43,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from forecasting.model_registry import (
+    COMPACT_H30_FEATURE_COUNT,
+    PROMOTED_REGRESSION_MODEL_BY_HORIZON,
     build_classification_models,
     build_regression_models,
     catboost_classifier_params as registry_catboost_classifier_params,
@@ -159,10 +161,13 @@ OPTIONAL_MODEL_STATUS: dict[str, Any] = {
     "catboost_error": "",
     "lightgbm_available": bool(LGBMRegressor is not None and LGBMClassifier is not None),
     "lightgbm_challenger_enabled": False,
+    "compact_h30_regressor_enabled": False,
+    "compact_h30_feature_count": COMPACT_H30_FEATURE_COUNT,
 }
 RUNTIME_OPTIONS: dict[str, Any] = {
     "fast_mode": False,
     "challenger_models": None,
+    "compact_h30_regressor": None,
 }
 REGIME_STATE_LABELS = {0: "DOWNTREND", 1: "SIDEWAYS", 2: "UPTREND"}
 REVERSAL_STATE_LABELS = {0: "TOP_REVERSAL", 1: "NONE", 2: "BOTTOM_REVERSAL"}
@@ -232,11 +237,14 @@ def set_runtime_options(
     *,
     fast_mode: bool | None = None,
     challenger_models: bool | None = None,
+    compact_h30_regressor: bool | None = None,
 ) -> None:
     if fast_mode is not None:
         RUNTIME_OPTIONS["fast_mode"] = bool(fast_mode)
     if challenger_models is not None:
         RUNTIME_OPTIONS["challenger_models"] = bool(challenger_models)
+    if compact_h30_regressor is not None:
+        RUNTIME_OPTIONS["compact_h30_regressor"] = bool(compact_h30_regressor)
 
 
 def runtime_fast_mode_enabled() -> bool:
@@ -248,6 +256,18 @@ def runtime_challenger_models_enabled() -> bool:
     if configured is not None:
         return bool(configured)
     return str(os.getenv("ETH_ENABLE_CHALLENGER_MODELS", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def runtime_compact_h30_regressor_enabled() -> bool:
+    configured = RUNTIME_OPTIONS.get("compact_h30_regressor")
+    if configured is not None:
+        return bool(configured)
+    return str(os.getenv("ETH_ENABLE_COMPACT_H30_REGRESSOR", "")).strip().lower() in {
         "1",
         "true",
         "yes",
@@ -274,6 +294,10 @@ def current_optional_model_status() -> dict[str, Any]:
     status["lightgbm_challenger_enabled"] = bool(
         runtime_challenger_models_enabled()
     )
+    status["compact_h30_regressor_enabled"] = bool(
+        runtime_compact_h30_regressor_enabled()
+    )
+    status["compact_h30_feature_count"] = COMPACT_H30_FEATURE_COUNT
     return status
 
 PRICE_FIELD_MAP = {
@@ -796,6 +820,10 @@ def bootstrap_optional_model_dependencies(
         "catboost_error": "",
         "lightgbm_available": bool(LGBMRegressor is not None and LGBMClassifier is not None),
         "lightgbm_challenger_enabled": bool(runtime_challenger_models_enabled()),
+        "compact_h30_regressor_enabled": bool(
+            runtime_compact_h30_regressor_enabled()
+        ),
+        "compact_h30_feature_count": COMPACT_H30_FEATURE_COUNT,
     }
     if status["catboost_available"] or not auto_install_catboost:
         OPTIONAL_MODEL_STATUS = status
@@ -3394,6 +3422,7 @@ def make_models(horizon: int | None = None) -> dict[str, Any]:
         imputer_factory=_make_median_imputer,
         catboost_regressor_cls=CatBoostRegressor,
         lightgbm_regressor_cls=challenger_cls,
+        compact_h30_regressor_enabled=runtime_compact_h30_regressor_enabled(),
     )
 
 
@@ -7348,6 +7377,15 @@ def select_regression_forecast_model(
     macro_context = derive_macro_selection_context(latest_features, horizon or 30)
     macro_suffix = f"+{macro_context['selection_tag']}" if macro_context else ""
     if horizon_value >= 30:
+        promoted_model = PROMOTED_REGRESSION_MODEL_BY_HORIZON.get(horizon_value)
+        promoted_rows = regression_leaderboard.loc[
+            regression_leaderboard["model"].astype(str) == str(promoted_model)
+        ]
+        if promoted_model and not promoted_rows.empty:
+            return (
+                promoted_model,
+                f"promoted_full_oof_champion[{promoted_model}]{macro_suffix}",
+            )
         anchor_rows = regression_leaderboard.loc[
             regression_leaderboard["model"].astype(str) == NO_CHANGE_ANCHOR_MODEL
         ].copy()

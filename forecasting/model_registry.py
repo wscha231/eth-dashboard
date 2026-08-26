@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.ensemble import (
     ExtraTreesClassifier,
     ExtraTreesRegressor,
@@ -27,6 +29,74 @@ from sklearn.preprocessing import StandardScaler
 
 
 ImputerFactory = Callable[[], SimpleImputer]
+COMPACT_H30_FEATURE_COUNT = 192
+# Production point forecasts are promoted only after the authoritative purged
+# OOF gate.  The latest 36-fold h30 gate still has the no-change anchor ahead
+# of every learned regressor, so volatile short-CV runs must not replace it.
+PROMOTED_REGRESSION_MODEL_BY_HORIZON: dict[int, str] = {
+    30: "no_change_anchor",
+}
+
+
+class LeadingFeatureSelector(TransformerMixin, BaseEstimator):
+    """Keep the leading fold-ranked columns without looking at held-out data.
+
+    ``select_fold_features`` already orders columns using only each fold's
+    training rows.  Placing this positional budget inside a candidate model's
+    pipeline lets the compact challenger reuse that leakage-safe order without
+    reducing the feature budget for the incumbent models in the same run.
+    """
+
+    def __init__(self, max_features: int = COMPACT_H30_FEATURE_COUNT):
+        self.max_features = max_features
+
+    def fit(self, X: Any, y: Any = None) -> "LeadingFeatureSelector":
+        del y
+        if not hasattr(X, "shape") or len(X.shape) != 2:
+            raise ValueError("LeadingFeatureSelector expects a 2D feature matrix")
+        feature_count = int(X.shape[1])
+        if feature_count < 1:
+            raise ValueError("LeadingFeatureSelector received no feature columns")
+        requested = int(self.max_features)
+        if requested < 1:
+            raise ValueError("max_features must be at least 1")
+        self.n_features_in_ = feature_count
+        self.selected_feature_count_ = min(requested, feature_count)
+        if hasattr(X, "columns"):
+            self.feature_names_in_ = np.asarray(
+                [str(column) for column in X.columns],
+                dtype=object,
+            )
+        return self
+
+    def transform(self, X: Any) -> Any:
+        if not hasattr(self, "selected_feature_count_"):
+            raise RuntimeError("LeadingFeatureSelector must be fitted before transform")
+        if not hasattr(X, "shape") or len(X.shape) != 2:
+            raise ValueError("LeadingFeatureSelector expects a 2D feature matrix")
+        if int(X.shape[1]) != int(self.n_features_in_):
+            raise ValueError(
+                "Feature count changed between fit and transform: "
+                f"{self.n_features_in_} -> {X.shape[1]}"
+            )
+        if hasattr(X, "iloc"):
+            return X.iloc[:, : self.selected_feature_count_]
+        return X[:, : self.selected_feature_count_]
+
+    def get_feature_names_out(self, input_features: Any = None) -> np.ndarray:
+        if not hasattr(self, "selected_feature_count_"):
+            raise RuntimeError("LeadingFeatureSelector must be fitted before export")
+        if input_features is None:
+            input_features = getattr(
+                self,
+                "feature_names_in_",
+                np.asarray(
+                    [f"x{i}" for i in range(int(self.n_features_in_))],
+                    dtype=object,
+                ),
+            )
+        names = np.asarray(input_features, dtype=object)
+        return names[: self.selected_feature_count_]
 
 
 def catboost_regressor_params(horizon: int | None = None) -> dict[str, Any]:
@@ -153,6 +223,7 @@ def build_regression_models(
     imputer_factory: ImputerFactory,
     catboost_regressor_cls: type[Any] | None = None,
     lightgbm_regressor_cls: type[Any] | None = None,
+    compact_h30_regressor_enabled: bool = False,
 ) -> dict[str, Any]:
     models: dict[str, Any] = {
         "ridge": Pipeline(
@@ -240,6 +311,23 @@ def build_regression_models(
     if (not fast_mode) and catboost_regressor_cls is not None:
         models["catboost_regressor"] = Pipeline(
             steps=[
+                ("imputer", imputer_factory()),
+                ("model", catboost_regressor_cls(**catboost_regressor_params(horizon))),
+            ]
+        )
+    if (
+        (not fast_mode)
+        and compact_h30_regressor_enabled
+        and horizon is not None
+        and horizon >= 30
+        and catboost_regressor_cls is not None
+    ):
+        models["catboost_compact_h30_regressor"] = Pipeline(
+            steps=[
+                (
+                    "feature_budget",
+                    LeadingFeatureSelector(max_features=COMPACT_H30_FEATURE_COUNT),
+                ),
                 ("imputer", imputer_factory()),
                 ("model", catboost_regressor_cls(**catboost_regressor_params(horizon))),
             ]
