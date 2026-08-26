@@ -254,6 +254,28 @@ def runtime_challenger_models_enabled() -> bool:
         "on",
     }
 
+
+def current_optional_model_status() -> dict[str, Any]:
+    """Return dependency provenance with runtime flags resolved at export time.
+
+    ``run_pipeline`` can be called directly without first invoking
+    ``bootstrap_optional_model_dependencies``.  Keeping the challenger flag
+    dynamic prevents an active LightGBM experiment from being reported as
+    disabled in ``summary.json`` merely because the import-time status object
+    has not been refreshed.
+    """
+    status = dict(OPTIONAL_MODEL_STATUS)
+    status["catboost_available"] = bool(
+        CatBoostRegressor is not None and CatBoostClassifier is not None
+    )
+    status["lightgbm_available"] = bool(
+        LGBMRegressor is not None and LGBMClassifier is not None
+    )
+    status["lightgbm_challenger_enabled"] = bool(
+        runtime_challenger_models_enabled()
+    )
+    return status
+
 PRICE_FIELD_MAP = {
     "open": "open",
     "high": "high",
@@ -12695,7 +12717,7 @@ def summarize_artifacts(artifacts: PipelineArtifacts) -> dict[str, Any]:
         }
 
     return {
-        "optional_models": normalize_nested_payload(OPTIONAL_MODEL_STATUS),
+        "optional_models": normalize_nested_payload(current_optional_model_status()),
         "run_status": "partial_success" if artifacts.failed_horizons else "ok",
         "failed_horizons": normalize_nested_payload(artifacts.failed_horizons),
         "horizons": horizons,

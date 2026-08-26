@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.linear_model import LogisticRegression, Ridge
 
 import eth_price_forecast as efp
 from forecasting import model_registry
+from tests.phase0.longrun_oof_common import (
+    active_model_registry_manifest,
+    checkpoint_model_registry_compatible,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -125,6 +132,46 @@ def test_model_eval_workflows_enable_challengers_but_daily_forecast_does_not() -
     daily_workflow = Path(".github/workflows/daily_forecast.yml").read_text(encoding="utf-8")
 
     assert eval_workflow.count('ETH_ENABLE_CHALLENGER_MODELS: "1"') == 3
+    assert '- "tests/**"' in eval_workflow
     model_eval_job, forecast_job = daily_workflow.split("\n  forecast:\n", maxsplit=1)
     assert 'ETH_ENABLE_CHALLENGER_MODELS: "1"' in model_eval_job
     assert "ETH_ENABLE_CHALLENGER_MODELS" not in forecast_job
+
+
+def test_summary_resolves_challenger_provenance_at_export_time() -> None:
+    efp.set_runtime_options(challenger_models=True)
+
+    payload = efp.summarize_artifacts(
+        efp.PipelineArtifacts(raw_data=pd.DataFrame(), horizons={})
+    )
+
+    assert bool(payload["optional_models"]["lightgbm_challenger_enabled"]) is True
+    assert bool(payload["optional_models"]["lightgbm_available"]) is bool(
+        efp.LGBMRegressor is not None and efp.LGBMClassifier is not None
+    )
+
+
+def test_resume_checkpoint_requires_exact_model_registry_manifest() -> None:
+    runner = SimpleNamespace(
+        _reg_models={"ridge": Ridge(alpha=1.0)},
+        _cls_models={"logistic": LogisticRegression(C=1.0)},
+    )
+    active = active_model_registry_manifest({7: runner})
+    serialized = json.loads(json.dumps(active))
+
+    assert checkpoint_model_registry_compatible(
+        {"model_registry": serialized}, active
+    )
+    assert not checkpoint_model_registry_compatible({}, active)
+
+    changed_runner = SimpleNamespace(
+        _reg_models={
+            "ridge": Ridge(alpha=1.0),
+            "new_challenger": Ridge(alpha=2.0),
+        },
+        _cls_models={"logistic": LogisticRegression(C=1.0)},
+    )
+    changed = active_model_registry_manifest({7: changed_runner})
+    assert not checkpoint_model_registry_compatible(
+        {"model_registry": serialized}, changed
+    )

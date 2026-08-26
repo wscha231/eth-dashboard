@@ -29,6 +29,20 @@ are UTC.
   existing public `make_models` and `make_classification_models` interfaces.
 - Added model-registry and real LightGBM fit/calibration tests to both PR smoke
   evaluation paths.
+- Persisted the exact active estimator registry and parameters in long-run
+  checkpoints. Resume now discards legacy or mismatched folds instead of
+  silently reporting a newly enabled challenger as if it had run all folds;
+  parallel merges reject mixed registries as well.
+- Resolved optional-model provenance at summary-export time and broadened the
+  model-evaluation trigger to `tests/**`, so direct challenger runs are
+  reported accurately and registry-test-only changes still execute CI.
+
+### Evaluation
+
+- Latest deployed-data 36-fold gate passed for both 7-day and 30-day horizons
+  in Actions run 58. LightGBM did not beat the no-change point anchor and its
+  30-day direction head was unstable, so it remains evaluation-only and was
+  not promoted into the daily production registry.
 
 ## [Unreleased] · 2026-08-24 (7-day direction score normalization)
 

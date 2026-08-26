@@ -85,6 +85,74 @@ def _dedupe_preserve(seq: Iterable[str]) -> list[str]:
     return out
 
 
+def _registry_value(value: Any) -> Any:
+    """Convert estimator parameters into a deterministic JSON-safe value."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, (float, np.floating)):
+        numeric = float(value)
+        return numeric if np.isfinite(numeric) else str(numeric)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, (list, tuple)):
+        return [_registry_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): _registry_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, type):
+        return f"{value.__module__}.{value.__qualname__}"
+    value_type = type(value)
+    return f"{value_type.__module__}.{value_type.__qualname__}"
+
+
+def estimator_registry_spec(estimator: Any) -> dict[str, Any]:
+    """Describe an estimator deeply enough to invalidate stale OOF folds."""
+    estimator_type = type(estimator)
+    params = estimator.get_params(deep=True) if hasattr(estimator, "get_params") else {}
+    return {
+        "class": f"{estimator_type.__module__}.{estimator_type.__qualname__}",
+        "params": {
+            str(key): _registry_value(value)
+            for key, value in sorted(params.items())
+        },
+    }
+
+
+def active_model_registry_manifest(
+    runners: dict[int, "FoldRunner"],
+) -> dict[str, Any]:
+    """Return the exact per-horizon model registry used by this run."""
+    manifest: dict[str, Any] = {}
+    for horizon, runner in sorted(runners.items()):
+        manifest[str(horizon)] = {
+            "regression": {
+                name: estimator_registry_spec(estimator)
+                for name, estimator in sorted(runner._reg_models.items())
+            },
+            "classification": {
+                name: estimator_registry_spec(estimator)
+                for name, estimator in sorted(runner._cls_models.items())
+            },
+        }
+    return manifest
+
+
+def checkpoint_model_registry_compatible(
+    checkpoint: dict[str, Any],
+    active_registry: dict[str, Any],
+) -> bool:
+    """Require an exact registry match before accepting completed fold rows.
+
+    Legacy checkpoints have no manifest and are intentionally invalidated.
+    Otherwise a newly enabled model could be evaluated only on the remaining
+    folds (or on none at all) while the final leaderboard claims all folds.
+    """
+    saved_registry = checkpoint.get("model_registry")
+    return isinstance(saved_registry, dict) and saved_registry == active_registry
+
+
 # ---------------------------------------------------------------------------
 # Checkpoint I/O — atomic write so a ctrl-C mid-flush never corrupts the JSON.
 # ---------------------------------------------------------------------------
@@ -958,6 +1026,7 @@ def run_longrun(
             embargo=payload["embargo"],
             min_feature_coverage=payload.get("min_feature_coverage", 0.03),
         )
+    active_registry = active_model_registry_manifest(runners)
 
     # Load checkpoint (if any).
     state: dict[str, Any] = {
@@ -975,6 +1044,7 @@ def run_longrun(
         "folds_completed": {},  # per-horizon count
         "next_fold_index": {},  # per-horizon absolute resume cursor
         "folds_target":    {h: p["n_splits"] for h, p in horizon_payloads.items()},
+        "model_registry": active_registry,
         "horizons": {},          # per-horizon predictions + summary
         **{k: v for k, v in run_metadata.items() if k not in {"mode", "master_data_csv"}},
     }
@@ -986,6 +1056,12 @@ def run_longrun(
     }
 
     prev = load_checkpoint(checkpoint_path) if resume else None
+    if prev is not None and not checkpoint_model_registry_compatible(prev, active_registry):
+        print(
+            "[longrun] checkpoint model registry is missing or changed; "
+            "discarding persisted folds and starting fresh"
+        )
+        prev = None
     if prev is not None:
         print(f"[longrun] resuming from checkpoint: {checkpoint_path}")
         for h_key, h_payload in prev.get("horizons", {}).items():

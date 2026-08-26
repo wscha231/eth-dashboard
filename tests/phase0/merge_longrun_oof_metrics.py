@@ -127,12 +127,16 @@ def main(argv: list[str] | None = None) -> None:
     folds_target_by_horizon: dict[str, int] = {}
     sources_by_horizon: dict[str, list[str]] = defaultdict(list)
     stability_reports_by_horizon: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    registry_by_horizon: dict[str, dict[str, Any]] = {}
+    registry_presence: set[bool] = set()
 
     for path in args.inputs:
         state = load_json(path)
         horizons = state.get("horizons") or {}
         if not horizons:
             raise SystemExit(f"No horizons found in {path}")
+        state_registry = state.get("model_registry")
+        registry_presence.add(isinstance(state_registry, dict))
 
         if merged is None:
             merged = {
@@ -154,6 +158,18 @@ def main(argv: list[str] | None = None) -> None:
 
         for horizon, payload in horizons.items():
             horizon_key = str(horizon)
+            registry_payload = (
+                state_registry.get(horizon_key)
+                if isinstance(state_registry, dict)
+                else None
+            )
+            if isinstance(registry_payload, dict):
+                existing_registry = registry_by_horizon.get(horizon_key)
+                if existing_registry is not None and existing_registry != registry_payload:
+                    raise SystemExit(
+                        f"Model registry mismatch for horizon {horizon_key}: {path}"
+                    )
+                registry_by_horizon[horizon_key] = registry_payload
             sources_by_horizon[horizon_key].append(str(path))
             extras_by_horizon.setdefault(
                 horizon_key,
@@ -189,6 +205,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if merged is None:
         raise SystemExit("No inputs provided")
+    if registry_presence == {False, True}:
+        raise SystemExit("Cannot merge legacy and registry-aware OOF checkpoints")
+    if registry_by_horizon:
+        merged["model_registry"] = registry_by_horizon
 
     seen_horizons = set(rows_by_horizon)
     if seen_horizons != {"7", "30"}:
