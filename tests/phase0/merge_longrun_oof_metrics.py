@@ -25,6 +25,7 @@ from longrun_oof_common import (  # noqa: E402
     EQUAL_WEIGHT_REGRESSION_MODEL,
     FoldRunner,
     finalize_run,
+    summarize_selected_features_by_fold,
 )
 from longrun_oof_phase6_production import build_horizon_payload  # noqa: E402
 
@@ -77,6 +78,37 @@ def pd_timestamp(value: Any):
     return pd.Timestamp(value)
 
 
+def merge_feature_selection_stability(
+    reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    for head in ("regression", "classification"):
+        selected_by_fold: dict[str, list[str]] = {}
+        candidate_feature_count = 0
+        target_column = "target_return" if head == "regression" else efp.DIRECTION_TARGET_LABEL_COLUMN
+        for report in reports:
+            payload = report.get(head) if isinstance(report, dict) else None
+            if not isinstance(payload, dict):
+                continue
+            candidate_feature_count = max(
+                candidate_feature_count,
+                safe_int(payload.get("candidate_feature_count"), 0),
+            )
+            target_column = str(payload.get("target_column") or target_column)
+            fold_payload = payload.get("selected_features_by_fold") or {}
+            if not isinstance(fold_payload, dict):
+                continue
+            for fold_index, features in fold_payload.items():
+                selected_by_fold[str(fold_index)] = list(features or [])
+        if selected_by_fold:
+            merged[head] = summarize_selected_features_by_fold(
+                selected_by_fold,
+                candidate_feature_count=candidate_feature_count,
+                target_column=target_column,
+            )
+    return merged
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inputs", nargs="+", type=Path)
@@ -94,6 +126,7 @@ def main(argv: list[str] | None = None) -> None:
     extras_by_horizon: dict[str, dict[str, Any]] = {}
     folds_target_by_horizon: dict[str, int] = {}
     sources_by_horizon: dict[str, list[str]] = defaultdict(list)
+    stability_reports_by_horizon: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for path in args.inputs:
         state = load_json(path)
@@ -133,9 +166,13 @@ def main(argv: list[str] | None = None) -> None:
                         "classification_leaderboard",
                         "regression_models",
                         "classification_models",
+                        "feature_selection_stability",
                     }
                 },
             )
+            stability_report = payload.get("feature_selection_stability")
+            if isinstance(stability_report, dict):
+                stability_reports_by_horizon[horizon_key].append(stability_report)
             for row in payload.get("predictions") or []:
                 if not isinstance(row, dict) or not is_base_prediction_row(row):
                     continue
@@ -169,6 +206,9 @@ def main(argv: list[str] | None = None) -> None:
             merged["folds_target"][horizon_key] = folds_target_by_horizon.get(horizon_key, len(fold_indices))
             merged["horizons"][horizon_key] = {
                 **extras_by_horizon.get(horizon_key, {}),
+                "feature_selection_stability": merge_feature_selection_stability(
+                    stability_reports_by_horizon[horizon_key]
+                ),
                 "merged_from": sources_by_horizon[horizon_key],
                 "predictions": rows,
             }
@@ -196,6 +236,11 @@ def main(argv: list[str] | None = None) -> None:
             runner.restore_oof_from_rows(rows)
             prediction_map = {horizon: rows}
             summary = finalize_run(runner, prediction_map)
+            merged_stability = merge_feature_selection_stability(
+                stability_reports_by_horizon[horizon_key]
+            )
+            if merged_stability:
+                summary["feature_selection_stability"] = merged_stability
             finalized_rows = prediction_map[horizon]
             fold_indices = {
                 safe_int(row.get("fold_index"), -1)

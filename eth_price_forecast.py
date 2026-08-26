@@ -42,11 +42,27 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from forecasting.model_registry import (
+    build_classification_models,
+    build_regression_models,
+    catboost_classifier_params as registry_catboost_classifier_params,
+    catboost_regressor_params as registry_catboost_regressor_params,
+    lightgbm_classifier_params,
+    lightgbm_regressor_params,
+    replace_state_classifiers,
+)
+
 try:
     from catboost import CatBoostClassifier, CatBoostRegressor
 except ImportError:  # pragma: no cover - optional dependency path
     CatBoostClassifier = None
     CatBoostRegressor = None
+
+try:
+    from lightgbm import LGBMClassifier, LGBMRegressor
+except ImportError:  # pragma: no cover - optional dependency path
+    LGBMClassifier = None
+    LGBMRegressor = None
 
 
 try:
@@ -141,9 +157,12 @@ OPTIONAL_MODEL_STATUS: dict[str, Any] = {
     "catboost_available": bool(CatBoostRegressor is not None and CatBoostClassifier is not None),
     "catboost_installed_now": False,
     "catboost_error": "",
+    "lightgbm_available": bool(LGBMRegressor is not None and LGBMClassifier is not None),
+    "lightgbm_challenger_enabled": False,
 }
 RUNTIME_OPTIONS: dict[str, Any] = {
     "fast_mode": False,
+    "challenger_models": None,
 }
 REGIME_STATE_LABELS = {0: "DOWNTREND", 1: "SIDEWAYS", 2: "UPTREND"}
 REVERSAL_STATE_LABELS = {0: "TOP_REVERSAL", 1: "NONE", 2: "BOTTOM_REVERSAL"}
@@ -209,13 +228,31 @@ def _make_median_imputer() -> SimpleImputer:
         return SimpleImputer(strategy="median")
 
 
-def set_runtime_options(*, fast_mode: bool | None = None) -> None:
+def set_runtime_options(
+    *,
+    fast_mode: bool | None = None,
+    challenger_models: bool | None = None,
+) -> None:
     if fast_mode is not None:
         RUNTIME_OPTIONS["fast_mode"] = bool(fast_mode)
+    if challenger_models is not None:
+        RUNTIME_OPTIONS["challenger_models"] = bool(challenger_models)
 
 
 def runtime_fast_mode_enabled() -> bool:
     return bool(RUNTIME_OPTIONS.get("fast_mode"))
+
+
+def runtime_challenger_models_enabled() -> bool:
+    configured = RUNTIME_OPTIONS.get("challenger_models")
+    if configured is not None:
+        return bool(configured)
+    return str(os.getenv("ETH_ENABLE_CHALLENGER_MODELS", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 PRICE_FIELD_MAP = {
     "open": "open",
@@ -735,6 +772,8 @@ def bootstrap_optional_model_dependencies(
         "catboost_available": bool(CatBoostRegressor is not None and CatBoostClassifier is not None),
         "catboost_installed_now": False,
         "catboost_error": "",
+        "lightgbm_available": bool(LGBMRegressor is not None and LGBMClassifier is not None),
+        "lightgbm_challenger_enabled": bool(runtime_challenger_models_enabled()),
     }
     if status["catboost_available"] or not auto_install_catboost:
         OPTIONAL_MODEL_STATUS = status
@@ -3317,296 +3356,49 @@ def build_features(
 
 
 def catboost_regressor_params(horizon: int | None = None) -> dict[str, Any]:
-    params: dict[str, Any] = {
-        "loss_function": "MAE",
-        "iterations": 500,
-        "depth": 6,
-        "learning_rate": 0.04,
-        "l2_leaf_reg": 5.0,
-        "random_strength": 1.0,
-        "boosting_type": "Ordered",
-        "has_time": True,
-        "random_seed": 42,
-        "verbose": False,
-        "allow_writing_files": False,
-        "thread_count": -1,
-    }
-    if horizon is not None and horizon >= 30:
-        params.update(
-            {
-                "iterations": 650,
-                "depth": 5,
-                "learning_rate": 0.03,
-                "l2_leaf_reg": 8.0,
-                "random_strength": 1.5,
-                "bootstrap_type": "Bernoulli",
-                "subsample": 0.85,
-            }
-        )
-    return params
+    return registry_catboost_regressor_params(horizon)
 
 
 def catboost_classifier_params(horizon: int | None = None, multiclass: bool = False) -> dict[str, Any]:
-    params: dict[str, Any] = {
-        "loss_function": "MultiClass" if multiclass else "Logloss",
-        "iterations": 450,
-        "depth": 6,
-        "learning_rate": 0.04,
-        "l2_leaf_reg": 5.0,
-        "random_strength": 1.0,
-        "boosting_type": "Ordered",
-        "has_time": True,
-        "random_seed": 42,
-        "verbose": False,
-        "allow_writing_files": False,
-        "thread_count": -1,
-    }
-    if horizon is not None and horizon >= 30:
-        params.update(
-            {
-                "iterations": 650,
-                "depth": 5,
-                "learning_rate": 0.03,
-                "l2_leaf_reg": 8.0,
-                "random_strength": 1.5,
-                "bootstrap_type": "Bernoulli",
-                "subsample": 0.85,
-            }
-        )
-    if not multiclass and horizon is not None and horizon >= 30:
-        params["auto_class_weights"] = "Balanced"
-    return params
+    return registry_catboost_classifier_params(horizon, multiclass=multiclass)
 
 
 def make_models(horizon: int | None = None) -> dict[str, Any]:
     fast_mode = runtime_fast_mode_enabled()
-    models: dict[str, Any] = {
-        "ridge": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                ("model", Ridge(alpha=1.0)),
-            ]
-        ),
-        "random_forest": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    RandomForestRegressor(
-                        n_estimators=200,
-                        max_depth=10,
-                        min_samples_leaf=5,
-                        max_features="sqrt",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "extra_trees": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    ExtraTreesRegressor(
-                        n_estimators=300,
-                        max_depth=10,
-                        min_samples_leaf=4,
-                        max_features="sqrt",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "hist_gbr": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    HistGradientBoostingRegressor(
-                        loss="absolute_error",
-                        learning_rate=0.05,
-                        max_depth=5,
-                        max_iter=250,
-                        min_samples_leaf=12,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        ),
-        "knn_regressor": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    KNeighborsRegressor(
-                        n_neighbors=15,
-                        weights="distance",
-                    ),
-                ),
-            ]
-        ),
-    }
-    if not fast_mode:
-        models["mlp_regressor"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    MLPRegressor(
-                        hidden_layer_sizes=(64, 32),
-                        activation="relu",
-                        alpha=1e-4,
-                        learning_rate_init=1e-3,
-                        max_iter=300,
-                        early_stopping=True,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        )
-    if (not fast_mode) and CatBoostRegressor is not None:
-        models["catboost_regressor"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    CatBoostRegressor(**catboost_regressor_params(horizon=horizon)),
-                ),
-            ]
-        )
-    return models
+    challenger_cls = LGBMRegressor if runtime_challenger_models_enabled() else None
+    return build_regression_models(
+        horizon=horizon,
+        fast_mode=fast_mode,
+        imputer_factory=_make_median_imputer,
+        catboost_regressor_cls=CatBoostRegressor,
+        lightgbm_regressor_cls=challenger_cls,
+    )
 
 
 def make_classification_models(horizon: int | None = None) -> dict[str, Any]:
     fast_mode = runtime_fast_mode_enabled()
-    models: dict[str, Any] = {
-        "logistic": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    LogisticRegression(
-                        max_iter=1000,
-                        class_weight="balanced",
-                        random_state=42,
-                    ),
-                ),
-            ]
-        ),
-        "extra_trees_clf": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    ExtraTreesClassifier(
-                        n_estimators=300,
-                        max_depth=8,
-                        min_samples_leaf=4,
-                        max_features="sqrt",
-                        class_weight="balanced",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "random_forest_clf": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    RandomForestClassifier(
-                        n_estimators=200,
-                        max_depth=8,
-                        min_samples_leaf=5,
-                        max_features="sqrt",
-                        class_weight="balanced_subsample",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "knn_clf": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    KNeighborsClassifier(
-                        n_neighbors=15,
-                        weights="distance",
-                    ),
-                ),
-            ]
-        ),
-        "hist_gbc": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    HistGradientBoostingClassifier(
-                        learning_rate=0.05,
-                        max_depth=5,
-                        max_iter=250,
-                        min_samples_leaf=12,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        ),
-    }
-    if not fast_mode:
-        models["mlp_clf"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    MLPClassifier(
-                        hidden_layer_sizes=(64, 32),
-                        activation="relu",
-                        alpha=1e-4,
-                        learning_rate_init=1e-3,
-                        max_iter=300,
-                        early_stopping=True,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        )
-    if (not fast_mode) and CatBoostClassifier is not None:
-        models["catboost_clf"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    CatBoostClassifier(**catboost_classifier_params(horizon=horizon)),
-                ),
-            ]
-        )
-    return models
+    challenger_cls = LGBMClassifier if runtime_challenger_models_enabled() else None
+    return build_classification_models(
+        horizon=horizon,
+        fast_mode=fast_mode,
+        imputer_factory=_make_median_imputer,
+        catboost_classifier_cls=CatBoostClassifier,
+        lightgbm_classifier_cls=challenger_cls,
+    )
 
 
 def make_state_classification_models(horizon: int | None = None) -> dict[str, Any]:
+    fast_mode = runtime_fast_mode_enabled()
     models = make_classification_models(horizon=horizon)
-    if (not runtime_fast_mode_enabled()) and CatBoostClassifier is not None:
-        models["catboost_clf"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    CatBoostClassifier(**catboost_classifier_params(horizon=horizon, multiclass=True)),
-                ),
-            ]
-        )
-    return models
+    challenger_cls = LGBMClassifier if runtime_challenger_models_enabled() else None
+    return replace_state_classifiers(
+        models,
+        horizon=horizon,
+        fast_mode=fast_mode,
+        imputer_factory=_make_median_imputer,
+        catboost_classifier_cls=CatBoostClassifier,
+        lightgbm_classifier_cls=challenger_cls,
+    )
 
 
 def fit_holdout_calibrated_classifier(
@@ -12387,7 +12179,10 @@ def run_suite(
                 "Optional model status: "
                 f"catboost_available={optional_model_status.get('catboost_available')}, "
                 f"catboost_installed_now={optional_model_status.get('catboost_installed_now')}, "
-                f"catboost_error={optional_model_status.get('catboost_error') or 'none'}"
+                f"catboost_error={optional_model_status.get('catboost_error') or 'none'}, "
+                f"lightgbm_available={optional_model_status.get('lightgbm_available')}, "
+                "lightgbm_challenger_enabled="
+                f"{optional_model_status.get('lightgbm_challenger_enabled')}"
             ),
         )
         if fast_mode:
@@ -13209,7 +13004,10 @@ def main(argv: list[str] | None = None) -> None:
         "  Optional models: "
         f"catboost_available={optional_models.get('catboost_available')}, "
         f"catboost_installed_now={optional_models.get('catboost_installed_now')}, "
-        f"catboost_error={optional_models.get('catboost_error') or 'none'}"
+        f"catboost_error={optional_models.get('catboost_error') or 'none'}, "
+        f"lightgbm_available={optional_models.get('lightgbm_available')}, "
+        "lightgbm_challenger_enabled="
+        f"{optional_models.get('lightgbm_challenger_enabled')}"
     )
     failed_horizons = payload.get("failed_horizons", [])
     if failed_horizons:

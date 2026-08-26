@@ -10,6 +10,7 @@ import eth_price_forecast as efp
 from tests.phase0.longrun_oof_common import (
     backfill_classification_prediction_rows,
     prediction_fold_indices,
+    summarize_selected_features_by_fold,
 )
 
 
@@ -124,6 +125,26 @@ def test_prediction_history_loader_allows_empty_file(tmp_path) -> None:
     history = efp.load_prediction_history_csv(history_path)
 
     assert history.empty
+
+
+def test_feature_selection_stability_is_fold_auditable() -> None:
+    report = summarize_selected_features_by_fold(
+        {
+            0: ["always", "twice"],
+            1: ["always", "once"],
+            2: ["always", "twice"],
+        },
+        candidate_feature_count=4,
+        target_column="target_return",
+    )
+
+    assert report["folds_analyzed"] == 3
+    assert report["selected_feature_count_median"] == 2.0
+    assert report["stable_feature_count_50pct"] == 2
+    assert report["stable_feature_count_80pct"] == 1
+    assert report["selection_counts"] == {"always": 3, "once": 1, "twice": 2}
+    assert report["selected_features_by_fold"]["1"] == ["always", "once"]
+    assert report["top_features"][0]["feature"] == "always"
 
 
 def test_empirical_probability_percentiles_are_monotonic() -> None:

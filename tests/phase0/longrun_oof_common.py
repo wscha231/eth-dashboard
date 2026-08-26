@@ -126,6 +126,64 @@ def prediction_fold_indices(
     return indices
 
 
+def summarize_selected_features_by_fold(
+    selected_features_by_fold: dict[str | int, list[str]],
+    *,
+    candidate_feature_count: int,
+    target_column: str,
+) -> dict[str, Any]:
+    """Build an auditable fold-stability summary without using test labels."""
+    normalized_folds: dict[str, list[str]] = {}
+    selection_counts: dict[str, int] = {}
+    for raw_fold, raw_features in selected_features_by_fold.items():
+        try:
+            fold_key = str(int(raw_fold))
+        except (TypeError, ValueError):
+            continue
+        features = _dedupe_preserve(str(feature) for feature in (raw_features or []))
+        normalized_folds[fold_key] = features
+        for feature in features:
+            selection_counts[feature] = selection_counts.get(feature, 0) + 1
+
+    ordered_folds = {
+        fold: normalized_folds[fold]
+        for fold in sorted(normalized_folds, key=int)
+    }
+    fold_count = len(ordered_folds)
+    selected_counts = [len(features) for features in ordered_folds.values()]
+    ranked = sorted(selection_counts.items(), key=lambda item: (-item[1], item[0]))
+    top_features = [
+        {
+            "feature": feature,
+            "selected_folds": int(count),
+            "selection_frequency": float(count / fold_count) if fold_count else 0.0,
+        }
+        for feature, count in ranked[:50]
+    ]
+    stable_threshold = max(int(np.ceil(fold_count * 0.50)), 1) if fold_count else 1
+    highly_stable_threshold = max(int(np.ceil(fold_count * 0.80)), 1) if fold_count else 1
+    return {
+        "target_column": target_column,
+        "folds_analyzed": fold_count,
+        "candidate_feature_count": int(candidate_feature_count),
+        "selected_feature_count_min": int(min(selected_counts)) if selected_counts else 0,
+        "selected_feature_count_median": float(np.median(selected_counts)) if selected_counts else 0.0,
+        "selected_feature_count_max": int(max(selected_counts)) if selected_counts else 0,
+        "stable_feature_count_50pct": int(
+            sum(count >= stable_threshold for count in selection_counts.values())
+        ),
+        "stable_feature_count_80pct": int(
+            sum(count >= highly_stable_threshold for count in selection_counts.values())
+        ),
+        "selection_counts": {
+            feature: int(count)
+            for feature, count in sorted(selection_counts.items())
+        },
+        "selected_features_by_fold": ordered_folds,
+        "top_features": top_features,
+    }
+
+
 def backfill_classification_prediction_rows(
     rows: Iterable[dict[str, Any]],
     thresholds_by_model: dict[str, float],
@@ -220,6 +278,7 @@ class FoldRunner:
         self._reg_models = efp.make_models(horizon=horizon)
         self._cls_models = efp.make_classification_models(horizon=horizon)
         self._fold_feature_cache: dict[tuple[str, tuple[int, ...]], list[str]] = {}
+        self._fold_feature_history: dict[str, dict[int, list[str]]] = {}
 
     # ------------------------------------------------------------------
     # Single-fold execution
@@ -239,7 +298,7 @@ class FoldRunner:
         target_close = self.dataset["target_close"]
 
         for model_name, template in self._reg_models.items():
-            fold_features = self._fold_features(train_idx)
+            fold_features = self._fold_features(train_idx, fold_index=fold_index)
             X_full = self.dataset[fold_features]
             X_train = X_full.iloc[train_idx]
             y_train = y_return.iloc[train_idx]
@@ -342,6 +401,7 @@ class FoldRunner:
             fold_features = self._fold_features(
                 train_positions,
                 target_column=efp.direction_classification_target_column(self.dataset),
+                fold_index=fold_index,
             )
             X_full = self.dataset[fold_features]
             train_sw = (
@@ -411,12 +471,19 @@ class FoldRunner:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _fold_features(self, train_idx: np.ndarray, target_column: str = "target_return") -> list[str]:
+    def _fold_features(
+        self,
+        train_idx: np.ndarray,
+        target_column: str = "target_return",
+        fold_index: int | None = None,
+    ) -> list[str]:
         """Fold-internal feature selection — uses train rows only."""
         positions = tuple(np.asarray(train_idx, dtype=int).tolist())
         cache_key = (target_column, positions)
         cached = self._fold_feature_cache.get(cache_key)
         if cached is not None:
+            if fold_index is not None:
+                self._fold_feature_history.setdefault(target_column, {})[int(fold_index)] = list(cached)
             return list(cached)
         selected = efp.select_fold_features(
             dataset=self.dataset,
@@ -428,7 +495,44 @@ class FoldRunner:
         )
         resolved = selected or list(self.feature_columns)
         self._fold_feature_cache[cache_key] = list(resolved)
+        if fold_index is not None:
+            self._fold_feature_history.setdefault(target_column, {})[int(fold_index)] = list(resolved)
         return resolved
+
+    def feature_selection_stability(self) -> dict[str, Any]:
+        direction_target = efp.direction_classification_target_column(self.dataset)
+        heads = {
+            "regression": "target_return",
+            "classification": direction_target,
+        }
+        return {
+            head: summarize_selected_features_by_fold(
+                self._fold_feature_history.get(target_column, {}),
+                candidate_feature_count=len(self.feature_columns),
+                target_column=target_column,
+            )
+            for head, target_column in heads.items()
+        }
+
+    def restore_feature_selection_stability(self, report: dict[str, Any] | None) -> None:
+        if not isinstance(report, dict):
+            return
+        for payload in report.values():
+            if not isinstance(payload, dict):
+                continue
+            target_column = str(payload.get("target_column") or "").strip()
+            fold_payload = payload.get("selected_features_by_fold") or {}
+            if not target_column or not isinstance(fold_payload, dict):
+                continue
+            target_history = self._fold_feature_history.setdefault(target_column, {})
+            for raw_fold, features in fold_payload.items():
+                try:
+                    fold_index = int(raw_fold)
+                except (TypeError, ValueError):
+                    continue
+                target_history[fold_index] = _dedupe_preserve(
+                    str(feature) for feature in (features or [])
+                )
 
     # ------------------------------------------------------------------
     # Resume: repopulate internal OOF from previously-saved prediction rows
@@ -611,6 +715,7 @@ def finalize_run(
 
     return {
         "candidate_feature_count": len(runner.feature_columns),
+        "feature_selection_stability": runner.feature_selection_stability(),
         "training_rows": int(len(dataset)),
         "cv_test_size": runner.test_size,
         "embargo": runner.embargo,
@@ -893,6 +998,9 @@ def run_longrun(
             preds = h_payload.get("predictions") or []
             predictions_by_horizon[h] = list(preds)
             runners[h].restore_oof_from_rows(preds)
+            runners[h].restore_feature_selection_stability(
+                h_payload.get("feature_selection_stability")
+            )
             completed_fold_indices[h] = prediction_fold_indices(preds, horizon=h)
             done = len(completed_fold_indices[h])
             next_fold = (
@@ -942,7 +1050,7 @@ def run_longrun(
             if ((fold_idx + 1) % flush_every == 0) or (fold_idx + 1 == total_folds):
                 _flush_checkpoint(
                     checkpoint_path, state, predictions_by_horizon,
-                    horizon_payloads, partial=True,
+                    horizon_payloads, runners, partial=True,
                 )
 
     # All folds done — finalize (leaderboard + ensembles + thresholds).
@@ -961,6 +1069,7 @@ def _flush_checkpoint(
     state: dict[str, Any],
     predictions_by_horizon: dict[int, list[dict[str, Any]]],
     horizon_payloads: dict[int, dict[str, Any]],
+    runners: dict[int, FoldRunner],
     *, partial: bool,
 ) -> None:
     state["last_checkpoint_utc"] = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
@@ -968,6 +1077,7 @@ def _flush_checkpoint(
     state["horizons"] = {
         str(h): {
             **horizon_payloads[h].get("extras", {}),
+            "feature_selection_stability": runners[h].feature_selection_stability(),
             "predictions": predictions_by_horizon[h],
         }
         for h in horizon_payloads

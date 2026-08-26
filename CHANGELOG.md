@@ -8,6 +8,28 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-08-26 (LightGBM challenger and stability evidence)
+
+### Added
+
+- Added regularized LightGBM regression and classification challengers, based
+  on the strongest transferable result from the reviewed crypto forecasting
+  studies. They are opt-in through `ETH_ENABLE_CHALLENGER_MODELS=1` and run in
+  model-evaluation workflows only; the daily production forecast remains on
+  the promoted registry until a full 36-fold gate approves the challenger.
+- Added fold-level feature-selection stability evidence for both the return
+  and actionable-direction targets. Checkpoints now retain exact selected
+  features by fold plus 50%/80% stability counts and top frequencies, and the
+  parallel full-gate merge combines the evidence across all 36 folds.
+
+### Changed
+
+- Extracted estimator construction and horizon-specific parameters from the
+  monolithic CLI into `forecasting/model_registry.py`, while preserving the
+  existing public `make_models` and `make_classification_models` interfaces.
+- Added model-registry and real LightGBM fit/calibration tests to both PR smoke
+  evaluation paths.
+
 ## [Unreleased] · 2026-08-24 (7-day direction score normalization)
 
 ### Changed

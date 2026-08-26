@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "eth_price_forecast.py"
+      - "forecasting/**"
       - "eth_data_collector.py"
       - "requirements.txt"
       - "scripts/evaluate_eth_candidate.py"
@@ -34,6 +35,9 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: "1"
+      # Candidate-only registry. Daily production stays unchanged until the
+      # authoritative full OOF gate approves and explicitly promotes it.
+      ETH_ENABLE_CHALLENGER_MODELS: "1"
       FULL_RUN: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run == 'true')) && 'true' || 'false' }}
 
     steps:
@@ -74,7 +78,7 @@ jobs:
 
       - name: Static leakage and feature tests
         run: |
-          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py -q
+          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py tests/test_model_registry.py -q
 
       - name: Long-run OOF candidate
         run: |
@@ -141,6 +145,7 @@ jobs:
         chunk: [0, 1, 2, 3, 4, 5]
     env:
       PYTHONUNBUFFERED: "1"
+      ETH_ENABLE_CHALLENGER_MODELS: "1"
       FOLDS_PER_CHUNK: "6"
 
     steps:
@@ -181,7 +186,7 @@ jobs:
 
       - name: Static leakage and feature tests
         run: |
-          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py -q
+          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py tests/test_model_registry.py -q
 
       - name: Long-run OOF horizon
         run: |
@@ -207,6 +212,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: evaluate-full-horizon
+
+    env:
+      ETH_ENABLE_CHALLENGER_MODELS: "1"
 
     steps:
       - name: Checkout
