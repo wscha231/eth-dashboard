@@ -64,6 +64,7 @@ def _synthetic_row(horizon_days: int, input_ts: pd.Timestamp,
         "classification_predicted_direction": "UP" if pred_return > 0.006 else (
             "DOWN" if pred_return < -0.006 else "FLAT"),
         "classification_signal_threshold": 0.55,
+        "classification_direction_score_up": prob_up,
         "classification_probability_up": prob_up,
         "classification_probability_down": 1.0 - prob_up,
         "classification_confidence": abs(prob_up - 0.5) * 2,

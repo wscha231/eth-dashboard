@@ -48,6 +48,35 @@ Full purged OOF (36 × 30-day folds, deployed data through 2026-08-24):
   no-change anchor consistently, so the improvement is promoted as direction
   and confidence skill rather than as a reliable point-price edge.
 
+### Follow-up hardening
+
+- Empirical-CDF values are now retained as separate directional ranking
+  scores. Threshold selection, signals, and AUC use those scores, while Brier
+  scoring and user-facing `probability_up`/confidence use a monotone
+  label-frequency calibration shrunk toward the held-out base rate.
+- Restored the signed post-candle live-price adjustment for 7-day forecasts as
+  a standalone, bounded ±1.5 percentage-point correction without
+  reintroducing the rejected momentum/RSI/regime overlay.
+- In the 36-fold core-model replay, balanced-accuracy weighting of the
+  directional scores reached `0.5980` balanced accuracy and `0.6381` ROC AUC;
+  its separately calibrated probability blend recorded `0.2472` Brier. At a
+  symmetric `0.60` decision threshold, 92/686 actionable dates emitted a
+  signal with `59.78%` accuracy.
+- Purged the internal probability-calibration boundary by the full forecast
+  horizon, preventing fit labels from reaching into the held-out calibration
+  tail for both 7-day and 30-day classifiers.
+- Long-run resume and ensemble paths now fall back from `direction_score_up`
+  to `probability_up` per row, preserving legacy checkpoint history instead
+  of discarding older folds after a resumed run. Recovered scores are written
+  back into the checkpoint rows before SQLite/public export.
+- Backtest schema v4 persists and exports `direction_score_up`, so published
+  OOF rows can reproduce the exact threshold decisions shown by the site.
+- Live forecast summaries, SQLite history, and public JSON now retain
+  `classification_direction_score_up` together with its signal threshold.
+- Direction confidence is capped by the calibrated probability of the class
+  actually selected by the direction score, avoiding opposite-class
+  confidence when the ranking score and event probability straddle 0.5.
+
 ---
 
 ## [Unreleased] · 2026-04-22 (parallel tracks: overlay kill + LLM analyst)

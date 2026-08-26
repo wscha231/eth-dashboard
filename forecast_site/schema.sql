@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS forecasts (
     classification_model                TEXT,
     classification_selection_basis      TEXT,
     classification_predicted_direction  TEXT,       -- UP / DOWN / FLAT
+    classification_direction_score_up   REAL,       -- ranking/decision score used for the label
     classification_probability_up       REAL,
     classification_probability_down     REAL,
     classification_confidence           REAL,
@@ -264,6 +265,7 @@ CREATE TABLE IF NOT EXISTS backtest_predictions (
 
     -- Classification payload (NULL on regression rows).
     probability_up    REAL,
+    direction_score_up REAL,                 -- ranking/decision score; may differ from probability_up
     predicted_label   INTEGER,               -- 1/0 after signal_threshold
 
     PRIMARY KEY (backtest_run_id, horizon_days, head, model, prediction_date)
@@ -278,6 +280,7 @@ CREATE INDEX IF NOT EXISTS idx_backtest_predictions_model_date
 -- schema_version: single-row table used by db.init_schema to detect upgrades.
 -- v2 added backtest_runs + backtest_metrics tables (2026-04-21).
 -- v3 added backtest_predictions table for per-date OOF (2026-04-21).
+-- v4 added live + backtest direction scores for reproducible decisions (2026-08-25).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS schema_version (
     version      INTEGER PRIMARY KEY,
@@ -289,3 +292,5 @@ INSERT OR IGNORE INTO schema_version (version, applied_utc)
     VALUES (2, CURRENT_TIMESTAMP);
 INSERT OR IGNORE INTO schema_version (version, applied_utc)
     VALUES (3, CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO schema_version (version, applied_utc)
+    VALUES (4, CURRENT_TIMESTAMP);

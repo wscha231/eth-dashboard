@@ -291,7 +291,7 @@ def export_predictions_by_phase(conn) -> dict[str, dict]:
                bp.prediction_date, bp.target_date, bp.fold_index,
                bp.reference_close, bp.actual_close, bp.actual_return, bp.actual_label,
                bp.predicted_return, bp.predicted_close,
-               bp.probability_up, bp.predicted_label
+               bp.probability_up, bp.direction_score_up, bp.predicted_label
         FROM backtest_predictions bp
         JOIN backtest_runs        br USING (backtest_run_id)
         ORDER BY br.model_phase ASC, bp.horizon_days ASC, bp.head ASC,
@@ -322,6 +322,7 @@ def export_predictions_by_phase(conn) -> dict[str, dict]:
             "predicted_return": r["predicted_return"],
             "predicted_close":  r["predicted_close"],
             "probability_up":   r["probability_up"],
+            "direction_score_up": r["direction_score_up"],
             "predicted_label":  r["predicted_label"],
         }))
     return bundles

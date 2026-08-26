@@ -3,9 +3,43 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 import eth_price_forecast as efp
-from tests.phase0.longrun_oof_common import prediction_fold_indices
+from tests.phase0.longrun_oof_common import (
+    backfill_classification_prediction_rows,
+    prediction_fold_indices,
+)
+
+
+class _RecordingClassifier(BaseEstimator, ClassifierMixin):
+    """Cloneable test estimator that records every temporal fit window."""
+
+    fit_windows: list[pd.Index] = []
+
+    def fit(self, X, y, sample_weight=None):
+        del y, sample_weight
+        type(self).fit_windows.append(X.index.copy())
+        self.classes_ = np.array([0, 1])
+        self.center_ = float(pd.to_numeric(X.iloc[:, 0], errors="coerce").median())
+        return self
+
+    def predict_proba(self, X):
+        values = pd.to_numeric(X.iloc[:, 0], errors="coerce").to_numpy(dtype=float)
+        probability_up = 1.0 / (1.0 + np.exp(-(values - self.center_)))
+        return np.column_stack([1.0 - probability_up, probability_up])
+
+
+class _DefaultAttributes:
+    """Small forecast-artifact stub for summary contract tests."""
+
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+    def __getattr__(self, name):
+        del name
+        return 0.0
 
 
 def test_build_features_returns_nonempty_columns(synthetic_ohlcv_with_companions: pd.DataFrame) -> None:
@@ -113,7 +147,7 @@ def test_classifier_uses_recent_train_probability_reference() -> None:
         },
         index=index,
     )
-    y = pd.Series((x + 0.35 * X["cycle"].to_numpy() > 0.0).astype(int), index=index)
+    y = pd.Series((X["cycle"].to_numpy() + 0.15 * x > 0.0).astype(int), index=index)
 
     fitted = efp.fit_calibrated_classifier(
         efp.make_classification_models(horizon=7)["logistic"],
@@ -123,12 +157,230 @@ def test_classifier_uses_recent_train_probability_reference() -> None:
         horizon=7,
     )
 
-    assert fitted.calibration_method == "empirical_cdf_recent_train"
+    assert fitted.calibration_method == "isotonic_empirical_cdf_holdout_shrunk"
     assert fitted.probability_mapping == "empirical_cdf"
+    assert fitted.calibrator is not None
     assert len(np.asarray(fitted.probability_reference)) == 80
     probability = fitted.predict_proba(X.tail(5))[:, 1]
+    raw_probability = fitted.base_estimator.predict_proba(X.tail(5))[:, 1]
+    percentile = efp.empirical_probability_percentiles(
+        raw_probability,
+        fitted.probability_reference,
+    )
+    direction_score = fitted.predict_direction_score(X.tail(5))
     assert np.all((probability > 0.0) & (probability < 1.0))
-    assert np.all(np.diff(probability) >= 0.0)
+    assert np.all(np.diff(probability[np.argsort(raw_probability)]) >= 0.0)
+    assert not np.allclose(probability, percentile)
+    assert np.allclose(direction_score, percentile)
+
+
+@pytest.mark.parametrize(
+    ("horizon", "expected_shadow_rows"),
+    [(7, 153), (30, 130)],
+)
+def test_classifier_calibration_boundary_is_purged(
+    horizon: int,
+    expected_shadow_rows: int,
+) -> None:
+    index = pd.date_range("2024-01-01", periods=240, freq="D")
+    X = pd.DataFrame({"signal": np.linspace(-3.0, 3.0, len(index))}, index=index)
+    y = pd.Series(np.arange(len(index)) % 2, index=index)
+    _RecordingClassifier.fit_windows.clear()
+
+    efp.fit_calibrated_classifier(
+        _RecordingClassifier(),
+        X,
+        y,
+        min_calibration_rows=80,
+        horizon=horizon,
+    )
+
+    assert len(_RecordingClassifier.fit_windows) == 2
+    shadow_window, final_window = _RecordingClassifier.fit_windows
+    calibration_start = index[-80]
+    assert len(shadow_window) == expected_shadow_rows
+    assert shadow_window[-1] + pd.Timedelta(days=horizon) < calibration_start
+    assert final_window.equals(index)
+
+
+def test_oof_direction_scores_fall_back_per_legacy_row() -> None:
+    index = pd.date_range("2024-01-01", periods=4, freq="D")
+    oof = pd.DataFrame(
+        {
+            "model_prob_up": [0.41, 0.42, 0.43, 0.44],
+            "model_direction_score_up": [np.nan, np.nan, 0.71, 0.72],
+        },
+        index=index,
+    )
+
+    scores = efp.classification_oof_direction_scores(oof, "model")
+
+    assert np.allclose(scores.to_numpy(), [0.41, 0.42, 0.71, 0.72])
+
+
+def test_rank_calibration_does_not_expose_weak_score_tails_as_certainty() -> None:
+    rng = np.random.default_rng(42)
+    index = pd.date_range("2023-01-01", periods=360, freq="D")
+    X = pd.DataFrame(
+        rng.normal(size=(len(index), 3)),
+        columns=["a", "b", "c"],
+        index=index,
+    )
+    y = pd.Series(rng.integers(0, 2, size=len(index)), index=index)
+
+    fitted = efp.fit_calibrated_classifier(
+        efp.make_classification_models(horizon=7)["logistic"],
+        X,
+        y,
+        min_calibration_rows=100,
+        horizon=7,
+    )
+    raw_train = fitted.base_estimator.predict_proba(X)[:, 1]
+    extreme_rows = X.iloc[[int(np.argmin(raw_train)), int(np.argmax(raw_train))]]
+    raw_extremes = fitted.base_estimator.predict_proba(extreme_rows)[:, 1]
+    percentiles = efp.empirical_probability_percentiles(
+        raw_extremes,
+        fitted.probability_reference,
+    )
+    calibrated = fitted.predict_proba(extreme_rows)[:, 1]
+    direction_scores = fitted.predict_direction_score(extreme_rows)
+
+    assert percentiles[0] < 0.05 and percentiles[1] > 0.95
+    assert np.allclose(direction_scores, percentiles)
+    assert np.max(np.abs(calibrated - 0.5)) < np.max(np.abs(percentiles - 0.5))
+
+
+def test_rank_calibration_respects_time_decay_effective_sample_size() -> None:
+    scores = np.linspace(0.05, 0.95, 100)
+    labels = np.tile([0, 1], 50)
+    sample_weight = np.full(100, 0.5)
+
+    calibrator, method = efp.fit_rank_probability_calibrator(
+        scores,
+        labels,
+        sample_weight=sample_weight,
+    )
+
+    assert method == "isotonic_empirical_cdf_holdout_shrunk"
+    assert isinstance(calibrator, efp.ShrunkIsotonicProbabilityCalibrator)
+    assert np.isclose(calibrator.learned_weight, 50.0 / 250.0)
+
+
+def test_threshold_selection_uses_direction_score_but_brier_uses_probability() -> None:
+    index = pd.date_range("2024-01-01", periods=120, freq="D")
+    actual = pd.Series(([0, 1] * 60), index=index)
+    direction_score = pd.Series(np.where(actual.eq(1), 0.70, 0.30), index=index)
+    calibrated_probability = pd.Series(np.where(actual.eq(1), 0.56, 0.44), index=index)
+
+    threshold, metrics = efp.choose_classification_evaluation_threshold(
+        actual_label=actual,
+        probability_up=calibrated_probability,
+        direction_score_up=direction_score,
+        horizon=7,
+    )
+
+    assert 0.50 <= threshold <= 0.70
+    assert np.isclose(metrics["balanced_accuracy"], 1.0)
+    assert np.isclose(metrics["roc_auc"], 1.0)
+    assert np.isclose(metrics["brier_score"], (0.44**2))
+
+
+@pytest.mark.parametrize(
+    ("predicted_direction", "probability_up", "direction_score_up"),
+    [("UP", 0.40, 0.95), ("DOWN", 0.60, 0.05)],
+)
+def test_direction_confidence_is_capped_by_selected_class_probability(
+    predicted_direction: str,
+    probability_up: float,
+    direction_score_up: float,
+) -> None:
+    leaderboard = pd.DataFrame([{
+        "model": "model",
+        "balanced_accuracy": 0.60,
+        "roc_auc": 0.70,
+        "f1": 0.60,
+    }])
+    backtest = pd.DataFrame([{"model": "model", "total_return": 0.10, "sharpe": 1.0}])
+    holdout = pd.DataFrame([{
+        "task": "classification",
+        "model": "model",
+        "total_return": 0.10,
+        "sharpe": 1.0,
+    }])
+
+    confidence = efp.calibrate_direction_confidence(
+        model_name="model",
+        selection_basis="validated",
+        predicted_direction=predicted_direction,
+        probability_up=probability_up,
+        direction_score_up=direction_score_up,
+        lower_threshold=0.40,
+        upper_threshold=0.60,
+        classification_leaderboard=leaderboard,
+        classification_backtest=backtest,
+        recent_holdout_report=holdout,
+        horizon=7,
+    )
+
+    selected_probability = (
+        probability_up if predicted_direction == "UP" else 1.0 - probability_up
+    )
+    assert confidence == pytest.approx(selected_probability)
+
+
+def test_latest_summary_carries_live_direction_score() -> None:
+    regression = _DefaultAttributes(
+        model_name="regression",
+        selection_basis="test",
+        prediction_timestamp="2026-09-01 00:00:00",
+        last_close=2000.0,
+        reference_price_source="test",
+        reference_price_timestamp="2026-08-25 00:00:00",
+        model_input_close=2000.0,
+    )
+    classification = _DefaultAttributes(
+        model_name="classification",
+        selection_basis="test",
+        predicted_direction="UP",
+        signal_threshold=0.60,
+        direction_score_up=0.73,
+        probability_up=0.56,
+        probability_down=0.44,
+        confidence=0.56,
+    )
+    horizon_artifacts = _DefaultAttributes(
+        data_window_summary=pd.DataFrame([{
+            "latest_prediction_input_timestamp": "2026-08-25 00:00:00",
+        }]),
+        regression_backtest=pd.DataFrame(),
+        classification_backtest=pd.DataFrame(),
+        regime_backtest=pd.DataFrame(),
+        reversal_backtest=pd.DataFrame(),
+        regression_forecast=regression,
+        classification_forecast=classification,
+        regime_forecast=_DefaultAttributes(model_name="regime", selection_basis="test"),
+        reversal_forecast=_DefaultAttributes(model_name="reversal", selection_basis="test"),
+        hybrid_forecast=_DefaultAttributes(model_name="hybrid", selection_basis="test"),
+    )
+    artifacts = _DefaultAttributes(horizons={7: horizon_artifacts})
+
+    summary = efp.build_latest_forecast_summary(artifacts)
+
+    assert summary.loc[0, "classification_direction_score_up"] == pytest.approx(0.73)
+
+
+def test_live_gap_adjustment_is_signed_and_bounded() -> None:
+    index = pd.date_range("2026-08-20", periods=1, freq="D")
+    frame = pd.DataFrame(index=index)
+    base = pd.Series([0.50], index=index)
+
+    up = efp.apply_direction_live_gap_adjustment(base, frame, live_gap=0.08)
+    down = efp.apply_direction_live_gap_adjustment(base, frame, live_gap=-0.08)
+    capped = efp.apply_direction_live_gap_adjustment(base, frame, live_gap=0.50)
+
+    assert np.isclose(up.iloc[0], 0.515)
+    assert np.isclose(down.iloc[0], 0.485)
+    assert np.isclose(capped.iloc[0], 0.515)
 
 
 def test_chunk_fold_progress_counts_rows_instead_of_last_index() -> None:
@@ -143,3 +395,17 @@ def test_chunk_fold_progress_counts_rows_instead_of_last_index() -> None:
     ]
 
     assert prediction_fold_indices(rows, horizon=7) == {33, 34, 35}
+
+
+def test_legacy_checkpoint_row_is_backfilled_with_direction_score() -> None:
+    rows = [{
+        "head": "classification",
+        "model": "legacy_model",
+        "probability_up": 0.72,
+        "predicted_label": None,
+    }]
+
+    backfill_classification_prediction_rows(rows, {"legacy_model": 0.60})
+
+    assert rows[0]["direction_score_up"] == pytest.approx(0.72)
+    assert rows[0]["predicted_label"] == 1

@@ -4,7 +4,12 @@ import datetime as dt
 import json
 import sys
 
+import pandas as pd
+import pytest
+
 from forecast_site import export_json
+from forecast_site.db import connect
+from forecast_site.persist_forecast import persist_forecast
 
 
 def _seed_forecast(conn, *, input_ts: str = "2026-05-20 00:00:00") -> int:
@@ -33,8 +38,9 @@ def _seed_forecast(conn, *, input_ts: str = "2026-05-20 00:00:00") -> int:
             run_id, horizon_days, forecast_target_timestamp_utc,
             regression_model, regression_predicted_return, regression_predicted_close,
             classification_model, classification_predicted_direction,
-            classification_probability_up, active_predicted_direction
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            classification_direction_score_up, classification_probability_up,
+            classification_signal_threshold, active_predicted_direction
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             run_id,
@@ -45,6 +51,8 @@ def _seed_forecast(conn, *, input_ts: str = "2026-05-20 00:00:00") -> int:
             2020.0,
             "test_cls",
             "UP",
+            0.72,
+            0.60,
             0.60,
             "UP",
         ),
@@ -136,6 +144,8 @@ def test_export_history_carries_live_chart_selection_fields(temp_db) -> None:
 
     assert row["regression_model"] == "test_reg"
     assert row["active_predicted_close"] == 2030.0
+    assert row["classification_direction_score_up"] == pytest.approx(0.72)
+    assert row["classification_signal_threshold"] == pytest.approx(0.60)
     assert row["forecast_actionability"] == "range_only"
     assert row["forecast_point_price_reliable"] == 0
 
@@ -185,3 +195,42 @@ def test_export_json_main_writes_health_file(temp_db_path, tmp_path, monkeypatch
     assert health_path.exists()
     payload = json.loads(health_path.read_text(encoding="utf-8"))
     assert payload["db_counts"]["forecast_runs"] == 1
+
+
+def test_persist_and_export_live_direction_score(temp_db_path, tmp_path) -> None:
+    summary_path = tmp_path / "latest_forecast_summary.csv"
+    pd.DataFrame([{
+        "horizon_steps": 7,
+        "forecast_input_timestamp": "2026-08-25 00:00:00",
+        "forecast_target_timestamp": "2026-09-01 00:00:00",
+        "reference_price": 2000.0,
+        "classification_predicted_direction": "UP",
+        "classification_direction_score_up": 0.73,
+        "classification_probability_up": 0.56,
+        "classification_probability_down": 0.44,
+        "classification_signal_threshold": 0.60,
+        "classification_confidence": 0.56,
+    }]).to_csv(summary_path, index=False)
+
+    run_id = persist_forecast(
+        summary_path,
+        model_phase="direction_score_test",
+        db_path=temp_db_path,
+    )
+    conn = connect(temp_db_path)
+    try:
+        stored = conn.execute(
+            """
+            SELECT classification_direction_score_up, classification_signal_threshold
+            FROM forecasts WHERE run_id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+        latest = export_json.export_latest(conn)["horizons"]["7"]
+    finally:
+        conn.close()
+
+    assert stored["classification_direction_score_up"] == pytest.approx(0.73)
+    assert stored["classification_signal_threshold"] == pytest.approx(0.60)
+    assert latest["classification_direction_score_up"] == pytest.approx(0.73)
+    assert latest["classification_signal_threshold"] == pytest.approx(0.60)
