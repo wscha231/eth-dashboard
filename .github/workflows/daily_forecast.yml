@@ -40,6 +40,7 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: "1"
+      ETH_ENABLE_CHALLENGER_MODELS: "1"
 
     steps:
       - name: Checkout
@@ -65,7 +66,7 @@ jobs:
 
       - name: Static leakage and feature tests
         run: |
-          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py -q
+          pytest tests/phase0/test_feature_sanity.py tests/phase0/test_leakage_audit.py tests/test_model_registry.py -q
 
       - name: Long-run OOF smoke
         run: |
