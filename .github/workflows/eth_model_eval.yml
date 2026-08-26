@@ -9,12 +9,17 @@ on:
       - "eth_data_collector.py"
       - "requirements.txt"
       - "scripts/evaluate_eth_candidate.py"
+      - "scripts/evaluate_h30_compact_candidate.py"
       - "tests/**"
       - ".github/workflows/eth_model_eval.yml"
   workflow_dispatch:
     inputs:
       full_run:
         description: "Run the full 36-fold OOF gate instead of the PR smoke gate"
+        type: boolean
+        default: false
+      compact_h30_full:
+        description: "Explicitly run the focused 36-fold compact h30 gate"
         type: boolean
         default: false
   schedule:
@@ -30,7 +35,7 @@ concurrency:
 
 jobs:
   evaluate:
-    if: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true') }}
+    if: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true' && github.event.inputs.compact_h30_full != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
 
@@ -206,6 +211,97 @@ jobs:
           name: eth-model-eval-h${{ matrix.horizon }}-c${{ matrix.chunk }}-${{ github.run_id }}
           path: |
             tests/phase0/phase6_production_longrun_oof_metrics_h${{ matrix.horizon }}_c${{ matrix.chunk }}.json
+          retention-days: 21
+
+  evaluate-compact-h30:
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.compact_h30_full == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      # Candidate-only. The daily forecast and scheduled weekly gate never
+      # pay for this extra CatBoost fit unless it is explicitly promoted.
+      ETH_ENABLE_COMPACT_H30_REGRESSOR: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore latest deployed master data
+        run: |
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
+          mkdir -p lake/gold
+          if git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv \
+              > lake/gold/eth_master_daily.csv 2>/dev/null; then
+            python - <<'PY'
+          import csv
+          with open("lake/gold/eth_master_daily.csv", newline="", encoding="utf-8") as fh:
+              reader = csv.DictReader(fh)
+              date_col = next((c for c in ("timestamp", "date", "Date") if c in (reader.fieldnames or [])), None)
+              timestamps = [row.get(date_col) for row in reader if date_col and row.get(date_col)]
+          if not timestamps:
+              raise SystemExit("Restored deployed master has no timestamp/date rows")
+          print(f"Restored deployed master rows={len(timestamps)} span={min(timestamps)} -> {max(timestamps)}")
+          PY
+          else
+            echo "No deployed master data found; using repository copy."
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Compact-registry and gate tests
+        run: |
+          pytest tests/test_model_registry.py tests/test_evaluate_h30_compact_candidate.py -q
+
+      - name: Focused h30 regression OOF
+        run: |
+          if [ "${{ github.event.inputs.compact_h30_full }}" = "true" ]; then
+            echo "COMPACT_PROFILE=full" >> "$GITHUB_ENV"
+            python tests/phase0/longrun_oof_phase6_production.py \
+              --master-data-csv lake/gold/eth_master_daily.csv \
+              --horizons 30 \
+              --regression-models catboost_regressor,catboost_compact_h30_regressor \
+              --skip-classification \
+              --output-json tests/phase0/h30_compact_candidate_oof_metrics.json
+          else
+            echo "COMPACT_PROFILE=smoke" >> "$GITHUB_ENV"
+            python tests/phase0/longrun_oof_phase6_production.py \
+              --master-data-csv lake/gold/eth_master_daily.csv \
+              --horizons 30 \
+              --regression-models catboost_regressor,catboost_compact_h30_regressor \
+              --skip-classification \
+              --fold-start 33 \
+              --max-folds 3 \
+              --output-json tests/phase0/h30_compact_candidate_oof_metrics.json
+          fi
+
+      - name: Compact h30 candidate gate
+        run: |
+          python scripts/evaluate_h30_compact_candidate.py \
+            --candidate tests/phase0/h30_compact_candidate_oof_metrics.json \
+            --profile "$COMPACT_PROFILE"
+          cat tests/phase0/h30_compact_eval_report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compact h30 evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eth-model-eval-compact-h30-${{ github.run_id }}
+          path: |
+            tests/phase0/h30_compact_candidate_oof_metrics.json
+            tests/phase0/h30_compact_eval_report.json
+            tests/phase0/h30_compact_eval_report.md
           retention-days: 21
 
   evaluate-full-gate:

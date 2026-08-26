@@ -176,6 +176,29 @@ jobs:
             rm -f forecast_site/predictions.db
           fi
 
+      - name: Restore deployed master data
+        # Main intentionally does not receive a daily generated-data commit.
+        # Restore the durable deploy copy before collection so rolling refresh
+        # never starts from the older tracked fixture and opens a history gap.
+        run: |
+          mkdir -p lake/gold
+          if git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv \
+              > lake/gold/eth_master_daily.csv 2>/dev/null; then
+            python - <<'PY'
+          import pandas as pd
+          frame = pd.read_csv("lake/gold/eth_master_daily.csv")
+          date_column = next((name for name in ("Date", "date", "timestamp") if name in frame.columns), None)
+          if date_column is None or frame.empty:
+              raise SystemExit("Restored deployed master is empty or has no date column")
+          print(
+              f"Restored deployed master rows={len(frame)} "
+              f"span={frame[date_column].min()} -> {frame[date_column].max()}"
+          )
+          PY
+          else
+            echo "No deployed master found; using the tracked bootstrap copy."
+          fi
+
       - name: Refresh market data
         run: |
           python eth_data_collector.py

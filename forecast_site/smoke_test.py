@@ -37,6 +37,29 @@ from forecast_site.persist_forecast import persist_forecast  # noqa: E402
 MASTER_CSV = PROJECT_ROOT / "lake" / "gold" / "eth_master_daily.csv"
 
 
+def select_resolvable_input_timestamp(
+    close_lookup: pd.Series,
+    today_utc: pd.Timestamp,
+    horizons: tuple[int, ...] = (7, 30),
+) -> pd.Timestamp:
+    """Choose the newest historical input whose targets all have closes."""
+    if close_lookup.empty:
+        raise SystemExit("Master CSV contains no resolved ETH closes")
+    normalized_today = pd.Timestamp(today_utc).floor("D")
+    latest_input = normalized_today - pd.Timedelta(days=max(horizons))
+    candidates = close_lookup.index[close_lookup.index <= latest_input]
+    available_dates = set(close_lookup.index)
+    for input_ts in reversed(candidates):
+        if all(
+            input_ts + pd.Timedelta(days=horizon) in available_dates
+            for horizon in horizons
+        ):
+            return pd.Timestamp(input_ts)
+    raise SystemExit(
+        "Master CSV has no input date with resolved closes for every smoke horizon"
+    )
+
+
 def _synthetic_row(horizon_days: int, input_ts: pd.Timestamp,
                    reference_price: float, target_ts: pd.Timestamp,
                    pred_return: float, prob_up: float,
@@ -118,14 +141,11 @@ def _synthetic_row(horizon_days: int, input_ts: pd.Timestamp,
 
 
 def main() -> None:
-    # Use a recent input_ts we can resolve: 60 days ago -> h=7 target 53 days
-    # ago, h=30 target 30 days ago. Both should be in lake/gold/eth_master_daily.csv.
+    # Use the newest input whose 7d and 30d targets are both actually present.
+    # This keeps the persistence smoke useful even when a vendor has a gap.
     today_utc = pd.Timestamp.now(tz="UTC").floor("D")
-    input_ts = today_utc - pd.Timedelta(days=60)
-
     close_lookup = _load_eth_close_lookup(MASTER_CSV)
-    if input_ts not in close_lookup.index:
-        raise SystemExit(f"Master CSV missing close for input_ts={input_ts.date()}")
+    input_ts = select_resolvable_input_timestamp(close_lookup, today_utc)
     reference_price = float(close_lookup.loc[input_ts])
     print(f"[smoke] input_ts={input_ts.date()} reference_price=${reference_price:,.2f}")
 

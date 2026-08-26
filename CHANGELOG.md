@@ -8,6 +8,55 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-08-27 (compact 30-day regression challenger)
+
+### Added
+
+- Added an opt-in 30-day CatBoost regression challenger that retains the
+  leading 192 features from each leakage-safe, train-only fold ranking. The
+  incumbent keeps its 360-feature budget in the same run for matched OOF
+  comparison.
+- Added a focused long-run mode that can select regression estimators and
+  disable the classification head, plus a 30-day moving-block bootstrap gate
+  against both the incumbent CatBoost model and the no-change anchor.
+- Added focused compact evaluation. Pull requests run three recent folds;
+  the 36-fold gate requires an explicit `compact_h30_full` manual dispatch
+  after intermediate evidence passes. Daily forecasts and scheduled weekly
+  evaluation remain unchanged.
+
+### Changed
+
+- Pinned the live 30-day point forecast to the champion promoted by the latest
+  authoritative 36-fold OOF gate. The champion remains the no-change anchor
+  (RMSE **544.83**, with every learned point model worse), so a noisy short-CV
+  daily run can no longer replace it with a weaker regressor. Direction,
+  confidence, and uncertainty-range heads continue independently.
+- Kept the pinned no-change point forecast separate from uncertainty: its
+  lower and upper bounds now come from an independently selected learned
+  model's conformal residual interval, with the anchor included in the range.
+- Hardened compact-candidate promotion by requiring all expected matched OOF
+  rows for both baselines. A compact-only manual dispatch no longer starts the
+  unrelated generic evaluator in parallel.
+- Repaired daily history merging so incoming observations always fill older
+  missing cells even when they fall before the rolling overwrite window. The
+  daily workflow now restores the deployed master and seeds its ignored raw
+  market cache from that durable copy before refreshing, avoiding both the
+  observed 2026-04-19 through 2026-07-11 empty interval and unnecessary
+  full-history market downloads.
+- Made the persistence smoke select the newest input date whose 7-day and
+  30-day targets are both resolved instead of assuming a fixed 60-day offset.
+
+### Evaluation
+
+- On the three latest deployed-data folds, the compact challenger reduced
+  price RMSE from **631.09** to **584.04** versus the incumbent and beat the
+  **632.00** no-change anchor. This is smoke evidence only; production remains
+  unchanged pending broader purged OOF validation.
+- The required 12-fold intermediate gate rejected the compact challenger: it
+  improved RMSE only **0.44%** versus incumbent CatBoost but was **16.72%**
+  worse than the no-change anchor. The 36-fold compact run was therefore
+  skipped and the candidate remains evaluation-only.
+
 ## [Unreleased] · 2026-08-26 (LightGBM challenger and stability evidence)
 
 ### Added

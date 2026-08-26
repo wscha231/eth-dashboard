@@ -85,6 +85,34 @@ def _dedupe_preserve(seq: Iterable[str]) -> list[str]:
     return out
 
 
+def select_model_subset(
+    models: dict[str, Any],
+    requested_names: Iterable[str] | None,
+    *,
+    head: str,
+) -> dict[str, Any]:
+    """Return an ordered model subset and reject misspelled experiment names.
+
+    ``None`` retains the production registry while an explicit empty iterable
+    disables that head.  Candidate workflows use this to avoid paying for
+    unrelated horizons or classifiers during a focused regression ablation.
+    """
+    if requested_names is None:
+        return models
+    requested = _dedupe_preserve(
+        str(name).strip()
+        for name in requested_names
+        if str(name).strip()
+    )
+    missing = [name for name in requested if name not in models]
+    if missing:
+        raise ValueError(
+            f"Unknown {head} model(s): {', '.join(missing)}. "
+            f"Available: {', '.join(sorted(models))}"
+        )
+    return {name: models[name] for name in requested}
+
+
 def _registry_value(value: Any) -> Any:
     """Convert estimator parameters into a deterministic JSON-safe value."""
     if value is None or isinstance(value, (str, bool, int)):
@@ -309,6 +337,8 @@ class FoldRunner:
         gap: int,
         embargo: int,
         min_feature_coverage: float = 0.03,
+        regression_model_names: Iterable[str] | None = None,
+        classification_model_names: Iterable[str] | None = None,
     ):
         self.dataset = dataset
         self.feature_columns = _dedupe_preserve(feature_columns)
@@ -343,8 +373,16 @@ class FoldRunner:
         self.cls_oof = pd.DataFrame(index=dataset.index, dtype=float)
 
         # Model templates cloned per fold.
-        self._reg_models = efp.make_models(horizon=horizon)
-        self._cls_models = efp.make_classification_models(horizon=horizon)
+        self._reg_models = select_model_subset(
+            efp.make_models(horizon=horizon),
+            regression_model_names,
+            head="regression",
+        )
+        self._cls_models = select_model_subset(
+            efp.make_classification_models(horizon=horizon),
+            classification_model_names,
+            head="classification",
+        )
         self._fold_feature_cache: dict[tuple[str, tuple[int, ...]], list[str]] = {}
         self._fold_feature_history: dict[str, dict[int, list[str]]] = {}
 
@@ -569,10 +607,11 @@ class FoldRunner:
 
     def feature_selection_stability(self) -> dict[str, Any]:
         direction_target = efp.direction_classification_target_column(self.dataset)
-        heads = {
-            "regression": "target_return",
-            "classification": direction_target,
-        }
+        heads: dict[str, str] = {}
+        if self._reg_models:
+            heads["regression"] = "target_return"
+        if self._cls_models:
+            heads["classification"] = direction_target
         return {
             head: summarize_selected_features_by_fold(
                 self._fold_feature_history.get(target_column, {}),
@@ -1010,7 +1049,9 @@ def run_longrun(
     ``horizon_payloads`` must map ``horizon -> dict`` with keys:
         dataset, feature_columns, sample_weights, n_splits, test_size, gap,
         embargo, min_feature_coverage, extras (any extra metadata to merge
-        into the per-horizon output).
+        into the per-horizon output). Optional ``regression_model_names`` and
+        ``classification_model_names`` restrict the active registry; an empty
+        list disables that head.
     """
     # Build (or restore) runners.
     runners: dict[int, FoldRunner] = {}
@@ -1025,6 +1066,8 @@ def run_longrun(
             gap=payload["gap"],
             embargo=payload["embargo"],
             min_feature_coverage=payload.get("min_feature_coverage", 0.03),
+            regression_model_names=payload.get("regression_model_names"),
+            classification_model_names=payload.get("classification_model_names"),
         )
     active_registry = active_model_registry_manifest(runners)
 
