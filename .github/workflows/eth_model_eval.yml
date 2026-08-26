@@ -2,6 +2,7 @@ name: ETH model evaluation
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - "eth_price_forecast.py"
       - "forecasting/**"
@@ -29,7 +30,7 @@ concurrency:
 
 jobs:
   evaluate:
-    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true') }}
+    if: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
 
@@ -135,7 +136,7 @@ jobs:
           retention-days: 21
 
   evaluate-full-horizon:
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run == 'true') }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run == 'true') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-model-eval')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -208,7 +209,7 @@ jobs:
           retention-days: 21
 
   evaluate-full-gate:
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run == 'true') }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run == 'true') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-model-eval')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: evaluate-full-horizon

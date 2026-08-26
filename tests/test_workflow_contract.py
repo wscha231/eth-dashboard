@@ -16,6 +16,16 @@ def test_weekly_eval_publishes_failure_evidence_before_enforcing_gate() -> None:
     assert workflow.index("Publish latest evidence and gated production artifacts") < workflow.index("Enforce candidate promotion gate")
 
 
+def test_full_model_eval_label_dispatches_parallel_gate() -> None:
+    workflow = _read(".github/workflows/eth_model_eval.yml")
+
+    assert "types: [opened, synchronize, reopened, labeled]" in workflow
+    assert workflow.count("full-model-eval") >= 3
+    assert "matrix:" in workflow
+    assert "horizon: [7, 30]" in workflow
+    assert "chunk: [0, 1, 2, 3, 4, 5]" in workflow
+
+
 def test_daily_workflow_deploys_live_history_and_verifies_site() -> None:
     workflow = _read(".github/workflows/daily_forecast.yml")
 
