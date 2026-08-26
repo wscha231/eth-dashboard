@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   evaluate:
-    if: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true') }}
+    if: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true' && github.event.inputs.compact_h30_full != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
 

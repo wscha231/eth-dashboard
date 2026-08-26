@@ -231,6 +231,14 @@ def evaluate(payload: dict[str, Any], profile: str) -> tuple[dict[str, Any], lis
         baseline: moving_block_rmse_improvement(payload, baseline)
         for baseline in (INCUMBENT_MODEL, ANCHOR_MODEL)
     }
+    expected_matched_rows = folds * 30
+    for baseline, evidence in bootstrap.items():
+        matched_rows = int(evidence.get("n") or 0)
+        if matched_rows < expected_matched_rows:
+            failures.append(
+                f"matched bootstrap rows vs {baseline} are {matched_rows} "
+                f"< expected {expected_matched_rows}"
+            )
 
     gate_checks = [
         (
@@ -283,6 +291,7 @@ def evaluate(payload: dict[str, Any], profile: str) -> tuple[dict[str, Any], lis
         "return_mae_ratio_vs_incumbent": return_mae_ratio,
         "directional_accuracy_delta_vs_incumbent": directional_delta,
         "moving_block_bootstrap": bootstrap,
+        "expected_matched_rows": expected_matched_rows,
         "failures": failures,
         "warnings": warnings,
     }

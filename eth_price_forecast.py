@@ -7757,6 +7757,34 @@ def select_regression_forecast_model(
     return str(fallback_regression.loc[0, "model"]), f"leaderboard_price_rmse{macro_suffix}"
 
 
+def select_regression_interval_model(
+    regression_leaderboard: pd.DataFrame,
+    regression_backtest: pd.DataFrame | None = None,
+    recent_holdout_report: pd.DataFrame | None = None,
+    horizon: int | None = None,
+    latest_features: pd.Series | None = None,
+    prediction_feedback_summary: pd.DataFrame | None = None,
+    prediction_feedback_state_summary: pd.DataFrame | None = None,
+) -> tuple[str, str]:
+    """Select the learned interval head independently from a point anchor."""
+    if regression_leaderboard.empty or "model" not in regression_leaderboard.columns:
+        return "", "empirical_target_interval"
+    learned = regression_leaderboard.loc[
+        regression_leaderboard["model"].astype(str) != NO_CHANGE_ANCHOR_MODEL
+    ].copy()
+    if learned.empty:
+        return "", "empirical_target_interval"
+    return select_regression_forecast_model(
+        learned,
+        regression_backtest=regression_backtest,
+        recent_holdout_report=recent_holdout_report,
+        horizon=horizon,
+        latest_features=latest_features,
+        prediction_feedback_summary=prediction_feedback_summary,
+        prediction_feedback_state_summary=prediction_feedback_state_summary,
+    )
+
+
 def select_classification_forecast_model(
     classification_leaderboard: pd.DataFrame,
     classification_backtest: pd.DataFrame,
@@ -10543,6 +10571,8 @@ def forecast_next_step(
     regression_backtest: pd.DataFrame | None = None,
     recent_holdout_report: pd.DataFrame | None = None,
     prediction_feedback_summary: pd.DataFrame | None = None,
+    interval_model_name: str | None = None,
+    interval_selection_basis: str | None = None,
 ) -> ForecastResult:
     selection_basis_text = str(selection_basis)
     score_frame = build_regression_model_score_frame(
@@ -10561,6 +10591,46 @@ def forecast_next_step(
         else 0.0
     )
     if model_name == NO_CHANGE_ANCHOR_MODEL:
+        if interval_model_name and interval_model_name != NO_CHANGE_ANCHOR_MODEL:
+            interval_forecast = forecast_next_step(
+                training_dataset=training_dataset,
+                prediction_frame=prediction_frame,
+                feature_columns=feature_columns,
+                interval=interval,
+                horizon=horizon,
+                model_name=interval_model_name,
+                selection_basis=(
+                    interval_selection_basis or "independent_interval_selection"
+                ),
+                price_reference=price_reference,
+                sample_weight=sample_weight,
+                regression_oof_predictions=regression_oof_predictions,
+                regression_leaderboard=regression_leaderboard,
+                regression_backtest=regression_backtest,
+                recent_holdout_report=recent_holdout_report,
+                prediction_feedback_summary=prediction_feedback_summary,
+            )
+            lower_return = min(float(interval_forecast.lower_return_10), 0.0)
+            upper_return = max(float(interval_forecast.upper_return_90), 0.0)
+            return ForecastResult(
+                model_name=model_name,
+                selection_basis=(
+                    f"{selection_basis_text}+point_anchor+"
+                    f"independent_conformal_interval[{interval_model_name}]"
+                ),
+                prediction_timestamp=interval_forecast.prediction_timestamp,
+                horizon_steps=horizon,
+                model_input_close=model_input_close,
+                last_close=last_close,
+                reference_price_source=price_reference.source,
+                reference_price_timestamp=price_reference.timestamp,
+                predicted_return=0.0,
+                predicted_close=last_close,
+                lower_return_10=lower_return,
+                lower_close_10=last_close * (1.0 + lower_return),
+                upper_return_90=upper_return,
+                upper_close_90=last_close * (1.0 + upper_return),
+            )
         recent_target = (
             pd.to_numeric(training_dataset["target_return"], errors="coerce").dropna()
             if "target_return" in training_dataset.columns
@@ -11442,6 +11512,21 @@ def run_horizon_pipeline(
         prediction_feedback_summary=prediction_feedback_summary,
         prediction_feedback_state_summary=prediction_feedback_state_summary,
     )
+    regression_interval_model = ""
+    regression_interval_selection_basis = "empirical_target_interval"
+    if best_regression_model == NO_CHANGE_ANCHOR_MODEL:
+        (
+            regression_interval_model,
+            regression_interval_selection_basis,
+        ) = select_regression_interval_model(
+            regression_leaderboard,
+            regression_backtest=regression_backtest,
+            recent_holdout_report=recent_holdout_report,
+            horizon=horizon,
+            latest_features=prediction_frame.iloc[-1],
+            prediction_feedback_summary=prediction_feedback_summary,
+            prediction_feedback_state_summary=prediction_feedback_state_summary,
+        )
     best_classification_model, classification_selection_basis = select_classification_forecast_model(
         classification_leaderboard,
         classification_backtest,
@@ -11568,6 +11653,8 @@ def run_horizon_pipeline(
         regression_backtest=regression_backtest,
         recent_holdout_report=recent_holdout_report,
         prediction_feedback_summary=prediction_feedback_summary,
+        interval_model_name=regression_interval_model,
+        interval_selection_basis=regression_interval_selection_basis,
     )
     classification_forecast = forecast_direction(
         training_dataset=training_dataset,

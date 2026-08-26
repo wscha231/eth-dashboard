@@ -105,6 +105,21 @@ def test_intermediate_gate_requires_twelve_folds() -> None:
     assert any("required 12" in failure for failure in failures)
 
 
+def test_gate_rejects_incomplete_matched_prediction_rows() -> None:
+    payload = candidate_payload(folds=3, partial=True, challenger_error=1.0)
+    predictions = payload["horizons"]["30"]["predictions"]
+    payload["horizons"]["30"]["predictions"] = [
+        row
+        for index, row in enumerate(predictions)
+        if not (row["model"] == CHALLENGER_MODEL and index == 0)
+    ]
+
+    report, failures, _ = evaluate(payload, "smoke")
+
+    assert report["gate_status"] == "FAIL"
+    assert any("matched bootstrap rows" in failure for failure in failures)
+
+
 def test_full_compact_gate_rejects_partial_or_wrong_budget() -> None:
     payload = candidate_payload(folds=3, partial=True, challenger_error=1.0)
     payload["model_registry"]["30"]["regression"][CHALLENGER_MODEL]["params"][

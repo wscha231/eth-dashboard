@@ -29,9 +29,13 @@ def test_full_model_eval_label_dispatches_parallel_gate() -> None:
 def test_compact_h30_gate_is_focused_and_full_run_is_explicit() -> None:
     workflow = _read(".github/workflows/eth_model_eval.yml")
 
+    generic_job = workflow.split("\n  evaluate:\n", maxsplit=1)[1].split(
+        "\n  evaluate-full-horizon:\n", maxsplit=1
+    )[0]
     compact_job = workflow.split("\n  evaluate-compact-h30:\n", maxsplit=1)[1].split(
         "\n  evaluate-full-gate:\n", maxsplit=1
     )[0]
+    assert "github.event.inputs.compact_h30_full != 'true'" in generic_job
     assert "github.event_name == 'pull_request'" in compact_job
     assert "compact_h30_full" in compact_job
     assert 'ETH_ENABLE_COMPACT_H30_REGRESSOR: "1"' in compact_job

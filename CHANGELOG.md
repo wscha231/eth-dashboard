@@ -31,6 +31,12 @@ are UTC.
   (RMSE **544.83**, with every learned point model worse), so a noisy short-CV
   daily run can no longer replace it with a weaker regressor. Direction,
   confidence, and uncertainty-range heads continue independently.
+- Kept the pinned no-change point forecast separate from uncertainty: its
+  lower and upper bounds now come from an independently selected learned
+  model's conformal residual interval, with the anchor included in the range.
+- Hardened compact-candidate promotion by requiring all expected matched OOF
+  rows for both baselines. A compact-only manual dispatch no longer starts the
+  unrelated generic evaluator in parallel.
 - Repaired daily history merging so incoming observations always fill older
   missing cells even when they fall before the rolling overwrite window. The
   daily workflow now restores the deployed master and seeds its ignored raw
