@@ -2436,6 +2436,26 @@ def prune_feature_candidates(
     return selected, ranking, correlation_dropped
 
 
+def find_missing_daily_eth_dates(frame: pd.DataFrame) -> pd.DatetimeIndex:
+    """Return interior calendar dates missing a valid 24/7 ETH close."""
+    if frame is None or frame.empty or "eth_close" not in frame.columns:
+        return pd.DatetimeIndex([])
+    valid_eth_index = pd.DatetimeIndex(
+        pd.to_datetime(
+            pd.to_numeric(frame["eth_close"], errors="coerce").dropna().index
+        )
+    ).normalize()
+    valid_eth_index = valid_eth_index.drop_duplicates().sort_values()
+    if len(valid_eth_index) < 2:
+        return pd.DatetimeIndex([])
+    expected_eth_index = pd.date_range(
+        valid_eth_index.min(),
+        valid_eth_index.max(),
+        freq="D",
+    )
+    return expected_eth_index.difference(valid_eth_index)
+
+
 def update_market_data_cache(
     symbol_map: dict[str, str],
     dataset_csv: str | Path,
@@ -2450,6 +2470,7 @@ def update_market_data_cache(
     metadata: dict[str, Any] = {
         "used_cached_only": False,
         "refresh_start": "",
+        "gap_refresh_start": "",
         "refreshed_aliases": [],
         "fallback_cached_aliases": [],
         "failed_aliases": [],
@@ -2462,13 +2483,33 @@ def update_market_data_cache(
         return (fresh, metadata) if return_metadata else fresh
 
     latest_timestamp = cached.index.max()
-    refresh_start = pd.Timestamp(latest_timestamp) - (interval_to_offset(interval) * lookback_rows)
+    rolling_refresh_start = pd.Timestamp(latest_timestamp) - (
+        interval_to_offset(interval) * lookback_rows
+    )
+    refresh_start = rolling_refresh_start
+    missing_eth_dates = (
+        find_missing_daily_eth_dates(cached)
+        if interval.lower() == "1d"
+        else pd.DatetimeIndex([])
+    )
+    if len(missing_eth_dates):
+        # Re-fetch only from immediately before the oldest 24/7 ETH hole. This
+        # repairs an old interior gap without paying for a full multi-year
+        # download on every ephemeral CI checkout.
+        gap_refresh_start = pd.Timestamp(missing_eth_dates.min()) - pd.Timedelta(days=1)
+        refresh_start = min(refresh_start, gap_refresh_start)
+        metadata["gap_refresh_start"] = format_timestamp(gap_refresh_start)
     metadata["refresh_start"] = format_timestamp(refresh_start)
     log_progress(
         verbose,
         (
             f"Updating market dataset cache from {refresh_start.strftime('%Y-%m-%d %H:%M:%S')} "
             f"using {cache_path}..."
+            + (
+                f" (recovering ETH gap from {metadata['gap_refresh_start']})"
+                if metadata["gap_refresh_start"]
+                else ""
+            )
         ),
     )
 

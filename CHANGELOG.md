@@ -40,9 +40,10 @@ are UTC.
 - Repaired daily history merging so incoming observations always fill older
   missing cells even when they fall before the rolling overwrite window. The
   daily workflow now restores the deployed master and seeds its ignored raw
-  market cache from that durable copy before refreshing, avoiding both the
-  observed 2026-04-19 through 2026-07-11 empty interval and unnecessary
-  full-history market downloads.
+  market cache from that durable copy before refreshing. Cache refresh now
+  detects the oldest missing 24/7 ETH date and starts there instead of blindly
+  limiting itself to the recent lookback, repairing the observed 2026-04-19
+  through 2026-07-11 interval without a repeated full-history download.
 - Made the persistence smoke select the newest input date whose 7-day and
   30-day targets are both resolved instead of assuming a fixed 60-day offset.
 

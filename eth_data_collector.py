@@ -55,6 +55,7 @@ from eth_price_forecast import (
     DEFAULT_STALE_VENDOR_MAX_AGE_DAYS,
     DEFAULT_TICKERS,
     build_external_feature_summary,
+    find_missing_daily_eth_dates,
     format_timestamp,
     load_external_feature_csvs,
     load_market_data_csv,
@@ -1779,6 +1780,9 @@ def collect_sources(
     market_notes: list[str] = []
     fallback_aliases = [str(alias) for alias in market_meta.get("fallback_cached_aliases", [])]
     failed_aliases = [str(alias) for alias in market_meta.get("failed_aliases", [])]
+    gap_refresh_start = str(market_meta.get("gap_refresh_start", "")).strip()
+    if gap_refresh_start:
+        market_notes.append(f"recovered_eth_gap_from={gap_refresh_start}")
     if bool(market_meta.get("used_cached_only")):
         market_status = "warning"
         market_notes.append("refresh_failed_all_symbols_using_cached_data")
@@ -2560,6 +2564,15 @@ def main(argv: list[str] | None = None) -> None:
     )
     if not existing_master.empty:
         master_data = merge_history_frame(existing_master, master_data, overwrite_start=start_date)
+
+    remaining_eth_gaps = find_missing_daily_eth_dates(master_data)
+    if len(remaining_eth_gaps):
+        raise ValueError(
+            "Market refresh left missing daily ETH closes: "
+            f"count={len(remaining_eth_gaps)}, "
+            f"first={remaining_eth_gaps.min().strftime('%Y-%m-%d')}, "
+            f"last={remaining_eth_gaps.max().strftime('%Y-%m-%d')}"
+        )
 
     master_data, external_summary, stale_columns = apply_stale_vendor_guardrail(
         master_data,
