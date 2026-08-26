@@ -31,6 +31,14 @@ are UTC.
   (RMSE **544.83**, with every learned point model worse), so a noisy short-CV
   daily run can no longer replace it with a weaker regressor. Direction,
   confidence, and uncertainty-range heads continue independently.
+- Repaired daily history merging so incoming observations always fill older
+  missing cells even when they fall before the rolling overwrite window. The
+  daily workflow now restores the deployed master and seeds its ignored raw
+  market cache from that durable copy before refreshing, avoiding both the
+  observed 2026-04-19 through 2026-07-11 empty interval and unnecessary
+  full-history market downloads.
+- Made the persistence smoke select the newest input date whose 7-day and
+  30-day targets are both resolved instead of assuming a fixed 60-day offset.
 
 ### Evaluation
 

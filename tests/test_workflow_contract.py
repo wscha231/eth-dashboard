@@ -43,6 +43,11 @@ def test_compact_h30_gate_is_focused_and_full_run_is_explicit() -> None:
 def test_daily_workflow_deploys_live_history_and_verifies_site() -> None:
     workflow = _read(".github/workflows/daily_forecast.yml")
 
+    restore_master = workflow.split(
+        "\n      - name: Restore deployed master data\n", maxsplit=1
+    )[1].split("\n      - name: Refresh market data\n", maxsplit=1)[0]
+    assert "origin/data/daily-forecast:lake/gold/eth_master_daily.csv" in restore_master
+
     assert "forecast_site/public/history.json" in workflow
     assert "forecast_site/public/model_eval_latest.json" in workflow
     assert "Verify deployed freshness" in workflow
