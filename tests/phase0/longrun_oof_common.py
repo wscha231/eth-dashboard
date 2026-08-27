@@ -85,6 +85,102 @@ def _dedupe_preserve(seq: Iterable[str]) -> list[str]:
     return out
 
 
+def select_model_subset(
+    models: dict[str, Any],
+    requested_names: Iterable[str] | None,
+    *,
+    head: str,
+) -> dict[str, Any]:
+    """Return an ordered model subset and reject misspelled experiment names.
+
+    ``None`` retains the production registry while an explicit empty iterable
+    disables that head.  Candidate workflows use this to avoid paying for
+    unrelated horizons or classifiers during a focused regression ablation.
+    """
+    if requested_names is None:
+        return models
+    requested = _dedupe_preserve(
+        str(name).strip()
+        for name in requested_names
+        if str(name).strip()
+    )
+    missing = [name for name in requested if name not in models]
+    if missing:
+        raise ValueError(
+            f"Unknown {head} model(s): {', '.join(missing)}. "
+            f"Available: {', '.join(sorted(models))}"
+        )
+    return {name: models[name] for name in requested}
+
+
+def _registry_value(value: Any) -> Any:
+    """Convert estimator parameters into a deterministic JSON-safe value."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, (float, np.floating)):
+        numeric = float(value)
+        return numeric if np.isfinite(numeric) else str(numeric)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, (list, tuple)):
+        return [_registry_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): _registry_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, type):
+        return f"{value.__module__}.{value.__qualname__}"
+    value_type = type(value)
+    return f"{value_type.__module__}.{value_type.__qualname__}"
+
+
+def estimator_registry_spec(estimator: Any) -> dict[str, Any]:
+    """Describe an estimator deeply enough to invalidate stale OOF folds."""
+    estimator_type = type(estimator)
+    params = estimator.get_params(deep=True) if hasattr(estimator, "get_params") else {}
+    return {
+        "class": f"{estimator_type.__module__}.{estimator_type.__qualname__}",
+        "params": {
+            str(key): _registry_value(value)
+            for key, value in sorted(params.items())
+        },
+    }
+
+
+def active_model_registry_manifest(
+    runners: dict[int, "FoldRunner"],
+) -> dict[str, Any]:
+    """Return the exact per-horizon model registry used by this run."""
+    manifest: dict[str, Any] = {}
+    for horizon, runner in sorted(runners.items()):
+        manifest[str(horizon)] = {
+            "regression": {
+                name: estimator_registry_spec(estimator)
+                for name, estimator in sorted(runner._reg_models.items())
+            },
+            "classification": {
+                name: estimator_registry_spec(estimator)
+                for name, estimator in sorted(runner._cls_models.items())
+            },
+        }
+    return manifest
+
+
+def checkpoint_model_registry_compatible(
+    checkpoint: dict[str, Any],
+    active_registry: dict[str, Any],
+) -> bool:
+    """Require an exact registry match before accepting completed fold rows.
+
+    Legacy checkpoints have no manifest and are intentionally invalidated.
+    Otherwise a newly enabled model could be evaluated only on the remaining
+    folds (or on none at all) while the final leaderboard claims all folds.
+    """
+    saved_registry = checkpoint.get("model_registry")
+    return isinstance(saved_registry, dict) and saved_registry == active_registry
+
+
 # ---------------------------------------------------------------------------
 # Checkpoint I/O — atomic write so a ctrl-C mid-flush never corrupts the JSON.
 # ---------------------------------------------------------------------------
@@ -126,6 +222,96 @@ def prediction_fold_indices(
     return indices
 
 
+def summarize_selected_features_by_fold(
+    selected_features_by_fold: dict[str | int, list[str]],
+    *,
+    candidate_feature_count: int,
+    target_column: str,
+) -> dict[str, Any]:
+    """Build an auditable fold-stability summary without using test labels."""
+    normalized_folds: dict[str, list[str]] = {}
+    selection_counts: dict[str, int] = {}
+    for raw_fold, raw_features in selected_features_by_fold.items():
+        try:
+            fold_key = str(int(raw_fold))
+        except (TypeError, ValueError):
+            continue
+        features = _dedupe_preserve(str(feature) for feature in (raw_features or []))
+        normalized_folds[fold_key] = features
+        for feature in features:
+            selection_counts[feature] = selection_counts.get(feature, 0) + 1
+
+    ordered_folds = {
+        fold: normalized_folds[fold]
+        for fold in sorted(normalized_folds, key=int)
+    }
+    fold_count = len(ordered_folds)
+    selected_counts = [len(features) for features in ordered_folds.values()]
+    ranked = sorted(selection_counts.items(), key=lambda item: (-item[1], item[0]))
+    top_features = [
+        {
+            "feature": feature,
+            "selected_folds": int(count),
+            "selection_frequency": float(count / fold_count) if fold_count else 0.0,
+        }
+        for feature, count in ranked[:50]
+    ]
+    stable_threshold = max(int(np.ceil(fold_count * 0.50)), 1) if fold_count else 1
+    highly_stable_threshold = max(int(np.ceil(fold_count * 0.80)), 1) if fold_count else 1
+    return {
+        "target_column": target_column,
+        "folds_analyzed": fold_count,
+        "candidate_feature_count": int(candidate_feature_count),
+        "selected_feature_count_min": int(min(selected_counts)) if selected_counts else 0,
+        "selected_feature_count_median": float(np.median(selected_counts)) if selected_counts else 0.0,
+        "selected_feature_count_max": int(max(selected_counts)) if selected_counts else 0,
+        "stable_feature_count_50pct": int(
+            sum(count >= stable_threshold for count in selection_counts.values())
+        ),
+        "stable_feature_count_80pct": int(
+            sum(count >= highly_stable_threshold for count in selection_counts.values())
+        ),
+        "selection_counts": {
+            feature: int(count)
+            for feature, count in sorted(selection_counts.items())
+        },
+        "selected_features_by_fold": ordered_folds,
+        "top_features": top_features,
+    }
+
+
+def backfill_classification_prediction_rows(
+    rows: Iterable[dict[str, Any]],
+    thresholds_by_model: dict[str, float],
+) -> None:
+    """Make legacy classification rows persistently score-complete.
+
+    Old checkpoints have ``probability_up`` but no ``direction_score_up``.
+    Resume logic repairs the in-memory OOF frame; this companion repair writes
+    the fallback into each source row as well so the next checkpoint, SQLite
+    archive, and public JSON all remain auditable.
+    """
+    for row in rows:
+        if row.get("head") != "classification":
+            continue
+        try:
+            score = float(row.get("direction_score_up"))
+        except (TypeError, ValueError):
+            score = float("nan")
+        if not np.isfinite(score):
+            try:
+                score = float(row.get("probability_up"))
+            except (TypeError, ValueError):
+                score = float("nan")
+        if not np.isfinite(score):
+            continue
+
+        row["direction_score_up"] = float(score)
+        model = row.get("model")
+        if model in thresholds_by_model:
+            row["predicted_label"] = int(score >= thresholds_by_model[model])
+
+
 # ---------------------------------------------------------------------------
 # Per-fold execution — mirrors walk_forward_leaderboard / walk_forward_
 # classification inner loops so the output is numerically identical to running
@@ -151,6 +337,8 @@ class FoldRunner:
         gap: int,
         embargo: int,
         min_feature_coverage: float = 0.03,
+        regression_model_names: Iterable[str] | None = None,
+        classification_model_names: Iterable[str] | None = None,
     ):
         self.dataset = dataset
         self.feature_columns = _dedupe_preserve(feature_columns)
@@ -185,9 +373,18 @@ class FoldRunner:
         self.cls_oof = pd.DataFrame(index=dataset.index, dtype=float)
 
         # Model templates cloned per fold.
-        self._reg_models = efp.make_models(horizon=horizon)
-        self._cls_models = efp.make_classification_models(horizon=horizon)
+        self._reg_models = select_model_subset(
+            efp.make_models(horizon=horizon),
+            regression_model_names,
+            head="regression",
+        )
+        self._cls_models = select_model_subset(
+            efp.make_classification_models(horizon=horizon),
+            classification_model_names,
+            head="classification",
+        )
         self._fold_feature_cache: dict[tuple[str, tuple[int, ...]], list[str]] = {}
+        self._fold_feature_history: dict[str, dict[int, list[str]]] = {}
 
     # ------------------------------------------------------------------
     # Single-fold execution
@@ -207,7 +404,7 @@ class FoldRunner:
         target_close = self.dataset["target_close"]
 
         for model_name, template in self._reg_models.items():
-            fold_features = self._fold_features(train_idx)
+            fold_features = self._fold_features(train_idx, fold_index=fold_index)
             X_full = self.dataset[fold_features]
             X_train = X_full.iloc[train_idx]
             y_train = y_return.iloc[train_idx]
@@ -310,6 +507,7 @@ class FoldRunner:
             fold_features = self._fold_features(
                 train_positions,
                 target_column=efp.direction_classification_target_column(self.dataset),
+                fold_index=fold_index,
             )
             X_full = self.dataset[fold_features]
             train_sw = (
@@ -325,12 +523,23 @@ class FoldRunner:
                 model.predict_proba(X_full.iloc[prediction_positions])[:, 1],
                 index=X_full.iloc[prediction_positions].index, dtype=float,
             )
+            direction_score_up = pd.Series(
+                efp.classifier_direction_scores(model, X_full.iloc[prediction_positions]),
+                index=X_full.iloc[prediction_positions].index, dtype=float,
+            )
             if self.horizon > 7:
                 overlay_frame = self.dataset.iloc[prediction_positions]
                 prob_up = efp.apply_direction_regime_overlay(
                     prob_up, overlay_frame, horizon=self.horizon,
                 )
+                direction_score_up = efp.apply_direction_regime_overlay(
+                    direction_score_up, overlay_frame, horizon=self.horizon,
+                )
             self.cls_oof.loc[prob_up.index, f"{model_name}_prob_up"] = prob_up
+            self.cls_oof.loc[
+                direction_score_up.index,
+                f"{model_name}_direction_score_up",
+            ] = direction_score_up
 
             ref_close = current_close.iloc[test_idx]
             act_close = target_close.iloc[test_idx]
@@ -355,6 +564,7 @@ class FoldRunner:
                     "actual_return":   actual_return,
                     "actual_label":    int(actual_target) if pd.notna(actual_target) else None,
                     "probability_up":  float(prob),
+                    "direction_score_up": float(direction_score_up.loc[date]),
                     # predicted_label filled in at finalize (needs threshold).
                     "predicted_label": None,
                 })
@@ -367,12 +577,19 @@ class FoldRunner:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _fold_features(self, train_idx: np.ndarray, target_column: str = "target_return") -> list[str]:
+    def _fold_features(
+        self,
+        train_idx: np.ndarray,
+        target_column: str = "target_return",
+        fold_index: int | None = None,
+    ) -> list[str]:
         """Fold-internal feature selection — uses train rows only."""
         positions = tuple(np.asarray(train_idx, dtype=int).tolist())
         cache_key = (target_column, positions)
         cached = self._fold_feature_cache.get(cache_key)
         if cached is not None:
+            if fold_index is not None:
+                self._fold_feature_history.setdefault(target_column, {})[int(fold_index)] = list(cached)
             return list(cached)
         selected = efp.select_fold_features(
             dataset=self.dataset,
@@ -384,7 +601,45 @@ class FoldRunner:
         )
         resolved = selected or list(self.feature_columns)
         self._fold_feature_cache[cache_key] = list(resolved)
+        if fold_index is not None:
+            self._fold_feature_history.setdefault(target_column, {})[int(fold_index)] = list(resolved)
         return resolved
+
+    def feature_selection_stability(self) -> dict[str, Any]:
+        direction_target = efp.direction_classification_target_column(self.dataset)
+        heads: dict[str, str] = {}
+        if self._reg_models:
+            heads["regression"] = "target_return"
+        if self._cls_models:
+            heads["classification"] = direction_target
+        return {
+            head: summarize_selected_features_by_fold(
+                self._fold_feature_history.get(target_column, {}),
+                candidate_feature_count=len(self.feature_columns),
+                target_column=target_column,
+            )
+            for head, target_column in heads.items()
+        }
+
+    def restore_feature_selection_stability(self, report: dict[str, Any] | None) -> None:
+        if not isinstance(report, dict):
+            return
+        for payload in report.values():
+            if not isinstance(payload, dict):
+                continue
+            target_column = str(payload.get("target_column") or "").strip()
+            fold_payload = payload.get("selected_features_by_fold") or {}
+            if not target_column or not isinstance(fold_payload, dict):
+                continue
+            target_history = self._fold_feature_history.setdefault(target_column, {})
+            for raw_fold, features in fold_payload.items():
+                try:
+                    fold_index = int(raw_fold)
+                except (TypeError, ValueError):
+                    continue
+                target_history[fold_index] = _dedupe_preserve(
+                    str(feature) for feature in (features or [])
+                )
 
     # ------------------------------------------------------------------
     # Resume: repopulate internal OOF from previously-saved prediction rows
@@ -412,8 +667,21 @@ class FoldRunner:
                     self.reg_oof.at[date, f"{model}_pred_close"] = float(pc)
             elif head == "classification":
                 pu = row.get("probability_up")
-                if pu is not None:
-                    self.cls_oof.at[date, f"{model}_prob_up"] = float(pu)
+                try:
+                    probability = float(pu)
+                except (TypeError, ValueError):
+                    probability = float("nan")
+                if np.isfinite(probability):
+                    self.cls_oof.at[date, f"{model}_prob_up"] = probability
+                score = row.get("direction_score_up")
+                try:
+                    direction_score = float(score)
+                except (TypeError, ValueError):
+                    direction_score = float("nan")
+                if not np.isfinite(direction_score):
+                    direction_score = probability
+                if np.isfinite(direction_score):
+                    self.cls_oof.at[date, f"{model}_direction_score_up"] = direction_score
 
 
 # ---------------------------------------------------------------------------
@@ -475,16 +743,25 @@ def finalize_run(
     y_cls = efp.get_direction_classification_target(dataset, horizon)
     for model_name in cls_models_with_oof:
         prob_col = runner.cls_oof[f"{model_name}_prob_up"].dropna()
-        if prob_col.empty:
+        score_col = efp.classification_oof_direction_scores(
+            runner.cls_oof,
+            model_name,
+        ).dropna()
+        valid_index = prob_col.index.intersection(score_col.index)
+        if len(valid_index) == 0:
             continue
-        actual_target = y_cls.loc[prob_col.index]
-        valid_evaluation = actual_target.notna() & prob_col.notna()
+        actual_target = y_cls.loc[valid_index]
+        valid_evaluation = actual_target.notna()
         if not valid_evaluation.any():
             continue
         actual = actual_target.loc[valid_evaluation].astype(int)
-        evaluation_probability = prob_col.loc[valid_evaluation]
+        evaluation_probability = prob_col.loc[actual.index]
+        evaluation_direction_score = score_col.loc[actual.index]
         threshold, metrics = efp.choose_classification_evaluation_threshold(
-            actual_label=actual, probability_up=evaluation_probability, horizon=horizon,
+            actual_label=actual,
+            probability_up=evaluation_probability,
+            direction_score_up=evaluation_direction_score,
+            horizon=horizon,
         )
         metrics["model"] = model_name
         metrics["folds"] = float(runner.n_splits)
@@ -493,19 +770,18 @@ def finalize_run(
         cls_thresholds[model_name] = float(threshold)
 
         # Fill predicted_label in internal OOF + in the flat predictions list.
-        predicted_label = (runner.cls_oof[f"{model_name}_prob_up"] >= threshold).astype(float)
-        predicted_label[runner.cls_oof[f"{model_name}_prob_up"].isna()] = np.nan
+        full_direction_score = efp.classification_oof_direction_scores(
+            runner.cls_oof,
+            model_name,
+        )
+        predicted_label = (full_direction_score >= threshold).astype(float)
+        predicted_label[full_direction_score.isna()] = np.nan
         runner.cls_oof[f"{model_name}_pred_label"] = predicted_label
 
-    # Back-fill predicted_label into the flat row list so the DB gets it.
+    # Back-fill scores + labels into the flat row list so resumed legacy rows
+    # remain reproducible after the next checkpoint and DB export.
     rows_this_horizon = predictions_by_horizon.get(horizon, [])
-    for row in rows_this_horizon:
-        if row.get("head") != "classification":
-            continue
-        model = row.get("model")
-        prob = row.get("probability_up")
-        if model in cls_thresholds and prob is not None:
-            row["predicted_label"] = int(float(prob) >= cls_thresholds[model])
+    backfill_classification_prediction_rows(rows_this_horizon, cls_thresholds)
 
     cls_lb = pd.DataFrame(cls_rows).sort_values(
         ["balanced_accuracy", "f1", "roc_auc", "signal_threshold"],
@@ -546,6 +822,7 @@ def finalize_run(
 
     return {
         "candidate_feature_count": len(runner.feature_columns),
+        "feature_selection_stability": runner.feature_selection_stability(),
         "training_rows": int(len(dataset)),
         "cv_test_size": runner.test_size,
         "embargo": runner.embargo,
@@ -595,17 +872,31 @@ def _append_equal_weight_classification_row(leaderboard, oof, dataset, horizon, 
     blended = efp.trimmed_equal_weight_average(
         oof[[f"{m}_prob_up" for m in available]]
     ).clip(lower=0.0, upper=1.0)
-    valid = blended.dropna()
-    if valid.empty:
+    direction_frame = pd.DataFrame(
+        {
+            model_name: efp.classification_oof_direction_scores(oof, model_name)
+            for model_name in available
+        },
+        index=oof.index,
+    )
+    blended_direction_score = efp.trimmed_equal_weight_average(
+        direction_frame
+    ).clip(lower=0.0, upper=1.0)
+    valid_index = blended.dropna().index.intersection(blended_direction_score.dropna().index)
+    if len(valid_index) == 0:
         return leaderboard
-    actual_target = efp.get_direction_classification_target(dataset, horizon).loc[valid.index]
-    valid_evaluation = actual_target.notna() & valid.notna()
+    actual_target = efp.get_direction_classification_target(dataset, horizon).loc[valid_index]
+    valid_evaluation = actual_target.notna()
     if not valid_evaluation.any():
         return leaderboard
     actual = actual_target.loc[valid_evaluation].astype(int)
-    evaluation_probability = valid.loc[valid_evaluation]
+    evaluation_probability = blended.loc[actual.index]
+    evaluation_direction_score = blended_direction_score.loc[actual.index]
     threshold, metrics = efp.choose_classification_evaluation_threshold(
-        actual_label=actual, probability_up=evaluation_probability, horizon=horizon,
+        actual_label=actual,
+        probability_up=evaluation_probability,
+        direction_score_up=evaluation_direction_score,
+        horizon=horizon,
     )
     metrics["model"] = EQUAL_WEIGHT_CLASSIFICATION_MODEL
     metrics["folds"] = float(min(len(available), 4))
@@ -613,8 +904,9 @@ def _append_equal_weight_classification_row(leaderboard, oof, dataset, horizon, 
     metrics["component_models"] = "|".join(available)
     # Stash the blended series + predicted_label for row emission.
     oof[f"{EQUAL_WEIGHT_CLASSIFICATION_MODEL}_prob_up"] = blended
-    pred_label = (blended >= threshold).astype(float)
-    pred_label[blended.isna()] = np.nan
+    oof[f"{EQUAL_WEIGHT_CLASSIFICATION_MODEL}_direction_score_up"] = blended_direction_score
+    pred_label = (blended_direction_score >= threshold).astype(float)
+    pred_label[blended_direction_score.isna()] = np.nan
     oof[f"{EQUAL_WEIGHT_CLASSIFICATION_MODEL}_pred_label"] = pred_label
     oof.attrs[f"{EQUAL_WEIGHT_CLASSIFICATION_MODEL}_threshold"] = float(threshold)
     return pd.concat([leaderboard, pd.DataFrame([metrics])], ignore_index=True)
@@ -700,6 +992,10 @@ def _emit_ensemble_prediction_rows(
     prob_col = f"{ensemble_cls_model}_prob_up"
     label_col = f"{ensemble_cls_model}_pred_label"
     if prob_col in runner.cls_oof.columns:
+        direction_scores = efp.classification_oof_direction_scores(
+            runner.cls_oof,
+            ensemble_cls_model,
+        )
         threshold = runner.cls_oof.attrs.get(f"{ensemble_cls_model}_threshold")
         for date, prob in runner.cls_oof[prob_col].dropna().items():
             if not np.isfinite(prob):
@@ -715,7 +1011,8 @@ def _emit_ensemble_prediction_rows(
             if label_col in runner.cls_oof.columns and not pd.isna(runner.cls_oof.loc[date, label_col]):
                 pred_label = int(runner.cls_oof.loc[date, label_col])
             elif threshold is not None:
-                pred_label = int(float(prob) >= threshold)
+                decision_score = direction_scores.loc[date]
+                pred_label = int(float(decision_score) >= threshold)
             rows_sink.append({
                 "horizon_days":    horizon,
                 "head":            "classification",
@@ -728,6 +1025,7 @@ def _emit_ensemble_prediction_rows(
                 "actual_return":   actual_return,
                 "actual_label":    int(actual_target) if pd.notna(actual_target) else None,
                 "probability_up":  float(prob),
+                "direction_score_up": float(direction_scores.loc[date]),
                 "predicted_label": pred_label,
             })
 
@@ -751,7 +1049,9 @@ def run_longrun(
     ``horizon_payloads`` must map ``horizon -> dict`` with keys:
         dataset, feature_columns, sample_weights, n_splits, test_size, gap,
         embargo, min_feature_coverage, extras (any extra metadata to merge
-        into the per-horizon output).
+        into the per-horizon output). Optional ``regression_model_names`` and
+        ``classification_model_names`` restrict the active registry; an empty
+        list disables that head.
     """
     # Build (or restore) runners.
     runners: dict[int, FoldRunner] = {}
@@ -766,7 +1066,10 @@ def run_longrun(
             gap=payload["gap"],
             embargo=payload["embargo"],
             min_feature_coverage=payload.get("min_feature_coverage", 0.03),
+            regression_model_names=payload.get("regression_model_names"),
+            classification_model_names=payload.get("classification_model_names"),
         )
+    active_registry = active_model_registry_manifest(runners)
 
     # Load checkpoint (if any).
     state: dict[str, Any] = {
@@ -784,6 +1087,7 @@ def run_longrun(
         "folds_completed": {},  # per-horizon count
         "next_fold_index": {},  # per-horizon absolute resume cursor
         "folds_target":    {h: p["n_splits"] for h, p in horizon_payloads.items()},
+        "model_registry": active_registry,
         "horizons": {},          # per-horizon predictions + summary
         **{k: v for k, v in run_metadata.items() if k not in {"mode", "master_data_csv"}},
     }
@@ -795,6 +1099,12 @@ def run_longrun(
     }
 
     prev = load_checkpoint(checkpoint_path) if resume else None
+    if prev is not None and not checkpoint_model_registry_compatible(prev, active_registry):
+        print(
+            "[longrun] checkpoint model registry is missing or changed; "
+            "discarding persisted folds and starting fresh"
+        )
+        prev = None
     if prev is not None:
         print(f"[longrun] resuming from checkpoint: {checkpoint_path}")
         for h_key, h_payload in prev.get("horizons", {}).items():
@@ -807,6 +1117,9 @@ def run_longrun(
             preds = h_payload.get("predictions") or []
             predictions_by_horizon[h] = list(preds)
             runners[h].restore_oof_from_rows(preds)
+            runners[h].restore_feature_selection_stability(
+                h_payload.get("feature_selection_stability")
+            )
             completed_fold_indices[h] = prediction_fold_indices(preds, horizon=h)
             done = len(completed_fold_indices[h])
             next_fold = (
@@ -856,7 +1169,7 @@ def run_longrun(
             if ((fold_idx + 1) % flush_every == 0) or (fold_idx + 1 == total_folds):
                 _flush_checkpoint(
                     checkpoint_path, state, predictions_by_horizon,
-                    horizon_payloads, partial=True,
+                    horizon_payloads, runners, partial=True,
                 )
 
     # All folds done — finalize (leaderboard + ensembles + thresholds).
@@ -875,6 +1188,7 @@ def _flush_checkpoint(
     state: dict[str, Any],
     predictions_by_horizon: dict[int, list[dict[str, Any]]],
     horizon_payloads: dict[int, dict[str, Any]],
+    runners: dict[int, FoldRunner],
     *, partial: bool,
 ) -> None:
     state["last_checkpoint_utc"] = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
@@ -882,6 +1196,7 @@ def _flush_checkpoint(
     state["horizons"] = {
         str(h): {
             **horizon_payloads[h].get("extras", {}),
+            "feature_selection_stability": runners[h].feature_selection_stability(),
             "predictions": predictions_by_horizon[h],
         }
         for h in horizon_payloads

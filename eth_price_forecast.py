@@ -42,11 +42,29 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from forecasting.model_registry import (
+    COMPACT_H30_FEATURE_COUNT,
+    PROMOTED_REGRESSION_MODEL_BY_HORIZON,
+    build_classification_models,
+    build_regression_models,
+    catboost_classifier_params as registry_catboost_classifier_params,
+    catboost_regressor_params as registry_catboost_regressor_params,
+    lightgbm_classifier_params,
+    lightgbm_regressor_params,
+    replace_state_classifiers,
+)
+
 try:
     from catboost import CatBoostClassifier, CatBoostRegressor
 except ImportError:  # pragma: no cover - optional dependency path
     CatBoostClassifier = None
     CatBoostRegressor = None
+
+try:
+    from lightgbm import LGBMClassifier, LGBMRegressor
+except ImportError:  # pragma: no cover - optional dependency path
+    LGBMClassifier = None
+    LGBMRegressor = None
 
 
 try:
@@ -141,9 +159,15 @@ OPTIONAL_MODEL_STATUS: dict[str, Any] = {
     "catboost_available": bool(CatBoostRegressor is not None and CatBoostClassifier is not None),
     "catboost_installed_now": False,
     "catboost_error": "",
+    "lightgbm_available": bool(LGBMRegressor is not None and LGBMClassifier is not None),
+    "lightgbm_challenger_enabled": False,
+    "compact_h30_regressor_enabled": False,
+    "compact_h30_feature_count": COMPACT_H30_FEATURE_COUNT,
 }
 RUNTIME_OPTIONS: dict[str, Any] = {
     "fast_mode": False,
+    "challenger_models": None,
+    "compact_h30_regressor": None,
 }
 REGIME_STATE_LABELS = {0: "DOWNTREND", 1: "SIDEWAYS", 2: "UPTREND"}
 REVERSAL_STATE_LABELS = {0: "TOP_REVERSAL", 1: "NONE", 2: "BOTTOM_REVERSAL"}
@@ -209,13 +233,72 @@ def _make_median_imputer() -> SimpleImputer:
         return SimpleImputer(strategy="median")
 
 
-def set_runtime_options(*, fast_mode: bool | None = None) -> None:
+def set_runtime_options(
+    *,
+    fast_mode: bool | None = None,
+    challenger_models: bool | None = None,
+    compact_h30_regressor: bool | None = None,
+) -> None:
     if fast_mode is not None:
         RUNTIME_OPTIONS["fast_mode"] = bool(fast_mode)
+    if challenger_models is not None:
+        RUNTIME_OPTIONS["challenger_models"] = bool(challenger_models)
+    if compact_h30_regressor is not None:
+        RUNTIME_OPTIONS["compact_h30_regressor"] = bool(compact_h30_regressor)
 
 
 def runtime_fast_mode_enabled() -> bool:
     return bool(RUNTIME_OPTIONS.get("fast_mode"))
+
+
+def runtime_challenger_models_enabled() -> bool:
+    configured = RUNTIME_OPTIONS.get("challenger_models")
+    if configured is not None:
+        return bool(configured)
+    return str(os.getenv("ETH_ENABLE_CHALLENGER_MODELS", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def runtime_compact_h30_regressor_enabled() -> bool:
+    configured = RUNTIME_OPTIONS.get("compact_h30_regressor")
+    if configured is not None:
+        return bool(configured)
+    return str(os.getenv("ETH_ENABLE_COMPACT_H30_REGRESSOR", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def current_optional_model_status() -> dict[str, Any]:
+    """Return dependency provenance with runtime flags resolved at export time.
+
+    ``run_pipeline`` can be called directly without first invoking
+    ``bootstrap_optional_model_dependencies``.  Keeping the challenger flag
+    dynamic prevents an active LightGBM experiment from being reported as
+    disabled in ``summary.json`` merely because the import-time status object
+    has not been refreshed.
+    """
+    status = dict(OPTIONAL_MODEL_STATUS)
+    status["catboost_available"] = bool(
+        CatBoostRegressor is not None and CatBoostClassifier is not None
+    )
+    status["lightgbm_available"] = bool(
+        LGBMRegressor is not None and LGBMClassifier is not None
+    )
+    status["lightgbm_challenger_enabled"] = bool(
+        runtime_challenger_models_enabled()
+    )
+    status["compact_h30_regressor_enabled"] = bool(
+        runtime_compact_h30_regressor_enabled()
+    )
+    status["compact_h30_feature_count"] = COMPACT_H30_FEATURE_COUNT
+    return status
 
 PRICE_FIELD_MAP = {
     "open": "open",
@@ -258,6 +341,7 @@ class DirectionForecastResult:
     reference_price_timestamp: str
     predicted_direction: str
     signal_threshold: float
+    direction_score_up: float
     probability_up: float
     probability_down: float
     confidence: float
@@ -469,13 +553,35 @@ class CalibratedProbabilityModel(BaseEstimator, ClassifierMixin):
             pass
         return tags
 
-    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+    def _mapped_scores(self, X: pd.DataFrame) -> np.ndarray:
         probabilities = np.clip(self.base_estimator.predict_proba(X)[:, 1], 1e-6, 1.0 - 1e-6)
         if self.probability_mapping == "empirical_cdf":
             probabilities = empirical_probability_percentiles(
                 probabilities,
                 self.probability_reference,
             )
+        return np.clip(probabilities, 1e-6, 1.0 - 1e-6)
+
+    def predict_direction_score(self, X: pd.DataFrame) -> np.ndarray:
+        """Return the score used for ranking and directional decisions.
+
+        For the 7-day head this is an empirical percentile, deliberately kept
+        separate from the event probability exposed by ``predict_proba``.
+        Other heads retain their established calibrated-probability decision
+        path for backward compatibility.
+        """
+        scores = self._mapped_scores(X)
+        if self.probability_mapping == "empirical_cdf":
+            return scores
+        if self.calibrator is not None:
+            if hasattr(self.calibrator, "predict_proba"):
+                scores = self.calibrator.predict_proba(scores.reshape(-1, 1))[:, 1]
+            else:
+                scores = self.calibrator.predict(scores)
+        return np.clip(scores, 1e-6, 1.0 - 1e-6)
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        probabilities = self._mapped_scores(X)
         if self.calibrator is not None:
             if hasattr(self.calibrator, "predict_proba"):
                 probabilities = self.calibrator.predict_proba(probabilities.reshape(-1, 1))[:, 1]
@@ -485,7 +591,76 @@ class CalibratedProbabilityModel(BaseEstimator, ClassifierMixin):
         return np.column_stack([1.0 - probabilities, probabilities])
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+        return (self.predict_direction_score(X) >= 0.5).astype(int)
+
+
+class ShrunkIsotonicProbabilityCalibrator:
+    """Monotone label calibrator with a finite-sample prevalence prior.
+
+    A short crypto holdout can make an unconstrained sigmoid flip or
+    over-amplify a useful ranking. Isotonic regression keeps the mapping
+    monotone, while shrinkage toward the observed UP base rate prevents a
+    short held-out tail from presenting brittle rank percentiles as extreme
+    event probabilities.
+    """
+
+    def __init__(
+        self,
+        isotonic_model: IsotonicRegression,
+        prior_probability: float,
+        learned_weight: float,
+    ) -> None:
+        self.isotonic_model = isotonic_model
+        self.prior_probability = float(prior_probability)
+        self.learned_weight = float(learned_weight)
+
+    def predict(self, scores: pd.Series | np.ndarray) -> np.ndarray:
+        values = np.asarray(scores, dtype=float).reshape(-1)
+        learned = np.asarray(self.isotonic_model.predict(values), dtype=float)
+        calibrated = (
+            self.learned_weight * learned
+            + (1.0 - self.learned_weight) * self.prior_probability
+        )
+        return np.clip(calibrated, 1e-6, 1.0 - 1e-6)
+
+
+def classifier_direction_scores(model: Any, X: pd.DataFrame) -> np.ndarray:
+    """Return a model's directional ranking score with a safe fallback."""
+    if hasattr(model, "predict_direction_score"):
+        values = model.predict_direction_score(X)
+    else:
+        values = model.predict_proba(X)[:, 1]
+    return np.clip(np.asarray(values, dtype=float).reshape(-1), 1e-6, 1.0 - 1e-6)
+
+
+def classification_oof_direction_scores(
+    oof_predictions: pd.DataFrame,
+    model_name: str,
+) -> pd.Series:
+    """Return row-complete OOF decision scores for current and legacy rows.
+
+    Checkpoints created before directional scores were persisted only contain
+    ``*_prob_up``. A resumed checkpoint can therefore have a score column for
+    new folds but NaN values for older folds. Always fall back *per row* so
+    thresholding, diversification, and ensembles retain the full OOF window.
+    """
+    probability_column = f"{model_name}_prob_up"
+    if probability_column not in oof_predictions.columns:
+        return pd.Series(index=oof_predictions.index, dtype=float)
+
+    probabilities = pd.to_numeric(
+        oof_predictions[probability_column],
+        errors="coerce",
+    ).replace([np.inf, -np.inf], np.nan)
+    direction_score_column = f"{model_name}_direction_score_up"
+    if direction_score_column not in oof_predictions.columns:
+        return probabilities.clip(lower=0.0, upper=1.0)
+
+    direction_scores = pd.to_numeric(
+        oof_predictions[direction_score_column],
+        errors="coerce",
+    ).replace([np.inf, -np.inf], np.nan)
+    return direction_scores.combine_first(probabilities).clip(lower=0.0, upper=1.0)
 
 
 def empirical_probability_percentiles(
@@ -572,6 +747,67 @@ def fit_probability_calibrator(
         return None, "none"
 
 
+def fit_rank_probability_calibrator(
+    percentile_scores: pd.Series | np.ndarray,
+    actual_labels: pd.Series | np.ndarray,
+    sample_weight: pd.Series | np.ndarray | list[float] | None = None,
+) -> tuple[Any | None, str]:
+    """Convert empirical score ranks into conservative event probabilities.
+
+    Empirical percentiles make fold-specific classifier scores comparable, but
+    a percentile is not itself a probability. Fit a monotone label-frequency
+    map on a strictly later, held-out slice and shrink it toward the observed
+    base rate before exposing it through ``predict_proba`` or confidence.
+    Directional decisions continue to use the separate percentile score.
+    """
+    scores = np.asarray(percentile_scores, dtype=float).reshape(-1)
+    labels = pd.Series(actual_labels).astype(int).to_numpy(dtype=int)
+    valid_mask = np.isfinite(scores) & np.isfinite(labels)
+    if valid_mask.sum() < 25:
+        return None, "none"
+
+    scores = scores[valid_mask]
+    labels = labels[valid_mask]
+    if len(np.unique(labels)) < 2:
+        return None, "none"
+
+    weight_values = None
+    if sample_weight is not None:
+        if isinstance(sample_weight, pd.Series):
+            raw_weight_values = pd.to_numeric(sample_weight, errors="coerce").to_numpy(dtype=float)
+        else:
+            raw_weight_values = np.asarray(sample_weight, dtype=float).reshape(-1)
+        if len(raw_weight_values) == len(valid_mask):
+            weight_values = np.nan_to_num(
+                raw_weight_values[valid_mask],
+                nan=1.0,
+                posinf=1.0,
+                neginf=1.0,
+            )
+            weight_values = np.clip(weight_values, 1e-6, None)
+
+    try:
+        isotonic = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip")
+        isotonic.fit(scores, labels, sample_weight=weight_values)
+        if weight_values is None:
+            prior_probability = float(np.mean(labels))
+            effective_rows = float(len(labels))
+        else:
+            prior_probability = float(np.average(labels, weights=weight_values))
+            # Time-decay weights are deliberately allowed to reduce the
+            # effective sample size in older folds and stale regimes.
+            effective_rows = float(np.sum(weight_values))
+        learned_weight = effective_rows / (effective_rows + 200.0)
+        calibrator = ShrunkIsotonicProbabilityCalibrator(
+            isotonic_model=isotonic,
+            prior_probability=prior_probability,
+            learned_weight=learned_weight,
+        )
+        return calibrator, "isotonic_empirical_cdf_holdout_shrunk"
+    except Exception:
+        return None, "none"
+
+
 def bootstrap_optional_model_dependencies(
     auto_install_catboost: bool = True,
     verbose: bool = False,
@@ -582,6 +818,12 @@ def bootstrap_optional_model_dependencies(
         "catboost_available": bool(CatBoostRegressor is not None and CatBoostClassifier is not None),
         "catboost_installed_now": False,
         "catboost_error": "",
+        "lightgbm_available": bool(LGBMRegressor is not None and LGBMClassifier is not None),
+        "lightgbm_challenger_enabled": bool(runtime_challenger_models_enabled()),
+        "compact_h30_regressor_enabled": bool(
+            runtime_compact_h30_regressor_enabled()
+        ),
+        "compact_h30_feature_count": COMPACT_H30_FEATURE_COUNT,
     }
     if status["catboost_available"] or not auto_install_catboost:
         OPTIONAL_MODEL_STATUS = status
@@ -2194,6 +2436,26 @@ def prune_feature_candidates(
     return selected, ranking, correlation_dropped
 
 
+def find_missing_daily_eth_dates(frame: pd.DataFrame) -> pd.DatetimeIndex:
+    """Return interior calendar dates missing a valid 24/7 ETH close."""
+    if frame is None or frame.empty or "eth_close" not in frame.columns:
+        return pd.DatetimeIndex([])
+    valid_eth_index = pd.DatetimeIndex(
+        pd.to_datetime(
+            pd.to_numeric(frame["eth_close"], errors="coerce").dropna().index
+        )
+    ).normalize()
+    valid_eth_index = valid_eth_index.drop_duplicates().sort_values()
+    if len(valid_eth_index) < 2:
+        return pd.DatetimeIndex([])
+    expected_eth_index = pd.date_range(
+        valid_eth_index.min(),
+        valid_eth_index.max(),
+        freq="D",
+    )
+    return expected_eth_index.difference(valid_eth_index)
+
+
 def update_market_data_cache(
     symbol_map: dict[str, str],
     dataset_csv: str | Path,
@@ -2208,6 +2470,7 @@ def update_market_data_cache(
     metadata: dict[str, Any] = {
         "used_cached_only": False,
         "refresh_start": "",
+        "gap_refresh_start": "",
         "refreshed_aliases": [],
         "fallback_cached_aliases": [],
         "failed_aliases": [],
@@ -2220,13 +2483,33 @@ def update_market_data_cache(
         return (fresh, metadata) if return_metadata else fresh
 
     latest_timestamp = cached.index.max()
-    refresh_start = pd.Timestamp(latest_timestamp) - (interval_to_offset(interval) * lookback_rows)
+    rolling_refresh_start = pd.Timestamp(latest_timestamp) - (
+        interval_to_offset(interval) * lookback_rows
+    )
+    refresh_start = rolling_refresh_start
+    missing_eth_dates = (
+        find_missing_daily_eth_dates(cached)
+        if interval.lower() == "1d"
+        else pd.DatetimeIndex([])
+    )
+    if len(missing_eth_dates):
+        # Re-fetch only from immediately before the oldest 24/7 ETH hole. This
+        # repairs an old interior gap without paying for a full multi-year
+        # download on every ephemeral CI checkout.
+        gap_refresh_start = pd.Timestamp(missing_eth_dates.min()) - pd.Timedelta(days=1)
+        refresh_start = min(refresh_start, gap_refresh_start)
+        metadata["gap_refresh_start"] = format_timestamp(gap_refresh_start)
     metadata["refresh_start"] = format_timestamp(refresh_start)
     log_progress(
         verbose,
         (
             f"Updating market dataset cache from {refresh_start.strftime('%Y-%m-%d %H:%M:%S')} "
             f"using {cache_path}..."
+            + (
+                f" (recovering ETH gap from {metadata['gap_refresh_start']})"
+                if metadata["gap_refresh_start"]
+                else ""
+            )
         ),
     )
 
@@ -3164,296 +3447,50 @@ def build_features(
 
 
 def catboost_regressor_params(horizon: int | None = None) -> dict[str, Any]:
-    params: dict[str, Any] = {
-        "loss_function": "MAE",
-        "iterations": 500,
-        "depth": 6,
-        "learning_rate": 0.04,
-        "l2_leaf_reg": 5.0,
-        "random_strength": 1.0,
-        "boosting_type": "Ordered",
-        "has_time": True,
-        "random_seed": 42,
-        "verbose": False,
-        "allow_writing_files": False,
-        "thread_count": -1,
-    }
-    if horizon is not None and horizon >= 30:
-        params.update(
-            {
-                "iterations": 650,
-                "depth": 5,
-                "learning_rate": 0.03,
-                "l2_leaf_reg": 8.0,
-                "random_strength": 1.5,
-                "bootstrap_type": "Bernoulli",
-                "subsample": 0.85,
-            }
-        )
-    return params
+    return registry_catboost_regressor_params(horizon)
 
 
 def catboost_classifier_params(horizon: int | None = None, multiclass: bool = False) -> dict[str, Any]:
-    params: dict[str, Any] = {
-        "loss_function": "MultiClass" if multiclass else "Logloss",
-        "iterations": 450,
-        "depth": 6,
-        "learning_rate": 0.04,
-        "l2_leaf_reg": 5.0,
-        "random_strength": 1.0,
-        "boosting_type": "Ordered",
-        "has_time": True,
-        "random_seed": 42,
-        "verbose": False,
-        "allow_writing_files": False,
-        "thread_count": -1,
-    }
-    if horizon is not None and horizon >= 30:
-        params.update(
-            {
-                "iterations": 650,
-                "depth": 5,
-                "learning_rate": 0.03,
-                "l2_leaf_reg": 8.0,
-                "random_strength": 1.5,
-                "bootstrap_type": "Bernoulli",
-                "subsample": 0.85,
-            }
-        )
-    if not multiclass and horizon is not None and horizon >= 30:
-        params["auto_class_weights"] = "Balanced"
-    return params
+    return registry_catboost_classifier_params(horizon, multiclass=multiclass)
 
 
 def make_models(horizon: int | None = None) -> dict[str, Any]:
     fast_mode = runtime_fast_mode_enabled()
-    models: dict[str, Any] = {
-        "ridge": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                ("model", Ridge(alpha=1.0)),
-            ]
-        ),
-        "random_forest": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    RandomForestRegressor(
-                        n_estimators=200,
-                        max_depth=10,
-                        min_samples_leaf=5,
-                        max_features="sqrt",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "extra_trees": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    ExtraTreesRegressor(
-                        n_estimators=300,
-                        max_depth=10,
-                        min_samples_leaf=4,
-                        max_features="sqrt",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "hist_gbr": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    HistGradientBoostingRegressor(
-                        loss="absolute_error",
-                        learning_rate=0.05,
-                        max_depth=5,
-                        max_iter=250,
-                        min_samples_leaf=12,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        ),
-        "knn_regressor": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    KNeighborsRegressor(
-                        n_neighbors=15,
-                        weights="distance",
-                    ),
-                ),
-            ]
-        ),
-    }
-    if not fast_mode:
-        models["mlp_regressor"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    MLPRegressor(
-                        hidden_layer_sizes=(64, 32),
-                        activation="relu",
-                        alpha=1e-4,
-                        learning_rate_init=1e-3,
-                        max_iter=300,
-                        early_stopping=True,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        )
-    if (not fast_mode) and CatBoostRegressor is not None:
-        models["catboost_regressor"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    CatBoostRegressor(**catboost_regressor_params(horizon=horizon)),
-                ),
-            ]
-        )
-    return models
+    challenger_cls = LGBMRegressor if runtime_challenger_models_enabled() else None
+    return build_regression_models(
+        horizon=horizon,
+        fast_mode=fast_mode,
+        imputer_factory=_make_median_imputer,
+        catboost_regressor_cls=CatBoostRegressor,
+        lightgbm_regressor_cls=challenger_cls,
+        compact_h30_regressor_enabled=runtime_compact_h30_regressor_enabled(),
+    )
 
 
 def make_classification_models(horizon: int | None = None) -> dict[str, Any]:
     fast_mode = runtime_fast_mode_enabled()
-    models: dict[str, Any] = {
-        "logistic": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    LogisticRegression(
-                        max_iter=1000,
-                        class_weight="balanced",
-                        random_state=42,
-                    ),
-                ),
-            ]
-        ),
-        "extra_trees_clf": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    ExtraTreesClassifier(
-                        n_estimators=300,
-                        max_depth=8,
-                        min_samples_leaf=4,
-                        max_features="sqrt",
-                        class_weight="balanced",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "random_forest_clf": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    RandomForestClassifier(
-                        n_estimators=200,
-                        max_depth=8,
-                        min_samples_leaf=5,
-                        max_features="sqrt",
-                        class_weight="balanced_subsample",
-                        random_state=42,
-                        n_jobs=-1,
-                    ),
-                ),
-            ]
-        ),
-        "knn_clf": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    KNeighborsClassifier(
-                        n_neighbors=15,
-                        weights="distance",
-                    ),
-                ),
-            ]
-        ),
-        "hist_gbc": Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    HistGradientBoostingClassifier(
-                        learning_rate=0.05,
-                        max_depth=5,
-                        max_iter=250,
-                        min_samples_leaf=12,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        ),
-    }
-    if not fast_mode:
-        models["mlp_clf"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    MLPClassifier(
-                        hidden_layer_sizes=(64, 32),
-                        activation="relu",
-                        alpha=1e-4,
-                        learning_rate_init=1e-3,
-                        max_iter=300,
-                        early_stopping=True,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        )
-    if (not fast_mode) and CatBoostClassifier is not None:
-        models["catboost_clf"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    CatBoostClassifier(**catboost_classifier_params(horizon=horizon)),
-                ),
-            ]
-        )
-    return models
+    challenger_cls = LGBMClassifier if runtime_challenger_models_enabled() else None
+    return build_classification_models(
+        horizon=horizon,
+        fast_mode=fast_mode,
+        imputer_factory=_make_median_imputer,
+        catboost_classifier_cls=CatBoostClassifier,
+        lightgbm_classifier_cls=challenger_cls,
+    )
 
 
 def make_state_classification_models(horizon: int | None = None) -> dict[str, Any]:
+    fast_mode = runtime_fast_mode_enabled()
     models = make_classification_models(horizon=horizon)
-    if (not runtime_fast_mode_enabled()) and CatBoostClassifier is not None:
-        models["catboost_clf"] = Pipeline(
-            steps=[
-                ("imputer", _make_median_imputer()),
-                (
-                    "model",
-                    CatBoostClassifier(**catboost_classifier_params(horizon=horizon, multiclass=True)),
-                ),
-            ]
-        )
-    return models
+    challenger_cls = LGBMClassifier if runtime_challenger_models_enabled() else None
+    return replace_state_classifiers(
+        models,
+        horizon=horizon,
+        fast_mode=fast_mode,
+        imputer_factory=_make_median_imputer,
+        catboost_classifier_cls=CatBoostClassifier,
+        lightgbm_classifier_cls=challenger_cls,
+    )
 
 
 def fit_holdout_calibrated_classifier(
@@ -3462,6 +3499,7 @@ def fit_holdout_calibrated_classifier(
     y_train: pd.Series,
     min_calibration_rows: int = DEFAULT_CALIBRATION_MIN_ROWS,
     sample_weight: pd.Series | np.ndarray | list[float] | None = None,
+    horizon: int | None = None,
 ) -> CalibratedProbabilityModel:
     """Retain the established holdout calibration for the 30-day head."""
     y_train = y_train.astype(int)
@@ -3471,30 +3509,33 @@ def fit_holdout_calibrated_classifier(
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    minimum_rows = max(min_calibration_rows + 80, 160)
+    calibration_gap_rows = max(int(horizon or 1), 1)
+    minimum_rows = max(min_calibration_rows + 80 + calibration_gap_rows, 160)
     if len(y_train) < minimum_rows:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
     calibration_rows = min(
         max(min_calibration_rows, len(y_train) // 5),
-        max(len(y_train) - 80, 0),
+        max(len(y_train) - 80 - calibration_gap_rows, 0),
     )
-    if calibration_rows <= 0 or len(y_train) - calibration_rows < 80:
+    calibration_start = len(y_train) - calibration_rows
+    fit_stop = calibration_start - calibration_gap_rows
+    if calibration_rows <= 0 or fit_stop < 80:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    X_fit = X_train.iloc[:-calibration_rows]
-    y_fit = y_train.iloc[:-calibration_rows]
-    X_calibration = X_train.iloc[-calibration_rows:]
-    y_calibration = y_train.iloc[-calibration_rows:]
+    X_fit = X_train.iloc[:fit_stop]
+    y_fit = y_train.iloc[:fit_stop]
+    X_calibration = X_train.iloc[calibration_start:]
+    y_calibration = y_train.iloc[calibration_start:]
     fit_sample_weight = (
-        aligned_sample_weight.iloc[:-calibration_rows]
+        aligned_sample_weight.iloc[:fit_stop]
         if aligned_sample_weight is not None
         else None
     )
     calibration_sample_weight = (
-        aligned_sample_weight.iloc[-calibration_rows:]
+        aligned_sample_weight.iloc[calibration_start:]
         if aligned_sample_weight is not None
         else None
     )
@@ -3533,17 +3574,18 @@ def fit_calibrated_classifier(
     sample_weight: pd.Series | np.ndarray | list[float] | None = None,
     horizon: int | None = None,
 ) -> CalibratedProbabilityModel:
-    """Fit the short-horizon classifier with recent-train CDF normalization.
+    """Fit the short-horizon classifier with rank-normalized calibration.
 
     The former holdout-isotonic path calibrated one fitted estimator and then
     attached that calibrator to a *different*, full-data refit. In expanding
     crypto folds the two estimators often had different probability scales,
-    which made otherwise useful rankings incomparable across dates. The new
-    mapping is estimated from the final estimator's own recent training scores
-    and therefore stays on the same scale. It is label-free and never reads a
-    test row, so it remains safe for purged walk-forward evaluation. The
-    already-passing 30-day head deliberately stays on the established holdout
-    calibration path until its own full OOF evidence supports a change.
+    which made otherwise useful rankings incomparable across dates. Empirical
+    ranks solve that scale mismatch, while a shrunk monotone label map fitted
+    on the held-out tail converts those ranks into event probabilities. The
+    final estimator uses its own recent training-score reference, so no test
+    row or label is read. The already-passing 30-day head stays on the
+    established holdout calibration path until its full OOF evidence supports
+    a change.
     """
     if horizon is not None and horizon > 7:
         return fit_holdout_calibrated_classifier(
@@ -3552,6 +3594,7 @@ def fit_calibrated_classifier(
             y_train,
             min_calibration_rows=min_calibration_rows,
             sample_weight=sample_weight,
+            horizon=horizon,
         )
 
     y_train = y_train.astype(int)
@@ -3561,13 +3604,71 @@ def fit_calibrated_classifier(
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    minimum_rows = max(min_calibration_rows, 160)
+    calibration_gap_rows = max(int(horizon or 1), 1)
+    minimum_rows = max(min_calibration_rows + 80 + calibration_gap_rows, 160)
     if len(y_train) < minimum_rows:
         fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
         return CalibratedProbabilityModel(base_model)
 
-    calibration_rows = min(int(min_calibration_rows), len(y_train))
+    calibration_rows = min(
+        int(min_calibration_rows),
+        max(len(y_train) - 80 - calibration_gap_rows, 0),
+    )
+    if calibration_rows < 25:
+        fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
+        return CalibratedProbabilityModel(base_model)
+
+    calibration_start = len(y_train) - calibration_rows
+    fit_stop = calibration_start - calibration_gap_rows
+    X_fit = X_train.iloc[:fit_stop]
+    y_fit = y_train.iloc[:fit_stop]
+    X_calibration = X_train.iloc[calibration_start:]
+    y_calibration = y_train.iloc[calibration_start:]
+    fit_sample_weight = (
+        aligned_sample_weight.iloc[:fit_stop]
+        if aligned_sample_weight is not None
+        else None
+    )
+    calibration_sample_weight = (
+        aligned_sample_weight.iloc[calibration_start:]
+        if aligned_sample_weight is not None
+        else None
+    )
+    if y_fit.nunique() < 2 or y_calibration.nunique() < 2:
+        fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
+        return CalibratedProbabilityModel(base_model)
+
+    calibration_model = clone(model_template)
+    fit_model_with_optional_sample_weight(
+        calibration_model,
+        X_fit,
+        y_fit,
+        fit_sample_weight,
+    )
+    reference_rows = min(calibration_rows, len(X_fit))
+    calibration_reference = np.clip(
+        calibration_model.predict_proba(X_fit.iloc[-reference_rows:])[:, 1],
+        1e-6,
+        1.0 - 1e-6,
+    )
+    heldout_raw_probabilities = np.clip(
+        calibration_model.predict_proba(X_calibration)[:, 1],
+        1e-6,
+        1.0 - 1e-6,
+    )
+    heldout_percentiles = empirical_probability_percentiles(
+        heldout_raw_probabilities,
+        calibration_reference,
+    )
+    calibrator, calibration_method = fit_rank_probability_calibrator(
+        heldout_percentiles,
+        y_calibration,
+        sample_weight=calibration_sample_weight,
+    )
+
     fit_model_with_optional_sample_weight(base_model, X_train, y_train, aligned_sample_weight)
+    if calibrator is None:
+        return CalibratedProbabilityModel(base_model)
     probability_reference = np.clip(
         base_model.predict_proba(X_train.iloc[-calibration_rows:])[:, 1],
         1e-6,
@@ -3575,9 +3676,9 @@ def fit_calibrated_classifier(
     )
     return CalibratedProbabilityModel(
         base_model,
-        calibrator=None,
+        calibrator=calibrator,
         calibration_rows=calibration_rows,
-        calibration_method="empirical_cdf_recent_train",
+        calibration_method=calibration_method,
         probability_reference=probability_reference,
         probability_mapping="empirical_cdf",
     )
@@ -4750,14 +4851,50 @@ def apply_direction_regime_overlay(
     return adjusted
 
 
+def apply_direction_live_gap_adjustment(
+    probabilities: pd.Series | np.ndarray,
+    feature_frame: pd.DataFrame,
+    live_gap: pd.Series | float | None,
+    max_shift: float = 0.015,
+) -> pd.Series:
+    """Apply only the signed post-candle move to a live probability or score.
+
+    The 7-day OOF ablation rejected the hand-written regime overlay, but OOF
+    cannot observe a price move that occurs after the final daily candle. Keep
+    that live-only information without reintroducing momentum, RSI, or trend
+    heuristics. An 8% or larger gap reaches the bounded 1.5 percentage-point
+    adjustment; smaller gaps scale linearly.
+    """
+    adjusted = pd.Series(
+        np.asarray(probabilities, dtype=float),
+        index=feature_frame.index,
+        dtype=float,
+    )
+    if adjusted.empty or live_gap is None:
+        return adjusted
+
+    if np.isscalar(live_gap):
+        live_gap_series = pd.Series(float(live_gap), index=feature_frame.index, dtype=float)
+    else:
+        live_gap_series = pd.to_numeric(pd.Series(live_gap), errors="coerce").reindex(feature_frame.index)
+    scaled_gap = live_gap_series.clip(lower=-0.08, upper=0.08).divide(0.08).fillna(0.0)
+    return (adjusted + float(max_shift) * scaled_gap).clip(lower=0.02, upper=0.98)
+
+
 def evaluate_direction_classification(
     actual_label: np.ndarray,
     predicted_label: np.ndarray,
     probability_up: np.ndarray,
+    direction_score_up: np.ndarray | None = None,
 ) -> dict[str, float]:
     actual = np.asarray(actual_label, dtype=int)
     predicted = np.asarray(predicted_label, dtype=int)
     probability_up = np.clip(probability_up, 1e-6, 1 - 1e-6)
+    ranking_score = (
+        probability_up
+        if direction_score_up is None
+        else np.clip(np.asarray(direction_score_up, dtype=float), 1e-6, 1 - 1e-6)
+    )
     if len(actual) == 0:
         return {
             "accuracy": float("nan"),
@@ -4786,7 +4923,7 @@ def evaluate_direction_classification(
         "brier_score": float(brier_score_loss(actual, probability_up)),
     }
     if len(np.unique(actual)) > 1:
-        metrics["roc_auc"] = float(roc_auc_score(actual, probability_up))
+        metrics["roc_auc"] = float(roc_auc_score(actual, ranking_score))
     else:
         metrics["roc_auc"] = float("nan")
     return metrics
@@ -5378,12 +5515,13 @@ def backtest_classification_models(
 
     for model_name in model_names:
         probabilities = pd.to_numeric(oof_predictions[f"{model_name}_prob_up"], errors="coerce")
-        valid_index = probabilities.dropna().index
+        direction_scores = classification_oof_direction_scores(oof_predictions, model_name)
+        valid_index = probabilities.dropna().index.intersection(direction_scores.dropna().index)
         if len(valid_index) == 0:
             continue
         _, best_metrics, best_curve = choose_threshold_via_nested_backtest(
             threshold_candidates=DEFAULT_CLASSIFICATION_THRESHOLD_GRID,
-            signal_builder=lambda threshold, series=probabilities: classification_signal_from_probabilities(series, threshold=threshold),
+            signal_builder=lambda threshold, series=direction_scores: classification_signal_from_probabilities(series, threshold=threshold),
             market_data=market_data,
             horizon=horizon,
             interval=interval,
@@ -5717,6 +5855,7 @@ def build_recent_holdout_report(
     rows: list[dict[str, Any]] = []
     regression_holdout_predictions: dict[str, pd.Series] = {}
     classification_holdout_probabilities: dict[str, pd.Series] = {}
+    classification_holdout_direction_scores: dict[str, pd.Series] = {}
     validation_scheme = "recent_holdout_purged"
 
     for model_name, template in make_models(horizon=horizon).items():
@@ -5857,22 +5996,35 @@ def build_recent_holdout_report(
             index=holdout_dataset.index,
             dtype=float,
         )
+        direction_scores = pd.Series(
+            classifier_direction_scores(model, holdout_dataset[feature_columns]),
+            index=holdout_dataset.index,
+            dtype=float,
+        )
         if horizon > 7:
             probabilities = apply_direction_regime_overlay(
                 probabilities,
                 holdout_dataset[feature_columns],
                 horizon=horizon,
             )
+            direction_scores = apply_direction_regime_overlay(
+                direction_scores,
+                holdout_dataset[feature_columns],
+                horizon=horizon,
+            )
         classification_holdout_probabilities[model_name] = probabilities.copy()
+        classification_holdout_direction_scores[model_name] = direction_scores.copy()
         selected_threshold = float((classification_thresholds or {}).get(model_name, DEFAULT_CLASSIFICATION_SIGNAL_THRESHOLD))
         _, effective_threshold = resolve_classification_signal_thresholds(selected_threshold)
         evaluation_probabilities = probabilities.loc[actual_labels.index]
+        evaluation_direction_scores = direction_scores.loc[actual_labels.index]
         classification_metrics = evaluate_direction_classification(
             actual_label=actual_labels.to_numpy(),
-            predicted_label=(evaluation_probabilities >= effective_threshold).astype(int).to_numpy(),
+            predicted_label=(evaluation_direction_scores >= effective_threshold).astype(int).to_numpy(),
             probability_up=evaluation_probabilities.to_numpy(),
+            direction_score_up=evaluation_direction_scores.to_numpy(),
         )
-        signal = classification_signal_from_probabilities(probabilities, threshold=selected_threshold)
+        signal = classification_signal_from_probabilities(direction_scores, threshold=selected_threshold)
         best_backtest, _ = run_signal_backtest(
             signal,
             market_data=market_data,
@@ -5907,6 +6059,7 @@ def build_recent_holdout_report(
         model_name
         for model_name in (classification_ensemble_members or [])
         if model_name in classification_holdout_probabilities
+        and model_name in classification_holdout_direction_scores
     ]
     if len(available_classification_members) >= 2:
         classification_skill_board = pd.DataFrame(
@@ -5927,6 +6080,21 @@ def build_recent_holdout_report(
             ),
             weights=classification_weights,
         ).clip(lower=0.0, upper=1.0)
+        direction_weights = derive_ensemble_weights_from_leaderboard(
+            classification_skill_board,
+            available_classification_members,
+            "balanced_accuracy",
+            higher_is_better=True,
+        )
+        ensemble_direction_score = skill_weighted_trimmed_mean(
+            pd.DataFrame(
+                {
+                    model_name: classification_holdout_direction_scores[model_name]
+                    for model_name in available_classification_members
+                }
+            ),
+            weights=direction_weights,
+        ).clip(lower=0.0, upper=1.0)
         selected_threshold = float(
             (classification_thresholds or {}).get(
                 TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL,
@@ -5935,12 +6103,14 @@ def build_recent_holdout_report(
         )
         _, effective_threshold = resolve_classification_signal_thresholds(selected_threshold)
         evaluation_probability = ensemble_probability.loc[actual_labels.index]
+        evaluation_direction_score = ensemble_direction_score.loc[actual_labels.index]
         classification_metrics = evaluate_direction_classification(
             actual_label=actual_labels.to_numpy(),
-            predicted_label=(evaluation_probability >= effective_threshold).astype(int).to_numpy(),
+            predicted_label=(evaluation_direction_score >= effective_threshold).astype(int).to_numpy(),
             probability_up=evaluation_probability.to_numpy(),
+            direction_score_up=evaluation_direction_score.to_numpy(),
         )
-        signal = classification_signal_from_probabilities(ensemble_probability, threshold=selected_threshold)
+        signal = classification_signal_from_probabilities(ensemble_direction_score, threshold=selected_threshold)
         best_backtest, _ = run_signal_backtest(
             signal,
             market_data=market_data,
@@ -6575,10 +6745,19 @@ def select_trimmed_classification_ensemble_members(
     ).reset_index(drop=True)
     pool_size = max_members + 2
     skill_ordered = [str(model_name) for model_name in frame["model"].tolist()[:pool_size]]
+    diversification_oof = oof_predictions
+    direction_score_suffix = "_prob_up"
+    if oof_predictions is not None:
+        diversification_oof = oof_predictions.copy()
+        for model_name in skill_ordered:
+            diversification_oof[f"{model_name}_direction_score_up"] = (
+                classification_oof_direction_scores(oof_predictions, model_name)
+            )
+        direction_score_suffix = "_direction_score_up"
     members = _greedy_diversify_members(
         skill_ordered_candidates=skill_ordered,
-        oof_predictions=oof_predictions,
-        prediction_column_suffix="_prob_up",
+        oof_predictions=diversification_oof,
+        prediction_column_suffix=direction_score_suffix,
         max_members=max_members,
     )
     if len(members) < 2:
@@ -7239,6 +7418,15 @@ def select_regression_forecast_model(
     macro_context = derive_macro_selection_context(latest_features, horizon or 30)
     macro_suffix = f"+{macro_context['selection_tag']}" if macro_context else ""
     if horizon_value >= 30:
+        promoted_model = PROMOTED_REGRESSION_MODEL_BY_HORIZON.get(horizon_value)
+        promoted_rows = regression_leaderboard.loc[
+            regression_leaderboard["model"].astype(str) == str(promoted_model)
+        ]
+        if promoted_model and not promoted_rows.empty:
+            return (
+                promoted_model,
+                f"promoted_full_oof_champion[{promoted_model}]{macro_suffix}",
+            )
         anchor_rows = regression_leaderboard.loc[
             regression_leaderboard["model"].astype(str) == NO_CHANGE_ANCHOR_MODEL
         ].copy()
@@ -7608,6 +7796,34 @@ def select_regression_forecast_model(
         na_position="last",
     ).reset_index(drop=True)
     return str(fallback_regression.loc[0, "model"]), f"leaderboard_price_rmse{macro_suffix}"
+
+
+def select_regression_interval_model(
+    regression_leaderboard: pd.DataFrame,
+    regression_backtest: pd.DataFrame | None = None,
+    recent_holdout_report: pd.DataFrame | None = None,
+    horizon: int | None = None,
+    latest_features: pd.Series | None = None,
+    prediction_feedback_summary: pd.DataFrame | None = None,
+    prediction_feedback_state_summary: pd.DataFrame | None = None,
+) -> tuple[str, str]:
+    """Select the learned interval head independently from a point anchor."""
+    if regression_leaderboard.empty or "model" not in regression_leaderboard.columns:
+        return "", "empirical_target_interval"
+    learned = regression_leaderboard.loc[
+        regression_leaderboard["model"].astype(str) != NO_CHANGE_ANCHOR_MODEL
+    ].copy()
+    if learned.empty:
+        return "", "empirical_target_interval"
+    return select_regression_forecast_model(
+        learned,
+        regression_backtest=regression_backtest,
+        recent_holdout_report=recent_holdout_report,
+        horizon=horizon,
+        latest_features=latest_features,
+        prediction_feedback_summary=prediction_feedback_summary,
+        prediction_feedback_state_summary=prediction_feedback_state_summary,
+    )
 
 
 def select_classification_forecast_model(
@@ -8130,6 +8346,7 @@ def walk_forward_classification(
     for model_name, template in models.items():
         log_progress(verbose, f"{label}[classification] fitting {model_name}")
         probabilities = pd.Series(index=dataset.index, dtype=float)
+        direction_scores = pd.Series(index=dataset.index, dtype=float)
         fold_count = 0
 
         for train_idx, test_idx in splitter.split(split_source):
@@ -8169,6 +8386,11 @@ def walk_forward_classification(
                 index=X_fold.iloc[prediction_positions].index,
                 dtype=float,
             )
+            direction_score_up = pd.Series(
+                classifier_direction_scores(model, X_fold.iloc[prediction_positions]),
+                index=X_fold.iloc[prediction_positions].index,
+                dtype=float,
+            )
             if gap > 7:
                 overlay_frame = (
                     dataset.iloc[prediction_positions]
@@ -8180,27 +8402,43 @@ def walk_forward_classification(
                     overlay_frame,
                     horizon=gap,
                 )
+                direction_score_up = apply_direction_regime_overlay(
+                    direction_score_up,
+                    overlay_frame,
+                    horizon=gap,
+                )
             probabilities.iloc[prediction_positions] = prob_up.to_numpy()
+            direction_scores.iloc[prediction_positions] = direction_score_up.to_numpy()
             fold_count += 1
 
-        valid_probabilities = probabilities.loc[y.notna()].dropna()
-        if valid_probabilities.empty or fold_count == 0:
+        valid_index = probabilities.loc[y.notna()].dropna().index.intersection(
+            direction_scores.loc[y.notna()].dropna().index
+        )
+        if len(valid_index) == 0 or fold_count == 0:
             continue
 
-        actual = y.loc[valid_probabilities.index].astype(int)
+        valid_probabilities = probabilities.loc[valid_index]
+        valid_direction_scores = direction_scores.loc[valid_index]
+        actual = y.loc[valid_index].astype(int)
         selected_threshold, metrics = choose_classification_evaluation_threshold(
             actual_label=actual,
             probability_up=valid_probabilities,
+            direction_score_up=valid_direction_scores,
             horizon=gap,
         )
-        predicted_label = pd.Series((probabilities >= selected_threshold).astype(float), index=dataset.index, dtype=float)
-        predicted_label[probabilities.isna()] = np.nan
+        predicted_label = pd.Series(
+            (direction_scores >= selected_threshold).astype(float),
+            index=dataset.index,
+            dtype=float,
+        )
+        predicted_label[direction_scores.isna()] = np.nan
         metrics["model"] = model_name
         metrics["folds"] = float(fold_count)
         metrics["signal_threshold"] = float(selected_threshold)
         rows.append(metrics)
 
         oof[f"{model_name}_prob_up"] = probabilities
+        oof[f"{model_name}_direction_score_up"] = direction_scores
         oof[f"{model_name}_pred_label"] = predicted_label
 
     if not rows:
@@ -8218,19 +8456,33 @@ def choose_classification_evaluation_threshold(
     actual_label: pd.Series | np.ndarray,
     probability_up: pd.Series | np.ndarray,
     *,
+    direction_score_up: pd.Series | np.ndarray | None = None,
     horizon: int | None = None,
 ) -> tuple[float, dict[str, Any]]:
     if isinstance(probability_up, pd.Series):
         probability_series = pd.to_numeric(probability_up, errors="coerce").astype(float)
     else:
         probability_series = pd.Series(np.asarray(probability_up, dtype=float), dtype=float)
+    if direction_score_up is None:
+        direction_score_series = probability_series.copy()
+    elif isinstance(direction_score_up, pd.Series):
+        direction_score_series = pd.to_numeric(direction_score_up, errors="coerce").reindex(
+            probability_series.index
+        )
+    else:
+        direction_score_series = pd.Series(
+            np.asarray(direction_score_up, dtype=float),
+            index=probability_series.index,
+            dtype=float,
+        )
     if isinstance(actual_label, pd.Series):
         actual_series = pd.to_numeric(actual_label, errors="coerce").reindex(probability_series.index)
     else:
         actual_series = pd.Series(np.asarray(actual_label, dtype=float), index=probability_series.index, dtype=float)
 
-    valid_mask = probability_series.notna() & actual_series.notna()
+    valid_mask = probability_series.notna() & direction_score_series.notna() & actual_series.notna()
     probability_series = probability_series.loc[valid_mask].clip(lower=1e-6, upper=1.0 - 1e-6)
+    direction_score_series = direction_score_series.loc[valid_mask].clip(lower=1e-6, upper=1.0 - 1e-6)
     actual_series = actual_series.loc[valid_mask].astype(int)
     best_threshold = float(resolve_classification_signal_thresholds(DEFAULT_CLASSIFICATION_SIGNAL_THRESHOLD)[1])
     if probability_series.empty or actual_series.empty:
@@ -8258,25 +8510,32 @@ def choose_classification_evaluation_threshold(
     if scheme == "full_sample":
         search_actual = actual_series
         search_probability = probability_series
+        search_direction_score = direction_score_series
         evaluation_actual = actual_series
         evaluation_probability = probability_series
+        evaluation_direction_score = direction_score_series
     else:
         search_actual = actual_series.loc[selection_index]
         search_probability = probability_series.loc[selection_index]
+        search_direction_score = direction_score_series.loc[selection_index]
         evaluation_actual = actual_series.loc[evaluation_index]
         evaluation_probability = probability_series.loc[evaluation_index]
+        evaluation_direction_score = direction_score_series.loc[evaluation_index]
         if search_actual.empty or evaluation_actual.empty:
             scheme = "full_sample"
             embargo_rows = 0
             search_actual = actual_series
             search_probability = probability_series
+            search_direction_score = direction_score_series
             evaluation_actual = actual_series
             evaluation_probability = probability_series
+            evaluation_direction_score = direction_score_series
 
     best_metrics = evaluate_direction_classification(
         actual_label=search_actual.to_numpy(dtype=int),
-        predicted_label=(search_probability.to_numpy(dtype=float) >= best_threshold).astype(int),
+        predicted_label=(search_direction_score.to_numpy(dtype=float) >= best_threshold).astype(int),
         probability_up=search_probability.to_numpy(dtype=float),
+        direction_score_up=search_direction_score.to_numpy(dtype=float),
     )
     best_score = (
         float(best_metrics["balanced_accuracy"]),
@@ -8288,8 +8547,9 @@ def choose_classification_evaluation_threshold(
         _, effective_threshold = resolve_classification_signal_thresholds(requested_threshold)
         metrics = evaluate_direction_classification(
             actual_label=search_actual.to_numpy(dtype=int),
-            predicted_label=(search_probability.to_numpy(dtype=float) >= effective_threshold).astype(int),
+            predicted_label=(search_direction_score.to_numpy(dtype=float) >= effective_threshold).astype(int),
             probability_up=search_probability.to_numpy(dtype=float),
+            direction_score_up=search_direction_score.to_numpy(dtype=float),
         )
         score = (
             float(metrics["balanced_accuracy"]),
@@ -8303,8 +8563,9 @@ def choose_classification_evaluation_threshold(
 
     best_metrics = evaluate_direction_classification(
         actual_label=evaluation_actual.to_numpy(dtype=int),
-        predicted_label=(evaluation_probability.to_numpy(dtype=float) >= best_threshold).astype(int),
+        predicted_label=(evaluation_direction_score.to_numpy(dtype=float) >= best_threshold).astype(int),
         probability_up=evaluation_probability.to_numpy(dtype=float),
+        direction_score_up=evaluation_direction_score.to_numpy(dtype=float),
     )
     best_metrics = annotate_threshold_validation_metrics(
         best_metrics,
@@ -8550,29 +8811,52 @@ def append_trimmed_classification_ensemble_candidate(
         oof_predictions[[f"{model_name}_prob_up" for model_name in available_models]],
         weights=weights_by_column,
     ).clip(lower=0.0, upper=1.0)
-    valid_probability = ensemble_probability.dropna()
-    if valid_probability.empty:
+    direction_frame = pd.DataFrame(
+        {
+            model_name: classification_oof_direction_scores(oof_predictions, model_name)
+            for model_name in available_models
+        },
+        index=oof_predictions.index,
+    )
+    direction_weights_by_model = derive_ensemble_weights_from_leaderboard(
+        leaderboard,
+        available_models,
+        "balanced_accuracy",
+        higher_is_better=True,
+    )
+    ensemble_direction_score = skill_weighted_trimmed_mean(
+        direction_frame,
+        weights=direction_weights_by_model,
+    ).clip(lower=0.0, upper=1.0)
+    valid_index = ensemble_probability.dropna().index.intersection(
+        ensemble_direction_score.dropna().index
+    )
+    if len(valid_index) == 0:
         return leaderboard, oof_predictions
 
     updated_oof = oof_predictions.copy()
-    actual_target = get_direction_classification_target(dataset, horizon).loc[valid_probability.index]
-    valid_evaluation = actual_target.notna() & valid_probability.notna()
+    actual_target = get_direction_classification_target(dataset, horizon).loc[valid_index]
+    valid_evaluation = actual_target.notna()
     if not valid_evaluation.any():
         return leaderboard, oof_predictions
     actual = actual_target.loc[valid_evaluation].astype(int)
-    evaluation_probability = valid_probability.loc[valid_evaluation]
+    evaluation_index = actual.index
+    evaluation_probability = ensemble_probability.loc[evaluation_index]
+    evaluation_direction_score = ensemble_direction_score.loc[evaluation_index]
     selected_threshold, metrics = choose_classification_evaluation_threshold(
         actual_label=actual,
         probability_up=evaluation_probability,
+        direction_score_up=evaluation_direction_score,
         horizon=horizon,
     )
     predicted_label = pd.Series(
-        (ensemble_probability >= selected_threshold).astype(float),
+        (ensemble_direction_score >= selected_threshold).astype(float),
         index=dataset.index,
         dtype=float,
     )
-    predicted_label[ensemble_probability.isna()] = np.nan
+    predicted_label[ensemble_direction_score.isna()] = np.nan
     updated_oof[f"{TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL}_prob_up"] = ensemble_probability
+    updated_oof[f"{TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL}_direction_score_up"] = ensemble_direction_score
     updated_oof[f"{TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL}_pred_label"] = predicted_label
 
     metrics["model"] = TRIMMED_CLASSIFICATION_ENSEMBLE_MODEL
@@ -8580,19 +8864,41 @@ def append_trimmed_classification_ensemble_candidate(
     metrics["signal_threshold"] = float(selected_threshold)
     metrics["component_models"] = "|".join(available_models)
 
-    # Phase 2.5 best-single guard: skip the blend when its Brier score is
-    # worse than every member's. The selector can still pick the best single
-    # model; shipping an inferior ensemble row only confuses ranking.
+    # Keep a direction-improving blend when its calibrated probability cost is
+    # small. Direction and event probability are separate objectives now: a
+    # strict best-Brier-only guard discarded rank blends that materially
+    # improved balanced accuracy while remaining within calibration noise.
     member_brier = pd.to_numeric(
         leaderboard.set_index("model").reindex(available_models).get("brier_score"),
         errors="coerce",
     )
     best_member_brier = float(member_brier.min()) if member_brier.notna().any() else float("nan")
     ensemble_brier = float(metrics.get("brier_score", float("nan")))
+    member_balanced_accuracy = pd.to_numeric(
+        leaderboard.set_index("model").reindex(available_models).get("balanced_accuracy"),
+        errors="coerce",
+    )
+    best_member_balanced_accuracy = (
+        float(member_balanced_accuracy.max())
+        if member_balanced_accuracy.notna().any()
+        else float("nan")
+    )
+    ensemble_balanced_accuracy = float(metrics.get("balanced_accuracy", float("nan")))
+    direction_improves = (
+        np.isfinite(best_member_balanced_accuracy)
+        and np.isfinite(ensemble_balanced_accuracy)
+        and ensemble_balanced_accuracy >= best_member_balanced_accuracy + 0.005
+    )
+    calibration_cost_is_bounded = (
+        np.isfinite(best_member_brier)
+        and np.isfinite(ensemble_brier)
+        and ensemble_brier <= best_member_brier * 1.03
+    )
     if (
         np.isfinite(best_member_brier)
         and np.isfinite(ensemble_brier)
         and ensemble_brier > best_member_brier
+        and not (direction_improves and calibration_cost_is_bounded)
     ):
         return leaderboard, oof_predictions
 
@@ -9184,6 +9490,7 @@ def calibrate_direction_confidence(
     selection_basis: str,
     predicted_direction: str,
     probability_up: float,
+    direction_score_up: float | None = None,
     lower_threshold: float,
     upper_threshold: float,
     classification_leaderboard: pd.DataFrame | None,
@@ -9191,7 +9498,17 @@ def calibrate_direction_confidence(
     recent_holdout_report: pd.DataFrame | None,
     horizon: int,
 ) -> float:
-    raw_confidence = float(max(probability_up, 1.0 - probability_up))
+    probability_up = float(np.clip(probability_up, 0.0, 1.0))
+    if predicted_direction == "UP":
+        raw_confidence = probability_up
+    elif predicted_direction == "DOWN":
+        raw_confidence = 1.0 - probability_up
+    else:
+        # The binary probability head has no explicit FLAT class. Treat an
+        # abstention conservatively instead of presenting either directional
+        # class probability as confidence in FLAT.
+        raw_confidence = min(probability_up, 1.0 - probability_up)
+    decision_score = float(probability_up if direction_score_up is None else direction_score_up)
     selection_basis_text = str(selection_basis)
     leaderboard_row = selected_leaderboard_row(classification_leaderboard, model_name)
     backtest_row = selected_backtest_row(classification_backtest, model_name)
@@ -9204,14 +9521,14 @@ def calibrate_direction_confidence(
 
     if predicted_direction == "UP":
         margin = np.clip(
-            (probability_up - upper_threshold) / max(1.0 - upper_threshold, 1e-6),
+            (decision_score - upper_threshold) / max(1.0 - upper_threshold, 1e-6),
             0.0,
             1.0,
         )
         decision_scale = float(0.45 + 0.55 * margin)
     elif predicted_direction == "DOWN":
         margin = np.clip(
-            (lower_threshold - probability_up) / max(lower_threshold, 1e-6),
+            (lower_threshold - decision_score) / max(lower_threshold, 1e-6),
             0.0,
             1.0,
         )
@@ -9299,13 +9616,13 @@ def determine_signal_tier(
     backtest_ok = positive_performance(backtest_row)
     holdout_ok = positive_performance(holdout_row)
     classification_direction = str(classification_forecast.predicted_direction or "FLAT")
-    probability_edge = float(abs(classification_forecast.probability_up - classification_forecast.probability_down))
-    strong_probability = probability_edge >= (0.18 if horizon <= 7 else 0.45)
+    direction_edge = float(abs(2.0 * classification_forecast.direction_score_up - 1.0))
+    strong_probability = direction_edge >= (0.18 if horizon <= 7 else 0.45)
     strong_hybrid = abs(float(hybrid_score)) >= (0.18 if horizon <= 7 else 0.30)
     majority_count = int(consensus["majority_count"])
     cv_weak_selection = "cv_weak" in str(classification_forecast.selection_basis)
     if cv_weak_selection:
-        strong_probability = probability_edge >= (0.32 if horizon <= 7 else 0.58)
+        strong_probability = direction_edge >= (0.32 if horizon <= 7 else 0.58)
         if not holdout_ok:
             backtest_ok = False
 
@@ -9939,7 +10256,7 @@ def build_hybrid_forecast(
     reversal_score = float(
         effective_reversal_forecast.probability_bottom_reversal - effective_reversal_forecast.probability_top_reversal
     ) * reversal_reliability
-    direction_score = float(classification_forecast.probability_up - classification_forecast.probability_down)
+    direction_score = float(2.0 * classification_forecast.direction_score_up - 1.0)
     forecast_score = compute_forecast_score(regression_forecast.predicted_return, training_target)
     fundamental_score = compute_slow_fundamental_score(pd.Series(latest_features))
     live_gap_pct = 0.0
@@ -9983,9 +10300,9 @@ def build_hybrid_forecast(
     if effective_reversal_forecast.confidence < (0.48 if horizon <= 7 else 0.45) or predicted_reversal_signal == "NONE":
         predicted_reversal_signal = "NONE"
 
-    if hybrid_score >= (0.14 if horizon <= 7 else 0.16) and classification_forecast.probability_up >= 0.50:
+    if hybrid_score >= (0.14 if horizon <= 7 else 0.16) and classification_forecast.direction_score_up >= 0.50:
         bias_direction = "UP"
-    elif hybrid_score <= -(0.14 if horizon <= 7 else 0.16) and classification_forecast.probability_up <= 0.50:
+    elif hybrid_score <= -(0.14 if horizon <= 7 else 0.16) and classification_forecast.direction_score_up <= 0.50:
         bias_direction = "DOWN"
     else:
         bias_direction = "FLAT"
@@ -10295,6 +10612,8 @@ def forecast_next_step(
     regression_backtest: pd.DataFrame | None = None,
     recent_holdout_report: pd.DataFrame | None = None,
     prediction_feedback_summary: pd.DataFrame | None = None,
+    interval_model_name: str | None = None,
+    interval_selection_basis: str | None = None,
 ) -> ForecastResult:
     selection_basis_text = str(selection_basis)
     score_frame = build_regression_model_score_frame(
@@ -10313,6 +10632,46 @@ def forecast_next_step(
         else 0.0
     )
     if model_name == NO_CHANGE_ANCHOR_MODEL:
+        if interval_model_name and interval_model_name != NO_CHANGE_ANCHOR_MODEL:
+            interval_forecast = forecast_next_step(
+                training_dataset=training_dataset,
+                prediction_frame=prediction_frame,
+                feature_columns=feature_columns,
+                interval=interval,
+                horizon=horizon,
+                model_name=interval_model_name,
+                selection_basis=(
+                    interval_selection_basis or "independent_interval_selection"
+                ),
+                price_reference=price_reference,
+                sample_weight=sample_weight,
+                regression_oof_predictions=regression_oof_predictions,
+                regression_leaderboard=regression_leaderboard,
+                regression_backtest=regression_backtest,
+                recent_holdout_report=recent_holdout_report,
+                prediction_feedback_summary=prediction_feedback_summary,
+            )
+            lower_return = min(float(interval_forecast.lower_return_10), 0.0)
+            upper_return = max(float(interval_forecast.upper_return_90), 0.0)
+            return ForecastResult(
+                model_name=model_name,
+                selection_basis=(
+                    f"{selection_basis_text}+point_anchor+"
+                    f"independent_conformal_interval[{interval_model_name}]"
+                ),
+                prediction_timestamp=interval_forecast.prediction_timestamp,
+                horizon_steps=horizon,
+                model_input_close=model_input_close,
+                last_close=last_close,
+                reference_price_source=price_reference.source,
+                reference_price_timestamp=price_reference.timestamp,
+                predicted_return=0.0,
+                predicted_close=last_close,
+                lower_return_10=lower_return,
+                lower_close_10=last_close * (1.0 + lower_return),
+                upper_return_90=upper_return,
+                upper_close_90=last_close * (1.0 + upper_return),
+            )
         recent_target = (
             pd.to_numeric(training_dataset["target_return"], errors="coerce").dropna()
             if "target_return" in training_dataset.columns
@@ -10560,6 +10919,7 @@ def forecast_direction(
         if len(component_models) < 2:
             component_models = []
         component_probabilities: dict[str, float] = {}
+        component_direction_scores: dict[str, float] = {}
         for component_model in component_models:
             try:
                 component_classifier = fit_best_classifier(
@@ -10576,6 +10936,11 @@ def forecast_direction(
                 index=latest_features.index,
                 dtype=float,
             )
+            component_direction_score_series = pd.Series(
+                classifier_direction_scores(component_classifier, latest_features),
+                index=latest_features.index,
+                dtype=float,
+            )
             if horizon > 7:
                 component_probability_series = apply_direction_regime_overlay(
                     component_probability_series,
@@ -10583,10 +10948,30 @@ def forecast_direction(
                     horizon=horizon,
                     live_gap=live_gap,
                 )
+                component_direction_score_series = apply_direction_regime_overlay(
+                    component_direction_score_series,
+                    latest_features,
+                    horizon=horizon,
+                    live_gap=live_gap,
+                )
+            else:
+                component_probability_series = apply_direction_live_gap_adjustment(
+                    component_probability_series,
+                    latest_features,
+                    live_gap=live_gap,
+                )
+                component_direction_score_series = apply_direction_live_gap_adjustment(
+                    component_direction_score_series,
+                    latest_features,
+                    live_gap=live_gap,
+                )
             component_probability = float(component_probability_series.iloc[0])
+            component_direction_score = float(component_direction_score_series.iloc[0])
             component_probabilities[component_model] = component_probability
+            component_direction_scores[component_model] = component_direction_score
         if len(component_probabilities) < 2:
             probability_up = 0.5
+            direction_score_up = 0.5
             selection_basis = f"{selection_basis}+insufficient_actionable_labels"
         else:
             classification_weights = derive_ensemble_weights_from_leaderboard(
@@ -10596,6 +10981,18 @@ def forecast_direction(
                 skill_weighted_trimmed_mean(
                     pd.DataFrame([component_probabilities], index=latest_features.index),
                     weights=classification_weights,
+                ).iloc[0]
+            )
+            direction_weights = derive_ensemble_weights_from_leaderboard(
+                classification_leaderboard,
+                list(component_direction_scores.keys()),
+                "balanced_accuracy",
+                higher_is_better=True,
+            )
+            direction_score_up = float(
+                skill_weighted_trimmed_mean(
+                    pd.DataFrame([component_direction_scores], index=latest_features.index),
+                    weights=direction_weights,
                 ).iloc[0]
             )
             selection_basis = f"{selection_basis}+skill_weighted[{ '|'.join(component_probabilities.keys()) }]"
@@ -10613,6 +11010,11 @@ def forecast_direction(
                 index=latest_features.index,
                 dtype=float,
             )
+            direction_score_series = pd.Series(
+                classifier_direction_scores(model, latest_features),
+                index=latest_features.index,
+                dtype=float,
+            )
             if horizon > 7:
                 probability_series = apply_direction_regime_overlay(
                     probability_series,
@@ -10620,15 +11022,34 @@ def forecast_direction(
                     horizon=horizon,
                     live_gap=live_gap,
                 )
+                direction_score_series = apply_direction_regime_overlay(
+                    direction_score_series,
+                    latest_features,
+                    horizon=horizon,
+                    live_gap=live_gap,
+                )
+            else:
+                probability_series = apply_direction_live_gap_adjustment(
+                    probability_series,
+                    latest_features,
+                    live_gap=live_gap,
+                )
+                direction_score_series = apply_direction_live_gap_adjustment(
+                    direction_score_series,
+                    latest_features,
+                    live_gap=live_gap,
+                )
             probability_up = float(probability_series.iloc[0])
+            direction_score_up = float(direction_score_series.iloc[0])
         except ValueError:
             probability_up = 0.5
+            direction_score_up = 0.5
             selection_basis = f"{selection_basis}+insufficient_actionable_labels"
     probability_down = float(1.0 - probability_up)
     lower_threshold, upper_threshold = resolve_classification_signal_thresholds(signal_threshold)
-    if probability_up >= upper_threshold:
+    if direction_score_up >= upper_threshold:
         predicted_direction = "UP"
-    elif probability_up <= lower_threshold:
+    elif direction_score_up <= lower_threshold:
         predicted_direction = "DOWN"
     else:
         predicted_direction = "FLAT"
@@ -10637,6 +11058,7 @@ def forecast_direction(
         selection_basis=selection_basis,
         predicted_direction=predicted_direction,
         probability_up=probability_up,
+        direction_score_up=direction_score_up,
         lower_threshold=lower_threshold,
         upper_threshold=upper_threshold,
         classification_leaderboard=classification_leaderboard,
@@ -10658,6 +11080,7 @@ def forecast_direction(
         reference_price_timestamp=price_reference.timestamp,
         predicted_direction=predicted_direction,
         signal_threshold=upper_threshold,
+        direction_score_up=direction_score_up,
         probability_up=probability_up,
         probability_down=probability_down,
         confidence=confidence,
@@ -11011,7 +11434,10 @@ def run_horizon_pipeline(
     classification_backtest = augment_backtest_with_macro_bucket(
         classification_backtest,
         signal_builder=lambda model_name, row: classification_signal_from_probabilities(
-            classification_oof_predictions[f"{model_name}_prob_up"],
+            classification_oof_direction_scores(
+                classification_oof_predictions,
+                model_name,
+            ),
             threshold=float(
                 pd.to_numeric(row.get("signal_threshold"), errors="coerce")
                 if pd.notna(pd.to_numeric(row.get("signal_threshold"), errors="coerce"))
@@ -11127,6 +11553,21 @@ def run_horizon_pipeline(
         prediction_feedback_summary=prediction_feedback_summary,
         prediction_feedback_state_summary=prediction_feedback_state_summary,
     )
+    regression_interval_model = ""
+    regression_interval_selection_basis = "empirical_target_interval"
+    if best_regression_model == NO_CHANGE_ANCHOR_MODEL:
+        (
+            regression_interval_model,
+            regression_interval_selection_basis,
+        ) = select_regression_interval_model(
+            regression_leaderboard,
+            regression_backtest=regression_backtest,
+            recent_holdout_report=recent_holdout_report,
+            horizon=horizon,
+            latest_features=prediction_frame.iloc[-1],
+            prediction_feedback_summary=prediction_feedback_summary,
+            prediction_feedback_state_summary=prediction_feedback_state_summary,
+        )
     best_classification_model, classification_selection_basis = select_classification_forecast_model(
         classification_leaderboard,
         classification_backtest,
@@ -11253,6 +11694,8 @@ def run_horizon_pipeline(
         regression_backtest=regression_backtest,
         recent_holdout_report=recent_holdout_report,
         prediction_feedback_summary=prediction_feedback_summary,
+        interval_model_name=regression_interval_model,
+        interval_selection_basis=regression_interval_selection_basis,
     )
     classification_forecast = forecast_direction(
         training_dataset=training_dataset,
@@ -11524,6 +11967,7 @@ def build_latest_forecast_summary(artifacts: PipelineArtifacts) -> pd.DataFrame:
                 "classification_selection_basis": horizon_artifacts.classification_forecast.selection_basis,
                 "classification_predicted_direction": horizon_artifacts.classification_forecast.predicted_direction,
                 "classification_signal_threshold": horizon_artifacts.classification_forecast.signal_threshold,
+                "classification_direction_score_up": horizon_artifacts.classification_forecast.direction_score_up,
                 "classification_probability_up": horizon_artifacts.classification_forecast.probability_up,
                 "classification_probability_down": horizon_artifacts.classification_forecast.probability_down,
                 "classification_confidence": horizon_artifacts.classification_forecast.confidence,
@@ -11698,6 +12142,7 @@ def build_compact_dashboard(artifacts: PipelineArtifacts) -> pd.DataFrame:
                 "classification_selection_basis": horizon_artifacts.classification_forecast.selection_basis,
                 "classification_predicted_direction": horizon_artifacts.classification_forecast.predicted_direction,
                 "classification_signal_threshold": horizon_artifacts.classification_forecast.signal_threshold,
+                "classification_direction_score_up": horizon_artifacts.classification_forecast.direction_score_up,
                 "classification_probability_up": horizon_artifacts.classification_forecast.probability_up,
                 "classification_probability_down": horizon_artifacts.classification_forecast.probability_down,
                 "classification_backtest_total_return": classification_backtest.get("total_return"),
@@ -11922,7 +12367,10 @@ def run_suite(
                 "Optional model status: "
                 f"catboost_available={optional_model_status.get('catboost_available')}, "
                 f"catboost_installed_now={optional_model_status.get('catboost_installed_now')}, "
-                f"catboost_error={optional_model_status.get('catboost_error') or 'none'}"
+                f"catboost_error={optional_model_status.get('catboost_error') or 'none'}, "
+                f"lightgbm_available={optional_model_status.get('lightgbm_available')}, "
+                "lightgbm_challenger_enabled="
+                f"{optional_model_status.get('lightgbm_challenger_enabled')}"
             ),
         )
         if fast_mode:
@@ -12435,7 +12883,7 @@ def summarize_artifacts(artifacts: PipelineArtifacts) -> dict[str, Any]:
         }
 
     return {
-        "optional_models": normalize_nested_payload(OPTIONAL_MODEL_STATUS),
+        "optional_models": normalize_nested_payload(current_optional_model_status()),
         "run_status": "partial_success" if artifacts.failed_horizons else "ok",
         "failed_horizons": normalize_nested_payload(artifacts.failed_horizons),
         "horizons": horizons,
@@ -12744,7 +13192,10 @@ def main(argv: list[str] | None = None) -> None:
         "  Optional models: "
         f"catboost_available={optional_models.get('catboost_available')}, "
         f"catboost_installed_now={optional_models.get('catboost_installed_now')}, "
-        f"catboost_error={optional_models.get('catboost_error') or 'none'}"
+        f"catboost_error={optional_models.get('catboost_error') or 'none'}, "
+        f"lightgbm_available={optional_models.get('lightgbm_available')}, "
+        "lightgbm_challenger_enabled="
+        f"{optional_models.get('lightgbm_challenger_enabled')}"
     )
     failed_horizons = payload.get("failed_horizons", [])
     if failed_horizons:

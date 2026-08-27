@@ -25,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 
@@ -59,14 +60,23 @@ def sweep_one_model(predictions: list[dict], horizon: int, model: str) -> list[d
     if n_total == 0:
         return []
 
-    # Base rates over the full OOF.
+    # Base rates over the full OOF. New artifacts keep the directional rank
+    # separate from the label-calibrated event probability; old freezes fall
+    # back to probability_up for backward compatibility.
     base_up_rate = sum(1 for r in rows if r["actual_label"] == 1) / n_total
+
+    def decision_score_up(row: dict) -> float:
+        try:
+            score = float(row.get("direction_score_up"))
+        except (TypeError, ValueError):
+            score = float("nan")
+        return score if math.isfinite(score) else float(row["probability_up"])
 
     out = []
     for thr in THRESHOLDS:
-        # Two-sided signal: confident UP (prob >= thr) OR confident DOWN (prob <= 1-thr).
-        signals_up   = [r for r in rows if r["probability_up"] >= thr]
-        signals_down = [r for r in rows if r["probability_up"] <= (1 - thr)]
+        # Two-sided signal: confident UP (score >= thr) or DOWN (score <= 1-thr).
+        signals_up   = [r for r in rows if decision_score_up(r) >= thr]
+        signals_down = [r for r in rows if decision_score_up(r) <= (1 - thr)]
         n_up         = len(signals_up)
         n_down       = len(signals_down)
         n_signal     = n_up + n_down

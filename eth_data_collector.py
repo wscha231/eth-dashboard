@@ -55,6 +55,7 @@ from eth_price_forecast import (
     DEFAULT_STALE_VENDOR_MAX_AGE_DAYS,
     DEFAULT_TICKERS,
     build_external_feature_summary,
+    find_missing_daily_eth_dates,
     format_timestamp,
     load_external_feature_csvs,
     load_market_data_csv,
@@ -262,6 +263,18 @@ def merge_history_frame(
     incoming: pd.DataFrame,
     overwrite_start: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
+    """Merge a refreshed numeric history without preserving old holes.
+
+    ``overwrite_start`` limits replacement of already-present values; it must
+    not limit backfilling.  The previous implementation trimmed the incoming
+    frame at that boundary before merging.  When the tracked master ended
+    before the refresh window, the union added the intervening dates but the
+    trim left every value on those new rows null.
+
+    Incoming observations now fill missing cells across the full history,
+    while non-null historical values are replaced only inside the requested
+    refresh window.
+    """
     existing = normalize_index(existing) if existing is not None and not existing.empty else pd.DataFrame()
     incoming = normalize_index(incoming) if incoming is not None and not incoming.empty else pd.DataFrame()
     incoming = drop_all_null_rows(incoming)
@@ -273,9 +286,6 @@ def merge_history_frame(
     combined_index = existing.index.union(incoming.index)
     merged = existing.reindex(combined_index).copy()
     patch = incoming.reindex(combined_index)
-    if overwrite_start is not None:
-        overwrite_start = pd.Timestamp(overwrite_start).floor("D")
-        patch = patch.loc[patch.index >= overwrite_start]
     patch = drop_all_null_rows(patch)
     if patch.empty:
         return normalize_index(merged)
@@ -283,12 +293,55 @@ def merge_history_frame(
     for column in patch.columns:
         incoming_col = pd.to_numeric(patch[column], errors="coerce")
         if column in merged.columns:
-            base_col = pd.to_numeric(merged.loc[patch.index, column], errors="coerce")
-            merged.loc[patch.index, column] = incoming_col.combine_first(base_col)
+            base_col = pd.to_numeric(merged[column], errors="coerce")
         else:
-            merged[column] = np.nan
-            merged.loc[patch.index, column] = incoming_col
+            base_col = pd.Series(np.nan, index=combined_index, dtype=float)
+
+        # Preserve established history but fill every missing cell, including
+        # new rows that fall before the rolling overwrite window.
+        combined_col = base_col.combine_first(incoming_col).reindex(combined_index)
+        if overwrite_start is None:
+            combined_col = incoming_col.combine_first(base_col).reindex(combined_index)
+        else:
+            refresh_start = pd.Timestamp(overwrite_start).floor("D")
+            refresh_index = patch.index[patch.index >= refresh_start]
+            if len(refresh_index):
+                combined_col.loc[refresh_index] = incoming_col.loc[
+                    refresh_index
+                ].combine_first(base_col.loc[refresh_index])
+        merged[column] = combined_col
     return normalize_index(merged)
+
+
+def seed_market_cache_from_master(
+    cache_path: str | Path,
+    master_data: pd.DataFrame,
+) -> bool:
+    """Seed an absent raw market cache from the durable master dataset.
+
+    GitHub Actions checks out only tracked files, while the raw cache is
+    ignored. Reusing the restored master avoids a full-history Yahoo request
+    on every daily run and still lets ``update_market_data_cache`` refresh its
+    normal rolling lookback.
+    """
+    destination = Path(cache_path)
+    if destination.exists() or master_data is None or master_data.empty:
+        return False
+
+    prefixes = tuple(f"{alias}_" for alias in DEFAULT_TICKERS)
+    market_columns = [
+        column for column in master_data.columns if str(column).startswith(prefixes)
+    ]
+    if "eth_close" not in market_columns:
+        return False
+
+    seed = normalize_index(master_data[market_columns].copy())
+    eth_close = pd.to_numeric(seed["eth_close"], errors="coerce").dropna()
+    if eth_close.empty:
+        return False
+    seed = seed.reindex(eth_close.index)
+    save_market_data_csv(seed, destination)
+    return True
 
 
 def append_history_csv(
@@ -1727,6 +1780,9 @@ def collect_sources(
     market_notes: list[str] = []
     fallback_aliases = [str(alias) for alias in market_meta.get("fallback_cached_aliases", [])]
     failed_aliases = [str(alias) for alias in market_meta.get("failed_aliases", [])]
+    gap_refresh_start = str(market_meta.get("gap_refresh_start", "")).strip()
+    if gap_refresh_start:
+        market_notes.append(f"recovered_eth_gap_from={gap_refresh_start}")
     if bool(market_meta.get("used_cached_only")):
         market_status = "warning"
         market_notes.append("refresh_failed_all_symbols_using_cached_data")
@@ -2464,6 +2520,11 @@ def main(argv: list[str] | None = None) -> None:
     verbose = (not args.quiet) and (not args.json)
     set_day_boundary_tz(args.day_boundary_tz)
     existing_master = load_market_data_csv(paths.master_data_csv)
+    if seed_market_cache_from_master(paths.market_cache_csv, existing_master):
+        log_progress(
+            verbose,
+            f"Seeded market cache from existing master data at {paths.market_cache_csv}.",
+        )
     today = utc_today()
     default_full_start = today - pd.Timedelta(days=365 * 8)
     if str(args.start_date).strip():
@@ -2503,6 +2564,15 @@ def main(argv: list[str] | None = None) -> None:
     )
     if not existing_master.empty:
         master_data = merge_history_frame(existing_master, master_data, overwrite_start=start_date)
+
+    remaining_eth_gaps = find_missing_daily_eth_dates(master_data)
+    if len(remaining_eth_gaps):
+        raise ValueError(
+            "Market refresh left missing daily ETH closes: "
+            f"count={len(remaining_eth_gaps)}, "
+            f"first={remaining_eth_gaps.min().strftime('%Y-%m-%d')}, "
+            f"last={remaining_eth_gaps.max().strftime('%Y-%m-%d')}"
+        )
 
     master_data, external_summary, stale_columns = apply_stale_vendor_guardrail(
         master_data,

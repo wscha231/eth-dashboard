@@ -123,6 +123,19 @@ def test_longrun_inserts_run_metrics_and_predictions(temp_db, tiny_freeze_json):
     ).fetchone()[0]
     assert stored_pred_count == 20
 
+    classification_row = temp_db.execute(
+        """
+        SELECT probability_up, direction_score_up, predicted_label
+        FROM backtest_predictions
+        WHERE backtest_run_id = ? AND head = 'classification'
+        LIMIT 1
+        """,
+        (run_id,),
+    ).fetchone()
+    assert classification_row["probability_up"] == pytest.approx(0.6)
+    assert classification_row["direction_score_up"] == pytest.approx(0.65)
+    assert classification_row["predicted_label"] == 1
+
 
 def test_longrun_second_ingest_replaces_previous_run(temp_db, tiny_freeze_json):
     """Longrun refresh = DELETE+INSERT. After ingesting v1 then v2 of the

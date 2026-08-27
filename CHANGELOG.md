@@ -8,6 +8,92 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-08-27 (compact 30-day regression challenger)
+
+### Added
+
+- Added an opt-in 30-day CatBoost regression challenger that retains the
+  leading 192 features from each leakage-safe, train-only fold ranking. The
+  incumbent keeps its 360-feature budget in the same run for matched OOF
+  comparison.
+- Added a focused long-run mode that can select regression estimators and
+  disable the classification head, plus a 30-day moving-block bootstrap gate
+  against both the incumbent CatBoost model and the no-change anchor.
+- Added focused compact evaluation. Pull requests run three recent folds;
+  the 36-fold gate requires an explicit `compact_h30_full` manual dispatch
+  after intermediate evidence passes. Daily forecasts and scheduled weekly
+  evaluation remain unchanged.
+
+### Changed
+
+- Pinned the live 30-day point forecast to the champion promoted by the latest
+  authoritative 36-fold OOF gate. The champion remains the no-change anchor
+  (RMSE **544.83**, with every learned point model worse), so a noisy short-CV
+  daily run can no longer replace it with a weaker regressor. Direction,
+  confidence, and uncertainty-range heads continue independently.
+- Kept the pinned no-change point forecast separate from uncertainty: its
+  lower and upper bounds now come from an independently selected learned
+  model's conformal residual interval, with the anchor included in the range.
+- Hardened compact-candidate promotion by requiring all expected matched OOF
+  rows for both baselines. A compact-only manual dispatch no longer starts the
+  unrelated generic evaluator in parallel.
+- Repaired daily history merging so incoming observations always fill older
+  missing cells even when they fall before the rolling overwrite window. The
+  daily workflow now restores the deployed master and seeds its ignored raw
+  market cache from that durable copy before refreshing. Cache refresh now
+  detects the oldest missing 24/7 ETH date and starts there instead of blindly
+  limiting itself to the recent lookback, repairing the observed 2026-04-19
+  through 2026-07-11 interval without a repeated full-history download.
+- Made the persistence smoke select the newest input date whose 7-day and
+  30-day targets are both resolved instead of assuming a fixed 60-day offset.
+
+### Evaluation
+
+- On the three latest deployed-data folds, the compact challenger reduced
+  price RMSE from **631.09** to **584.04** versus the incumbent and beat the
+  **632.00** no-change anchor. This is smoke evidence only; production remains
+  unchanged pending broader purged OOF validation.
+- The required 12-fold intermediate gate rejected the compact challenger: it
+  improved RMSE only **0.44%** versus incumbent CatBoost but was **16.72%**
+  worse than the no-change anchor. The 36-fold compact run was therefore
+  skipped and the candidate remains evaluation-only.
+
+## [Unreleased] · 2026-08-26 (LightGBM challenger and stability evidence)
+
+### Added
+
+- Added regularized LightGBM regression and classification challengers, based
+  on the strongest transferable result from the reviewed crypto forecasting
+  studies. They are opt-in through `ETH_ENABLE_CHALLENGER_MODELS=1` and run in
+  model-evaluation workflows only; the daily production forecast remains on
+  the promoted registry until a full 36-fold gate approves the challenger.
+- Added fold-level feature-selection stability evidence for both the return
+  and actionable-direction targets. Checkpoints now retain exact selected
+  features by fold plus 50%/80% stability counts and top frequencies, and the
+  parallel full-gate merge combines the evidence across all 36 folds.
+
+### Changed
+
+- Extracted estimator construction and horizon-specific parameters from the
+  monolithic CLI into `forecasting/model_registry.py`, while preserving the
+  existing public `make_models` and `make_classification_models` interfaces.
+- Added model-registry and real LightGBM fit/calibration tests to both PR smoke
+  evaluation paths.
+- Persisted the exact active estimator registry and parameters in long-run
+  checkpoints. Resume now discards legacy or mismatched folds instead of
+  silently reporting a newly enabled challenger as if it had run all folds;
+  parallel merges reject mixed registries as well.
+- Resolved optional-model provenance at summary-export time and broadened the
+  model-evaluation trigger to `tests/**`, so direct challenger runs are
+  reported accurately and registry-test-only changes still execute CI.
+
+### Evaluation
+
+- Latest deployed-data 36-fold gate passed for both 7-day and 30-day horizons
+  in Actions run 58. LightGBM did not beat the no-change point anchor and its
+  30-day direction head was unstable, so it remains evaluation-only and was
+  not promoted into the daily production registry.
+
 ## [Unreleased] · 2026-08-24 (7-day direction score normalization)
 
 ### Changed
@@ -47,6 +133,35 @@ Full purged OOF (36 × 30-day folds, deployed data through 2026-08-24):
 - The full candidate gate passed. Point-price forecasts still do not beat the
   no-change anchor consistently, so the improvement is promoted as direction
   and confidence skill rather than as a reliable point-price edge.
+
+### Follow-up hardening
+
+- Empirical-CDF values are now retained as separate directional ranking
+  scores. Threshold selection, signals, and AUC use those scores, while Brier
+  scoring and user-facing `probability_up`/confidence use a monotone
+  label-frequency calibration shrunk toward the held-out base rate.
+- Restored the signed post-candle live-price adjustment for 7-day forecasts as
+  a standalone, bounded ±1.5 percentage-point correction without
+  reintroducing the rejected momentum/RSI/regime overlay.
+- In the 36-fold core-model replay, balanced-accuracy weighting of the
+  directional scores reached `0.5980` balanced accuracy and `0.6381` ROC AUC;
+  its separately calibrated probability blend recorded `0.2472` Brier. At a
+  symmetric `0.60` decision threshold, 92/686 actionable dates emitted a
+  signal with `59.78%` accuracy.
+- Purged the internal probability-calibration boundary by the full forecast
+  horizon, preventing fit labels from reaching into the held-out calibration
+  tail for both 7-day and 30-day classifiers.
+- Long-run resume and ensemble paths now fall back from `direction_score_up`
+  to `probability_up` per row, preserving legacy checkpoint history instead
+  of discarding older folds after a resumed run. Recovered scores are written
+  back into the checkpoint rows before SQLite/public export.
+- Backtest schema v4 persists and exports `direction_score_up`, so published
+  OOF rows can reproduce the exact threshold decisions shown by the site.
+- Live forecast summaries, SQLite history, and public JSON now retain
+  `classification_direction_score_up` together with its signal threshold.
+- Direction confidence is capped by the calibrated probability of the class
+  actually selected by the direction score, avoiding opposite-class
+  confidence when the ranking score and event probability straddle 0.5.
 
 ---
 
