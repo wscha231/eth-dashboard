@@ -1,0 +1,233 @@
+{
+  "as_of_date": "2026-08-30",
+  "binance_coverage": {
+    "binance_spot_btcusdt_1h": {
+      "archive_count": 108,
+      "expected_gap_policy": "Hours before launch_open_time in the first listed month are expected; no other missing month or sampled hourly gap is allowed",
+      "first_month": "2017-08",
+      "last_month": "2026-07",
+      "launch_month_is_partial": true,
+      "launch_open_time": "2017-08-17T04:00:00",
+      "listing_payload_sha256": "2859bd61d29c7e154682a24303c490bfcd4732b09da67f7d752e44e4aa467f40",
+      "listing_sha256": "91325f204890bbf68b953a24e708988f01537db0fc254570c07da319e668a3f7",
+      "listing_url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=%2F&prefix=data%2Fspot%2Fmonthly%2Fklines%2FBTCUSDT%2F1h%2F",
+      "missing_checksum_keys": [],
+      "missing_months": [],
+      "source_id": "binance_spot_btcusdt_1h"
+    },
+    "binance_spot_ethusdt_1h": {
+      "archive_count": 108,
+      "expected_gap_policy": "Hours before launch_open_time in the first listed month are expected; no other missing month or sampled hourly gap is allowed",
+      "first_month": "2017-08",
+      "last_month": "2026-07",
+      "launch_month_is_partial": true,
+      "launch_open_time": "2017-08-17T04:00:00",
+      "listing_payload_sha256": "435582e9702628a512e2fb8841793f296e770e2082953568af84328755801e38",
+      "listing_sha256": "da835964442cb11d8e58fb2ca6a2e99b49e4e4af020c6ae2c838c88ca59f85b1",
+      "listing_url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=%2F&prefix=data%2Fspot%2Fmonthly%2Fklines%2FETHUSDT%2F1h%2F",
+      "missing_checksum_keys": [],
+      "missing_months": [],
+      "source_id": "binance_spot_ethusdt_1h"
+    },
+    "binance_um_btcusdt_1h": {
+      "archive_count": 79,
+      "expected_gap_policy": "Hours before launch_open_time in the first listed month are expected; no other missing month or sampled hourly gap is allowed",
+      "first_month": "2020-01",
+      "last_month": "2026-07",
+      "launch_month_is_partial": false,
+      "launch_open_time": "2020-01-01T00:00:00",
+      "listing_payload_sha256": "1019df03872ac91d500bbe0327fd377b8bd19e4a803eae84c6ad53083e6b7c0f",
+      "listing_sha256": "887d046d1f418b29dbc1038edd9ecef3a48b8becbfa06ea017e9e17da4a35744",
+      "listing_url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=%2F&prefix=data%2Ffutures%2Fum%2Fmonthly%2Fklines%2FBTCUSDT%2F1h%2F",
+      "missing_checksum_keys": [],
+      "missing_months": [],
+      "source_id": "binance_um_btcusdt_1h"
+    },
+    "binance_um_ethusdt_1h": {
+      "archive_count": 79,
+      "expected_gap_policy": "Hours before launch_open_time in the first listed month are expected; no other missing month or sampled hourly gap is allowed",
+      "first_month": "2020-01",
+      "last_month": "2026-07",
+      "launch_month_is_partial": false,
+      "launch_open_time": "2020-01-01T00:00:00",
+      "listing_payload_sha256": "ef432a7ce605e725a1c74fddfb2e06eb39b352e3759de2ca46fda50a3b2dea6f",
+      "listing_sha256": "c868241c7e4710c713cc17208e82d7426350f19bdd5ab63f1e5e6128d44801c2",
+      "listing_url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=%2F&prefix=data%2Ffutures%2Fum%2Fmonthly%2Fklines%2FETHUSDT%2F1h%2F",
+      "missing_checksum_keys": [],
+      "missing_months": [],
+      "source_id": "binance_um_ethusdt_1h"
+    }
+  },
+  "binance_sample_count": 12,
+  "decision": "pass_for_pr2_offline",
+  "defillama": {
+    "license_review": "public_api_terms_review_before_production",
+    "sources": {
+      "chain_tvl": {
+        "local_path": "lake/gold/lead_signal_sources/defillama_ethereum_chain_tvl_daily.csv.gz",
+        "local_sha256": "b604e7e984204f7079f4fa9f3e1fa21c0a2a81caf027b99be2fa531667cea8e1",
+        "payload_sha256": "5a6124b286e5d16509fbdd7052a4016e3fa0b428f9550b44e2e51ced7e5f22f3",
+        "status": "ready",
+        "url": "https://api.llama.fi/v2/historicalChainTvl/Ethereum",
+        "validation": {
+          "duplicate_date_count": 0,
+          "first_date": "2017-09-27",
+          "last_date": "2026-08-30",
+          "missing_dates": [],
+          "missing_day_count": 0,
+          "negative_value_count": 0,
+          "non_finite_value_count": 0,
+          "row_count": 3260,
+          "status": "pass"
+        }
+      },
+      "dex_volume": {
+        "local_path": "lake/gold/lead_signal_sources/defillama_ethereum_dex_volume_daily.csv.gz",
+        "local_sha256": "b496f3a415162e219a463863f0c2c95b9a1b529227066c176c7d0340001bde8d",
+        "payload_sha256": "2fa8b3fce5b8cf54a89731a006dd260dfc5e45e1da2213e96b85bbb388c40993",
+        "status": "ready",
+        "url": "https://api.llama.fi/overview/dexs/ethereum?excludeTotalDataChart=false&excludeTotalDataChartBreakdown=true",
+        "validation": {
+          "duplicate_date_count": 0,
+          "first_date": "2018-11-02",
+          "last_date": "2026-08-30",
+          "missing_dates": [],
+          "missing_day_count": 0,
+          "negative_value_count": 0,
+          "non_finite_value_count": 0,
+          "row_count": 2859,
+          "status": "pass"
+        }
+      },
+      "stablecoins": {
+        "local_path": "lake/gold/lead_signal_sources/defillama_ethereum_stablecoins_daily.csv.gz",
+        "local_sha256": "c780d72837f52a3003bc70334a1409ff23b85647aa094f27df4eb8616ba4ca7c",
+        "payload_sha256": "ac81c28e9f991777f37b5e0b17c96db82216311a13ca32086765a4e09fc2feb1",
+        "status": "ready",
+        "url": "https://stablecoins.llama.fi/stablecoincharts/Ethereum",
+        "validation": {
+          "duplicate_date_count": 0,
+          "first_date": "2017-11-29",
+          "last_date": "2026-08-30",
+          "missing_dates": [],
+          "missing_day_count": 0,
+          "negative_value_count": 0,
+          "non_finite_value_count": 0,
+          "row_count": 3197,
+          "status": "pass"
+        }
+      }
+    },
+    "status": "ready"
+  },
+  "deribit": {
+    "book_summary_history": "prospective_snapshot_only",
+    "finding": "Public funding history is available well before the previously assumed 90-day window; a separate full continuity audit is warranted",
+    "funding_windows": {
+      "mid_history": {
+        "first_timestamp": "2023-01-01T01:00:00",
+        "interval_counts": {
+          "1.0": 47
+        },
+        "last_timestamp": "2023-01-03T00:00:00",
+        "observed_intervals_hours": [
+          1.0
+        ],
+        "row_count": 48,
+        "status": "available",
+        "url": "https://www.deribit.com/api/v2/public/get_funding_rate_history?instrument_name=ETH-PERPETUAL&start_timestamp=1672531200000&end_timestamp=1672704000000"
+      },
+      "near_launch": {
+        "first_timestamp": null,
+        "interval_counts": {},
+        "last_timestamp": null,
+        "observed_intervals_hours": [],
+        "row_count": 0,
+        "status": "empty",
+        "url": "https://www.deribit.com/api/v2/public/get_funding_rate_history?instrument_name=ETH-PERPETUAL&start_timestamp=1552608000000&end_timestamp=1552780800000"
+      },
+      "old_history": {
+        "first_timestamp": "2019-08-01T01:00:00",
+        "interval_counts": {
+          "1.0": 47
+        },
+        "last_timestamp": "2019-08-03T00:00:00",
+        "observed_intervals_hours": [
+          1.0
+        ],
+        "row_count": 48,
+        "status": "available",
+        "url": "https://www.deribit.com/api/v2/public/get_funding_rate_history?instrument_name=ETH-PERPETUAL&start_timestamp=1564617600000&end_timestamp=1564790400000"
+      },
+      "recent": {
+        "first_timestamp": "2026-08-28T01:00:00",
+        "interval_counts": {
+          "1.0": 71
+        },
+        "last_timestamp": "2026-08-31T00:00:00",
+        "observed_intervals_hours": [
+          1.0
+        ],
+        "row_count": 72,
+        "status": "available",
+        "url": "https://www.deribit.com/api/v2/public/get_funding_rate_history?instrument_name=ETH-PERPETUAL&start_timestamp=1787875200000&end_timestamp=1788134400000"
+      }
+    },
+    "instrument": {
+      "base_currency": "ETH",
+      "creation_timestamp": 1552568454000,
+      "instrument_name": "ETH-PERPETUAL",
+      "is_active": true,
+      "quote_currency": "USD",
+      "settlement_period": "perpetual"
+    },
+    "instrument_url": "https://www.deribit.com/api/v2/public/get_instrument?instrument_name=ETH-PERPETUAL",
+    "option_and_future_snapshot_fields": "not_backfillable_from_book_summary",
+    "production_terms_review": "required",
+    "status": "feasible"
+  },
+  "gate": {
+    "blockers": [],
+    "conditions": [
+      "OKX is excluded until API/archive access is reproducible",
+      "Every external source requires a production terms review"
+    ],
+    "daily_forecast_modified": false,
+    "model_training_performed": false,
+    "offline_feature_work_approved": true,
+    "production_use_approved": false,
+    "public_contract_modified": false
+  },
+  "generated_at": "2026-08-31T11:58:11.989881+00:00",
+  "manifest_sha256": "25334024cf0498f658e5c8e37eb884b8a492d02d4b32f3bb41e3e727c78d8ea2",
+  "okx": {
+    "api_history_documented_limit": "three months",
+    "archive_automation": "not_approved_until_download_url_and_terms_are_stable",
+    "current_funding_url": "https://www.okx.com/api/v5/public/funding-rate?instId=ETH-USDT-SWAP",
+    "error": "TimeoutError: The read operation timed out",
+    "formula_change_effective": "2026-06-01",
+    "historical_download_page": "https://www.okx.com/historical-data",
+    "history_url": "https://www.okx.com/api/v5/public/funding-rate-history?instId=ETH-USDT-SWAP&limit=100",
+    "instrument_url": "https://www.okx.com/api/v5/public/instruments?instType=SWAP&instId=ETH-USDT-SWAP",
+    "l2_download": "deferred",
+    "normalization_contract": "daily_equivalent = per_period_rate * (24 / interval_hours)",
+    "official_archive_coverage_start": "2022-03",
+    "post_change_formula": "per-period rate includes 8/N interval factor",
+    "production_terms_review": "required",
+    "status": "blocked_by_environment",
+    "supported_settlement_intervals_hours": [
+      1,
+      2,
+      4,
+      8
+    ]
+  },
+  "schema_version": 1,
+  "scope": "offline_lead_signal_source_feasibility",
+  "source_status": {
+    "binance_hourly": "ready",
+    "defillama_history": "ready",
+    "deribit_funding": "feasible",
+    "okx_funding": "blocked_by_environment"
+  }
+}
