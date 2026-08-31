@@ -1,0 +1,86 @@
+name: Lead-signal source preflight
+
+on:
+  pull_request:
+    paths:
+      - "forecasting/lead_signal_data.py"
+      - "scripts/backfill_lead_signals.py"
+      - "tests/test_lead_signal_data.py"
+      - "lake/manifests/lead_signal_sources.json"
+      - "lake/gold/lead_signal_sources/**"
+      - ".github/workflows/lead_signal_source_preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lead-signal-source-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy pandas pytest
+
+      - name: Run source-integrity tests
+        run: pytest tests/test_lead_signal_data.py -q
+
+      - name: Run bounded live preflight
+        run: |
+          artifact_dir="$RUNNER_TEMP/lead-signal-preflight"
+          as_of_date="$(date -u -d 'yesterday' +%F)"
+          python scripts/backfill_lead_signals.py \
+            --as-of-date "$as_of_date" \
+            --raw-dir "$artifact_dir/raw" \
+            --source-table-dir "$artifact_dir/tables" \
+            --manifest-output "$artifact_dir/lead_signal_sources.json" \
+            --report-output "$artifact_dir/lead_signal_source_readiness.json" \
+            --max-binance-archives 12 \
+            --timeout-seconds 35 \
+            --workers 4
+
+      - name: Publish readiness summary
+        if: always()
+        run: |
+          report="$RUNNER_TEMP/lead-signal-preflight/lead_signal_source_readiness.json"
+          if [ -f "$report" ]; then
+            python - "$report" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import sys
+
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          print("## Lead-signal source readiness")
+          print()
+          print(f"- Decision: `{report['decision']}`")
+          for source, status in report["source_status"].items():
+              print(f"- {source}: `{status}`")
+          PY
+          fi
+
+      - name: Upload preflight evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lead-signal-source-preflight-${{ github.run_id }}
+          path: ${{ runner.temp }}/lead-signal-preflight/
+          if-no-files-found: warn
+          retention-days: 21

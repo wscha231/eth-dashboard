@@ -13,7 +13,9 @@ def test_weekly_eval_publishes_failure_evidence_before_enforcing_gate() -> None:
     assert "forecast_site/public/model_eval_last_pass.json" in workflow
     assert "forecast_site/public/backtest_longrun_candidate_history.json" in workflow
     assert "Enforce candidate promotion gate" in workflow
-    assert workflow.index("Publish latest evidence and gated production artifacts") < workflow.index("Enforce candidate promotion gate")
+    assert workflow.index(
+        "Publish latest evidence and gated production artifacts"
+    ) < workflow.index("Enforce candidate promotion gate")
 
 
 def test_full_model_eval_label_dispatches_parallel_gate() -> None:
@@ -64,3 +66,15 @@ def test_watchdog_will_not_dispatch_while_daily_run_is_active() -> None:
     assert "active_runs" in workflow
     assert "recovery dispatch skipped" in workflow
     assert "gh workflow run daily_forecast.yml" in workflow
+
+
+def test_lead_signal_source_preflight_is_bounded_and_isolated() -> None:
+    workflow = _read(".github/workflows/lead_signal_source_preflight.yml")
+
+    assert "timeout-minutes: 10" in workflow
+    assert "--max-binance-archives 12" in workflow
+    assert 'artifact_dir="$RUNNER_TEMP/lead-signal-preflight"' in workflow
+    assert "tests/test_lead_signal_data.py" in workflow
+    assert "scripts/backfill_lead_signals.py" in workflow
+    assert "eth_data_collector.py" not in workflow
+    assert "daily_forecast.yml" not in workflow

@@ -164,6 +164,31 @@ Manual CSVs can be supplied either by:
 - placing them under `/content/drive/MyDrive/eth_forecast/lake/raw/manual/`
 - or passing `--manual-features-csv funding.csv onchain.csv sentiment.csv`
 
+### Offline Lead-Signal Source Preflight
+
+The lead-signal research path is isolated from `eth_data_collector.py` and the
+daily forecast. It verifies official Binance monthly 1h archives, backfills
+compact DefiLlama daily source tables, and records OKX/Deribit feasibility:
+
+```bash
+python scripts/backfill_lead_signals.py \
+  --as-of-date 2026-08-30 \
+  --max-binance-archives 12
+```
+
+Outputs:
+
+- `lake/manifests/lead_signal_sources.json`: immutable URLs, upstream/local
+  SHA-256 values, source coverage, and bounded archive validation;
+- `lake/reports/lead_signal_source_readiness.json`: strict-JSON offline gate;
+- `lake/gold/lead_signal_sources/`: compact full-history DefiLlama source
+  tables that are not read by the promoted model.
+
+Raw Binance ZIP samples remain under ignored `lake/raw/lead_signal/`. The
+manifest is intentionally not overwritten unless `--replace-outputs` is
+passed. A passing preflight approves only offline feature work; it does not
+approve production use, model promotion, or public output changes.
+
 ### 2. Run Dual-Horizon Forecasts From The Master Dataset
 Compact output is now designed to keep only the two main CSV reports plus `summary.json`.
 
