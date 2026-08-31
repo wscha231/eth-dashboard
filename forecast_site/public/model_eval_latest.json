@@ -1,11 +1,11 @@
 {
   "schema_version": 2,
-  "evaluated_at_utc": "2026-08-23T19:45:35.317701+00:00",
-  "candidate_frozen_at": "2026-08-23T18:37:43.779340+00:00",
-  "candidate_checkpoint_utc": "2026-08-23T19:45:34.102558+00:00",
+  "evaluated_at_utc": "2026-08-30T21:23:20.780734+00:00",
+  "candidate_frozen_at": "2026-08-30T20:52:02.221434+00:00",
+  "candidate_checkpoint_utc": "2026-08-30T21:23:19.827284+00:00",
   "evaluated_through_by_horizon": {
-    "7": "2026-08-23",
-    "30": "2026-08-23"
+    "7": "2026-08-30",
+    "30": "2026-08-30"
   },
   "profile": "full",
   "candidate_mode": "longrun_oof_phase6_production_36x30",
@@ -14,29 +14,29 @@
     "7": {
       "folds_completed": 36,
       "regression": {
-        "best_price_rmse": 257.7031761670023,
-        "best_price_mae": 183.87204081217448,
-        "best_return_mae": 0.06609152719587048,
-        "best_directional_accuracy": 0.487962962962963,
+        "best_price_rmse": 260.9215378539972,
+        "best_price_mae": 188.8805657280816,
+        "best_return_mae": 0.068466021811424,
+        "best_directional_accuracy": 0.5,
         "no_change_n": 1080,
-        "no_change_price_rmse": 257.7031761670023,
-        "no_change_price_mae": 183.87204081217448,
-        "no_change_return_mae": 0.06609152719587047,
+        "no_change_price_rmse": 260.9215378539972,
+        "no_change_price_mae": 188.8805657280816,
+        "no_change_return_mae": 0.06846602181142397,
         "best_price_rmse_vs_no_change_pct": 0.0,
         "point_forecast_beats_no_change": false
       },
       "classification": {
-        "best_balanced_accuracy": 0.5421686746987951,
-        "best_brier_score": 0.24947181155633863,
-        "best_roc_auc": 0.49909984766652815,
+        "best_balanced_accuracy": 0.6652421652421653,
+        "best_brier_score": 0.2324908936855857,
+        "best_roc_auc": 0.6951566951566952,
         "leakage_safe": true,
         "selective_signal_override": {
           "enabled": true,
-          "passed": false,
+          "passed": true,
           "applied": false,
-          "accuracy_on_signals": 53.23,
-          "signal_pct_days": 45.19,
-          "n_signal": 310,
+          "accuracy_on_signals": 73.79,
+          "signal_pct_days": 14.78,
+          "n_signal": 103,
           "min_accuracy_on_signals": 58.0,
           "min_signal_pct_days": 9.0,
           "min_n_signal": 50
@@ -44,110 +44,120 @@
       },
       "threshold_sweep": {
         "horizon": 7,
-        "model": "mlp_clf",
+        "model": "random_forest_clf",
         "threshold": 0.6,
-        "n_total": 686,
-        "n_signal": 310,
-        "n_up_signals": 244,
-        "n_down_signals": 66,
-        "signal_pct_days": 45.19,
-        "accuracy_on_signals": 53.23,
-        "accuracy_wilson_lower_95": 47.67,
-        "up_signal_accuracy": 55.33,
-        "down_signal_accuracy": 45.45,
-        "base_up_rate_full_oof": 52.19,
-        "signals_per_year_extrapolated": 164.9
+        "n_total": 697,
+        "n_signal": 103,
+        "n_up_signals": 29,
+        "n_down_signals": 74,
+        "signal_pct_days": 14.78,
+        "accuracy_on_signals": 73.79,
+        "accuracy_wilson_lower_95": 64.55,
+        "up_signal_accuracy": 93.1,
+        "down_signal_accuracy": 66.22,
+        "base_up_rate_full_oof": 51.65,
+        "signals_per_year_extrapolated": 53.9
       },
       "regime_breakdown": [
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
-          "model": "hist_gbc",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.3509580305776917,
-          "classification_accuracy": 0.9512195121951219
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "DOWN",
-          "head": "classification",
-          "model": "trimmed_classification_ensemble_equal",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.3701921783952358,
-          "classification_accuracy": 0.9939024390243902
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "DOWN",
-          "head": "classification",
-          "model": "catboost_clf",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.37813179106382633,
-          "classification_accuracy": 0.8780487804878049
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "DOWN",
-          "head": "classification",
           "model": "extra_trees_clf",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.381837457675053,
-          "classification_accuracy": 0.948170731707317
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.2759420837129988,
+          "classification_accuracy": 0.8931750741839762
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
           "model": "knn_clf",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.3845766707901634,
-          "classification_accuracy": 0.9054878048780488
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.2768819731832305,
+          "classification_accuracy": 0.8545994065281899
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "trimmed_classification_ensemble_equal",
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.2800553675770291,
+          "classification_accuracy": 0.9406528189910979
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
           "model": "random_forest_clf",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.3975704902421886,
-          "classification_accuracy": 0.9085365853658537
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "DOWN",
-          "head": "classification",
-          "model": "mlp_clf",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.39772514655128605,
-          "classification_accuracy": 0.6676829268292683
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.28582149026097686,
+          "classification_accuracy": 0.9614243323442137
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
           "model": "logistic",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "brier_score": 0.4248675992055109,
-          "classification_accuracy": 0.7469512195121951
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.2899671593308206,
+          "classification_accuracy": 0.8130563798219584
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.29127902499610875,
+          "classification_accuracy": 0.8160237388724035
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "catboost_clf",
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.2913780583210873,
+          "classification_accuracy": 0.8902077151335311
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "hist_gbc",
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.3007699952022597,
+          "classification_accuracy": 0.8635014836795252
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "lightgbm_clf",
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "brier_score": 0.30222978725860455,
+          "classification_accuracy": 0.8160237388724035
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "no_change_anchor",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.05966178083160209,
-          "return_rmse": 0.07945867080813122,
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.06248704140098269,
+          "return_rmse": 0.0821074353289383,
           "directional_accuracy": 0.0
         },
         {
@@ -155,307 +165,329 @@
           "bucket": "DOWN",
           "head": "regression",
           "model": "catboost_regressor",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.07262117234681166,
-          "return_rmse": 0.09111312641104516,
-          "directional_accuracy": 0.350187265917603
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.07342251647848248,
+          "return_rmse": 0.0921243990485127,
+          "directional_accuracy": 0.3804143126177024
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "trimmed_regression_ensemble_equal",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.07739739985993843,
-          "return_rmse": 0.09544226427263931,
-          "directional_accuracy": 0.20224719101123595
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.07794501261299634,
+          "return_rmse": 0.09567063918648111,
+          "directional_accuracy": 0.2693032015065913
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
-          "model": "random_forest",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.07900624411561404,
-          "return_rmse": 0.0972503645004348,
-          "directional_accuracy": 0.21348314606741572
+          "model": "lightgbm_regressor",
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.07815512683565223,
+          "return_rmse": 0.0959085965490021,
+          "directional_accuracy": 0.2862523540489642
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "extra_trees",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.07933059033557374,
-          "return_rmse": 0.09757405049618001,
-          "directional_accuracy": 0.1947565543071161
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.08046858087669144,
+          "return_rmse": 0.09792212844513942,
+          "directional_accuracy": 0.2033898305084746
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "regression",
+          "model": "random_forest",
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.08058844276393955,
+          "return_rmse": 0.0979605269242856,
+          "directional_accuracy": 0.22598870056497175
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "hist_gbr",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.0818752364089046,
-          "return_rmse": 0.10027957889758353,
-          "directional_accuracy": 0.22846441947565543
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.08163417485385566,
+          "return_rmse": 0.09943113494277374,
+          "directional_accuracy": 0.2749529190207156
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "knn_regressor",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.08982512919627383,
-          "return_rmse": 0.11010255051017148,
-          "directional_accuracy": 0.24157303370786518
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.0967263531253223,
+          "return_rmse": 0.11586699500401965,
+          "directional_accuracy": 0.2693032015065913
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "ridge",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.11070068307399619,
-          "return_rmse": 0.1366663735590531,
-          "directional_accuracy": 0.44569288389513106
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.10679271649713093,
+          "return_rmse": 0.13116796727240718,
+          "directional_accuracy": 0.455743879472693
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "mlp_regressor",
-          "n": 534,
-          "mean_actual_return": -0.05966178083160209,
-          "return_mae": 0.17460402130175767,
-          "return_rmse": 0.21064617104725045,
-          "directional_accuracy": 0.3389513108614232
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "classification",
-          "model": "extra_trees_clf",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.21058423001842208,
-          "classification_accuracy": 0.04748603351955307
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "classification",
-          "model": "mlp_clf",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.2111391134795857,
-          "classification_accuracy": 0.3770949720670391
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "classification",
-          "model": "trimmed_classification_ensemble_equal",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.21309403175517883,
-          "classification_accuracy": 0.0223463687150838
+          "n": 531,
+          "mean_actual_return": -0.06248704140098269,
+          "return_mae": 0.1607889340502742,
+          "return_rmse": 0.19648276722279703,
+          "directional_accuracy": 0.3879472693032015
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
           "model": "random_forest_clf",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.22010071040008322,
-          "classification_accuracy": 0.11173184357541899
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.2189238667395478,
+          "classification_accuracy": 0.15555555555555556
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
-          "model": "logistic",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.22521514538012866,
-          "classification_accuracy": 0.2877094972067039
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "classification",
-          "model": "knn_clf",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.22983191248368656,
-          "classification_accuracy": 0.0670391061452514
+          "model": "trimmed_classification_ensemble_equal",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.2285849251988855,
+          "classification_accuracy": 0.16944444444444445
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
           "model": "hist_gbc",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.23434142996042331,
-          "classification_accuracy": 0.07262569832402235
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.22979440272683174,
+          "classification_accuracy": 0.17777777777777778
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "extra_trees_clf",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.2402616341479079,
+          "classification_accuracy": 0.18611111111111112
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "lightgbm_clf",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.24213472618406984,
+          "classification_accuracy": 0.18888888888888888
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "logistic",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.24381385652745916,
+          "classification_accuracy": 0.16666666666666666
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.244408599809516,
+          "classification_accuracy": 0.21388888888888888
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
           "model": "catboost_clf",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "brier_score": 0.24496754033637527,
-          "classification_accuracy": 0.09776536312849161
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.24462384930649378,
+          "classification_accuracy": 0.1638888888888889
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "knn_clf",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "brier_score": 0.24752399591184174,
+          "classification_accuracy": 0.1527777777777778
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "extra_trees",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.06429499002492267,
-          "return_rmse": 0.09570376247375594,
-          "directional_accuracy": 0.7747252747252747
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.06764198722863828,
+          "return_rmse": 0.09960290867603566,
+          "directional_accuracy": 0.7504553734061931
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "random_forest",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.06527060117973484,
-          "return_rmse": 0.09638059619784613,
-          "directional_accuracy": 0.7106227106227107
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.06816053899952414,
+          "return_rmse": 0.09944760819508933,
+          "directional_accuracy": 0.7358834244080146
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "trimmed_regression_ensemble_equal",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.06647225891769415,
-          "return_rmse": 0.09820547005844578,
-          "directional_accuracy": 0.7032967032967034
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.06993981088348508,
+          "return_rmse": 0.1020525895629004,
+          "directional_accuracy": 0.6867030965391621
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "hist_gbr",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.06841676005639986,
-          "return_rmse": 0.0989920665414335,
-          "directional_accuracy": 0.6501831501831502
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.07172560035403962,
+          "return_rmse": 0.10358123661037816,
+          "directional_accuracy": 0.6520947176684881
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
-          "model": "knn_regressor",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.0706688580402926,
-          "return_rmse": 0.10197557149860384,
-          "directional_accuracy": 0.6684981684981685
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "regression",
-          "model": "catboost_regressor",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.07145387582868494,
-          "return_rmse": 0.10289499333398208,
-          "directional_accuracy": 0.5989010989010989
+          "model": "lightgbm_regressor",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.07194464145751792,
+          "return_rmse": 0.10450572969508819,
+          "directional_accuracy": 0.6375227686703097
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "no_change_anchor",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.07237996045323188,
-          "return_rmse": 0.10168793374501424,
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.07424897007726068,
+          "return_rmse": 0.1036242455036106,
           "directional_accuracy": 0.0
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
+          "model": "catboost_regressor",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.07465173572775552,
+          "return_rmse": 0.10562678184587553,
+          "directional_accuracy": 0.5938069216757741
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "regression",
+          "model": "knn_regressor",
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.07779500969986118,
+          "return_rmse": 0.10696947069090045,
+          "directional_accuracy": 0.6193078324225865
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "regression",
           "model": "ridge",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.11355300530383267,
-          "return_rmse": 0.14842360879613223,
-          "directional_accuracy": 0.521978021978022
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.11062100673185214,
+          "return_rmse": 0.14101181968684504,
+          "directional_accuracy": 0.5428051001821493
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "mlp_regressor",
-          "n": 546,
-          "mean_actual_return": 0.07237996045323188,
-          "return_mae": 0.15581986135676204,
-          "return_rmse": 0.18982662328217886,
-          "directional_accuracy": 0.5439560439560439
+          "n": 549,
+          "mean_actual_return": 0.07424897007726068,
+          "return_mae": 0.15374745047992247,
+          "return_rmse": 0.18837748062607132,
+          "directional_accuracy": 0.4936247723132969
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "classification",
-          "model": "mlp_clf",
+          "model": "random_forest_clf",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.2585820526582984,
-          "classification_accuracy": 0.5814814814814815
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.24160813360539757,
+          "classification_accuracy": 0.5555555555555556
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "classification",
-          "model": "extra_trees_clf",
+          "model": "trimmed_classification_ensemble_equal",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.2735523690988162,
-          "classification_accuracy": 0.46296296296296297
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "classification",
-          "model": "logistic",
-          "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.2780546432934445,
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.2454887475358008,
           "classification_accuracy": 0.5407407407407407
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "classification",
-          "model": "trimmed_classification_ensemble_equal",
+          "model": "extra_trees_clf",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.2795097449470654,
-          "classification_accuracy": 0.4703703703703704
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.2514981032170067,
+          "classification_accuracy": 0.5296296296296297
         },
         {
           "bucket_type": "realized_volatility",
@@ -463,39 +495,59 @@
           "head": "classification",
           "model": "knn_clf",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.28962220653466764,
-          "classification_accuracy": 0.4740740740740741
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.25333060709085586,
+          "classification_accuracy": 0.5148148148148148
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "classification",
-          "model": "random_forest_clf",
+          "model": "hist_gbc",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.2915052010163119,
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.25845660449491414,
+          "classification_accuracy": 0.5074074074074074
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "logistic",
+          "n": 270,
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.2621657007641006,
+          "classification_accuracy": 0.44814814814814813
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 270,
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.26454524622048553,
+          "classification_accuracy": 0.5074074074074074
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "lightgbm_clf",
+          "n": 270,
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.26678107418618086,
           "classification_accuracy": 0.5111111111111111
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "classification",
-          "model": "hist_gbc",
-          "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.2988888064416603,
-          "classification_accuracy": 0.4703703703703704
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "classification",
           "model": "catboost_clf",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "brier_score": 0.30339100792835894,
-          "classification_accuracy": 0.45185185185185184
+          "mean_actual_return": 0.026392110277113138,
+          "brier_score": 0.2681719699274903,
+          "classification_accuracy": 0.5185185185185185
         },
         {
           "bucket_type": "realized_volatility",
@@ -503,9 +555,9 @@
           "head": "regression",
           "model": "no_change_anchor",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.15085858953135514,
-          "return_rmse": 0.16457896616399267,
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.15428493268672688,
+          "return_rmse": 0.16794615508723698,
           "directional_accuracy": 0.0
         },
         {
@@ -514,10 +566,10 @@
           "head": "regression",
           "model": "random_forest",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.15174709625776733,
-          "return_rmse": 0.1667844435495205,
-          "directional_accuracy": 0.4888888888888889
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.1543942456477544,
+          "return_rmse": 0.1695389290835237,
+          "directional_accuracy": 0.4962962962962963
         },
         {
           "bucket_type": "realized_volatility",
@@ -525,43 +577,43 @@
           "head": "regression",
           "model": "extra_trees",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.1522022138845722,
-          "return_rmse": 0.16709654713958805,
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.15502043389031447,
+          "return_rmse": 0.17024953583279118,
+          "directional_accuracy": 0.5074074074074074
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "regression",
+          "model": "catboost_regressor",
+          "n": 270,
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.15644816019259655,
+          "return_rmse": 0.17152608110150916,
           "directional_accuracy": 0.45185185185185184
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "regression",
-          "model": "catboost_regressor",
-          "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.15323663524257425,
-          "return_rmse": 0.16872832535895385,
-          "directional_accuracy": 0.46296296296296297
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "regression",
           "model": "trimmed_regression_ensemble_equal",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.1538517281900655,
-          "return_rmse": 0.16834952476946033,
-          "directional_accuracy": 0.44074074074074077
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.15659296817859253,
+          "return_rmse": 0.17125517828679293,
+          "directional_accuracy": 0.4962962962962963
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "regression",
-          "model": "knn_regressor",
+          "model": "lightgbm_regressor",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.15479469138136848,
-          "return_rmse": 0.17409247657806673,
-          "directional_accuracy": 0.4740740740740741
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.15737475684319563,
+          "return_rmse": 0.1728450957725019,
+          "directional_accuracy": 0.44814814814814813
         },
         {
           "bucket_type": "realized_volatility",
@@ -569,10 +621,21 @@
           "head": "regression",
           "model": "hist_gbr",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.15611633544305034,
-          "return_rmse": 0.17102606414608432,
-          "directional_accuracy": 0.42962962962962964
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.15839448357768166,
+          "return_rmse": 0.17349474236659918,
+          "directional_accuracy": 0.45185185185185184
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "regression",
+          "model": "knn_regressor",
+          "n": 270,
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.1598524353143469,
+          "return_rmse": 0.17626436663402847,
+          "directional_accuracy": 0.44814814814814813
         },
         {
           "bucket_type": "realized_volatility",
@@ -580,10 +643,10 @@
           "head": "regression",
           "model": "ridge",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.1666367761193022,
-          "return_rmse": 0.2015358632647369,
-          "directional_accuracy": 0.45555555555555555
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.16190330811506243,
+          "return_rmse": 0.19036973504731403,
+          "directional_accuracy": 0.5185185185185185
         },
         {
           "bucket_type": "realized_volatility",
@@ -591,20 +654,10 @@
           "head": "regression",
           "model": "mlp_regressor",
           "n": 270,
-          "mean_actual_return": 0.024781883696360505,
-          "return_mae": 0.21800276992280712,
-          "return_rmse": 0.25615236997141894,
-          "directional_accuracy": 0.3925925925925926
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "LOW_VOL",
-          "head": "classification",
-          "model": "mlp_clf",
-          "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.22418576507995241,
-          "classification_accuracy": 0.5
+          "mean_actual_return": 0.026392110277113138,
+          "return_mae": 0.21009600346846447,
+          "return_rmse": 0.24712313883844356,
+          "directional_accuracy": 0.37777777777777777
         },
         {
           "bucket_type": "realized_volatility",
@@ -612,19 +665,9 @@
           "head": "classification",
           "model": "random_forest_clf",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.23534990553777166,
-          "classification_accuracy": 0.5
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "LOW_VOL",
-          "head": "classification",
-          "model": "extra_trees_clf",
-          "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.24905256491660943,
-          "classification_accuracy": 0.5
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.27073012246239225,
+          "classification_accuracy": 0.75
         },
         {
           "bucket_type": "realized_volatility",
@@ -632,8 +675,38 @@
           "head": "classification",
           "model": "trimmed_classification_ensemble_equal",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.2497566622969506,
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.273005556067029,
+          "classification_accuracy": 0.75
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "classification",
+          "model": "extra_trees_clf",
+          "n": 270,
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.27589242333153496,
+          "classification_accuracy": 0.75
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "classification",
+          "model": "knn_clf",
+          "n": 270,
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.28798091216537614,
+          "classification_accuracy": 0.75
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 270,
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.2919671864232556,
           "classification_accuracy": 0.5
         },
         {
@@ -642,18 +715,28 @@
           "head": "classification",
           "model": "catboost_clf",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.25079772805032896,
-          "classification_accuracy": 0.5
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.2985873938612861,
+          "classification_accuracy": 0.75
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "LOW_VOL",
           "head": "classification",
-          "model": "knn_clf",
+          "model": "logistic",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.2616152346434289,
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.30183481138281854,
+          "classification_accuracy": 0.75
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "classification",
+          "model": "lightgbm_clf",
+          "n": 270,
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.33922759471842434,
           "classification_accuracy": 0.5
         },
         {
@@ -662,19 +745,9 @@
           "head": "classification",
           "model": "hist_gbc",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.27083898023546704,
-          "classification_accuracy": 0.5
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "LOW_VOL",
-          "head": "classification",
-          "model": "logistic",
-          "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "brier_score": 0.43510062483670126,
-          "classification_accuracy": 0.5
+          "mean_actual_return": -0.000545834763458303,
+          "brier_score": 0.3405854255505306,
+          "classification_accuracy": 0.75
         },
         {
           "bucket_type": "realized_volatility",
@@ -682,9 +755,9 @@
           "head": "regression",
           "model": "no_change_anchor",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.010184031659965814,
-          "return_rmse": 0.011779734343627755,
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.011019868724343853,
+          "return_rmse": 0.012899659059144496,
           "directional_accuracy": 0.0
         },
         {
@@ -693,21 +766,10 @@
           "head": "regression",
           "model": "trimmed_regression_ensemble_equal",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.022268927615493265,
-          "return_rmse": 0.028242659528382782,
-          "directional_accuracy": 0.46296296296296297
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "LOW_VOL",
-          "head": "regression",
-          "model": "catboost_regressor",
-          "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.023179564124209562,
-          "return_rmse": 0.02945416260300362,
-          "directional_accuracy": 0.5
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.02333023254488503,
+          "return_rmse": 0.02956408419346505,
+          "directional_accuracy": 0.4888888888888889
         },
         {
           "bucket_type": "realized_volatility",
@@ -715,10 +777,32 @@
           "head": "regression",
           "model": "extra_trees",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.02355209219614991,
-          "return_rmse": 0.030555308677863283,
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.024278868334946423,
+          "return_rmse": 0.030581045368551246,
           "directional_accuracy": 0.46296296296296297
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "regression",
+          "model": "lightgbm_regressor",
+          "n": 270,
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.025190140980921902,
+          "return_rmse": 0.0320740445491198,
+          "directional_accuracy": 0.48148148148148145
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "regression",
+          "model": "catboost_regressor",
+          "n": 270,
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.0255772136254433,
+          "return_rmse": 0.03224331962641489,
+          "directional_accuracy": 0.5074074074074074
         },
         {
           "bucket_type": "realized_volatility",
@@ -726,10 +810,10 @@
           "head": "regression",
           "model": "random_forest",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.02424133600733767,
-          "return_rmse": 0.03089507088615683,
-          "directional_accuracy": 0.46296296296296297
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.02619799932393335,
+          "return_rmse": 0.03280999134690142,
+          "directional_accuracy": 0.4666666666666667
         },
         {
           "bucket_type": "realized_volatility",
@@ -737,10 +821,10 @@
           "head": "regression",
           "model": "hist_gbr",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.028785877555336518,
-          "return_rmse": 0.03469448450969944,
-          "directional_accuracy": 0.4444444444444444
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.027901073003403613,
+          "return_rmse": 0.03399084119646712,
+          "directional_accuracy": 0.48148148148148145
         },
         {
           "bucket_type": "realized_volatility",
@@ -748,10 +832,10 @@
           "head": "regression",
           "model": "knn_regressor",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.03502994656597759,
-          "return_rmse": 0.04555240260695195,
-          "directional_accuracy": 0.46296296296296297
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.04351032125452271,
+          "return_rmse": 0.056906586374119605,
+          "directional_accuracy": 0.45555555555555555
         },
         {
           "bucket_type": "realized_volatility",
@@ -759,10 +843,10 @@
           "head": "regression",
           "model": "ridge",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.08729495953879132,
-          "return_rmse": 0.10816348320257221,
-          "directional_accuracy": 0.48148148148148145
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.08104308487167763,
+          "return_rmse": 0.10113407216386021,
+          "directional_accuracy": 0.4740740740740741
         },
         {
           "bucket_type": "realized_volatility",
@@ -770,60 +854,10 @@
           "head": "regression",
           "model": "mlp_regressor",
           "n": 270,
-          "mean_actual_return": -0.0014948205084447583,
-          "return_mae": 0.14156668660383492,
-          "return_rmse": 0.17141564655680105,
-          "directional_accuracy": 0.4925925925925926
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "classification",
-          "model": "hist_gbc",
-          "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.2846612166033881,
-          "classification_accuracy": 0.5073529411764706
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "classification",
-          "model": "trimmed_classification_ensemble_equal",
-          "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.29471817021546104,
-          "classification_accuracy": 0.49754901960784315
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "classification",
-          "model": "extra_trees_clf",
-          "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.3058340203137232,
-          "classification_accuracy": 0.4877450980392157
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "classification",
-          "model": "catboost_clf",
-          "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.3132442474124945,
-          "classification_accuracy": 0.48284313725490197
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "classification",
-          "model": "knn_clf",
-          "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.3140442525657494,
-          "classification_accuracy": 0.4632352941176471
+          "mean_actual_return": -0.000545834763458303,
+          "return_mae": 0.12644406205095338,
+          "return_rmse": 0.1588399228191891,
+          "directional_accuracy": 0.5148148148148148
         },
         {
           "bucket_type": "realized_volatility",
@@ -831,19 +865,59 @@
           "head": "classification",
           "model": "random_forest_clf",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.31522051863715955,
-          "classification_accuracy": 0.4803921568627451
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.25725134203517563,
+          "classification_accuracy": 0.5366430260047281
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "MID_VOL",
           "head": "classification",
-          "model": "mlp_clf",
+          "model": "trimmed_classification_ensemble_equal",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.3294877704807189,
-          "classification_accuracy": 0.4730392156862745
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.2583812006764144,
+          "classification_accuracy": 0.541371158392435
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "extra_trees_clf",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.2611787540014404,
+          "classification_accuracy": 0.524822695035461
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "catboost_clf",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.26633146559970894,
+          "classification_accuracy": 0.5106382978723404
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "knn_clf",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.2668242929735678,
+          "classification_accuracy": 0.475177304964539
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "hist_gbc",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.26699727765719167,
+          "classification_accuracy": 0.508274231678487
         },
         {
           "bucket_type": "realized_volatility",
@@ -851,9 +925,29 @@
           "head": "classification",
           "model": "logistic",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "brier_score": 0.34663734288620107,
-          "classification_accuracy": 0.4852941176470588
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.2683211408806939,
+          "classification_accuracy": 0.49645390070921985
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.26844690810848787,
+          "classification_accuracy": 0.5035460992907801
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "lightgbm_clf",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "brier_score": 0.27336203149709765,
+          "classification_accuracy": 0.4799054373522459
         },
         {
           "bucket_type": "realized_volatility",
@@ -861,32 +955,10 @@
           "head": "regression",
           "model": "no_change_anchor",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.051661743796080524,
-          "return_rmse": 0.05555500734700695,
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.05427964291731262,
+          "return_rmse": 0.057966067444144315,
           "directional_accuracy": 0.0
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "regression",
-          "model": "extra_trees",
-          "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.05558136509446144,
-          "return_rmse": 0.0651801158536384,
-          "directional_accuracy": 0.5185185185185185
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "regression",
-          "model": "trimmed_regression_ensemble_equal",
-          "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.0556879404199393,
-          "return_rmse": 0.06472928574795354,
-          "directional_accuracy": 0.45925925925925926
         },
         {
           "bucket_type": "realized_volatility",
@@ -894,9 +966,20 @@
           "head": "regression",
           "model": "catboost_regressor",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.05585397853079223,
-          "return_rmse": 0.06516119437754432,
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.057082052284705996,
+          "return_rmse": 0.06676832881636749,
+          "directional_accuracy": 0.4981481481481482
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "regression",
+          "model": "trimmed_regression_ensemble_equal",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.057789803105917324,
+          "return_rmse": 0.06698841432635674,
           "directional_accuracy": 0.4703703703703704
         },
         {
@@ -905,10 +988,32 @@
           "head": "regression",
           "model": "random_forest",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.056130010907953255,
-          "return_rmse": 0.06602426405391398,
-          "directional_accuracy": 0.4537037037037037
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.05824572754821283,
+          "return_rmse": 0.06768317594889524,
+          "directional_accuracy": 0.4888888888888889
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "regression",
+          "model": "extra_trees",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.05824714043189842,
+          "return_rmse": 0.06749046993480623,
+          "directional_accuracy": 0.4777777777777778
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "regression",
+          "model": "lightgbm_regressor",
+          "n": 540,
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.05871381129147588,
+          "return_rmse": 0.06853128610628645,
+          "directional_accuracy": 0.4648148148148148
         },
         {
           "bucket_type": "realized_volatility",
@@ -916,10 +1021,10 @@
           "head": "regression",
           "model": "hist_gbr",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.05769135133997209,
-          "return_rmse": 0.06801295116902763,
-          "directional_accuracy": 0.4462962962962963
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.060046854009022425,
+          "return_rmse": 0.07072314861291144,
+          "directional_accuracy": 0.4666666666666667
         },
         {
           "bucket_type": "realized_volatility",
@@ -927,10 +1032,10 @@
           "head": "regression",
           "model": "knn_regressor",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.06536882080560476,
-          "return_rmse": 0.07944074719044812,
-          "directional_accuracy": 0.4462962962962963
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.07252446215032421,
+          "return_rmse": 0.08764040193391542,
+          "directional_accuracy": 0.4425925925925926
         },
         {
           "bucket_type": "realized_volatility",
@@ -938,10 +1043,10 @@
           "head": "regression",
           "model": "ridge",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.09731951301800264,
-          "return_rmse": 0.12077452823136857,
-          "directional_accuracy": 0.5
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.09600433157285843,
+          "return_rmse": 0.11789680064971887,
+          "directional_accuracy": 0.5037037037037037
         },
         {
           "bucket_type": "realized_volatility",
@@ -949,39 +1054,39 @@
           "head": "regression",
           "model": "mlp_regressor",
           "n": 540,
-          "mean_actual_return": 0.0025417784863922908,
-          "return_mae": 0.1504304415069211,
-          "return_rmse": 0.18114810329186032,
-          "directional_accuracy": 0.4425925925925926
+          "mean_actual_return": 0.00111772444408795,
+          "return_mae": 0.146148993710982,
+          "return_rmse": 0.17575431591796947,
+          "directional_accuracy": 0.43703703703703706
         }
       ]
     },
     "30": {
       "folds_completed": 36,
       "regression": {
-        "best_price_rmse": 544.0363281271616,
-        "best_price_mae": 403.8530689380787,
-        "best_return_mae": 0.14981948194381473,
-        "best_directional_accuracy": 0.5981481481481481,
+        "best_price_rmse": 554.1443786809338,
+        "best_price_mae": 424.70836464210794,
+        "best_return_mae": 0.15944364779360193,
+        "best_directional_accuracy": 0.6055555555555555,
         "no_change_n": 1080,
-        "no_change_price_rmse": 544.0363281271609,
-        "no_change_price_mae": 403.8530689380787,
-        "no_change_return_mae": 0.14981948194381478,
-        "best_price_rmse_vs_no_change_pct": -1.2538152161233245e-13,
+        "no_change_price_rmse": 554.1443786809326,
+        "no_change_price_mae": 424.70836464210794,
+        "no_change_return_mae": 0.15944364779360184,
+        "best_price_rmse_vs_no_change_pct": -2.0515743206171739e-13,
         "point_forecast_beats_no_change": false
       },
       "classification": {
-        "best_balanced_accuracy": 0.5371336313959265,
-        "best_brier_score": 0.23286847094652202,
-        "best_roc_auc": 0.6105315449577744,
+        "best_balanced_accuracy": 0.5806286736519295,
+        "best_brier_score": 0.24947915176143368,
+        "best_roc_auc": 0.5545617173524151,
         "leakage_safe": true,
         "selective_signal_override": {
           "enabled": false,
           "passed": false,
           "applied": false,
-          "accuracy_on_signals": 75.49,
-          "signal_pct_days": 18.96,
-          "n_signal": 102,
+          "accuracy_on_signals": 68.27,
+          "signal_pct_days": 18.37,
+          "n_signal": 104,
           "min_accuracy_on_signals": null,
           "min_signal_pct_days": null,
           "min_n_signal": null
@@ -989,110 +1094,120 @@
       },
       "threshold_sweep": {
         "horizon": 30,
-        "model": "hist_gbc",
-        "threshold": 0.85,
-        "n_total": 538,
-        "n_signal": 102,
-        "n_up_signals": 102,
-        "n_down_signals": 0,
-        "signal_pct_days": 18.96,
-        "accuracy_on_signals": 75.49,
-        "accuracy_wilson_lower_95": 66.32,
-        "up_signal_accuracy": 75.49,
-        "down_signal_accuracy": null,
-        "base_up_rate_full_oof": 55.76,
-        "signals_per_year_extrapolated": 69.2
+        "model": "knn_clf",
+        "threshold": 0.95,
+        "n_total": 566,
+        "n_signal": 104,
+        "n_up_signals": 73,
+        "n_down_signals": 31,
+        "signal_pct_days": 18.37,
+        "accuracy_on_signals": 68.27,
+        "accuracy_wilson_lower_95": 58.81,
+        "up_signal_accuracy": 76.71,
+        "down_signal_accuracy": 48.39,
+        "base_up_rate_full_oof": 56.18,
+        "signals_per_year_extrapolated": 67.1
       },
       "regime_breakdown": [
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
-          "model": "hist_gbc",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.450897023930087,
-          "classification_accuracy": 0.8949579831932774
+          "model": "knn_clf",
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.439262840359237,
+          "classification_accuracy": 0.9314516129032258
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
-          "model": "knn_clf",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.4729445405737117,
-          "classification_accuracy": 0.7478991596638656
+          "model": "hist_gbc",
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.44187617846042726,
+          "classification_accuracy": 0.8830645161290323
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
           "model": "catboost_clf",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.5662580743375832,
-          "classification_accuracy": 0.7058823529411765
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "DOWN",
-          "head": "classification",
-          "model": "mlp_clf",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.571751947276483,
-          "classification_accuracy": 0.46218487394957986
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "DOWN",
-          "head": "classification",
-          "model": "trimmed_classification_ensemble_equal",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.5740270158417579,
-          "classification_accuracy": 0.5672268907563025
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.5603896240849865,
+          "classification_accuracy": 0.6290322580645161
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
           "model": "extra_trees_clf",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.5871705977788202,
-          "classification_accuracy": 0.5756302521008403
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.5792397355500998,
+          "classification_accuracy": 0.5362903225806451
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
-          "model": "logistic",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.6004690521059102,
-          "classification_accuracy": 0.5882352941176471
+          "model": "lightgbm_clf",
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.5995109580850875,
+          "classification_accuracy": 0.3185483870967742
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.6017655051086632,
+          "classification_accuracy": 0.22983870967741934
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "trimmed_classification_ensemble_equal",
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.6061877211921665,
+          "classification_accuracy": 0.2701612903225806
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "classification",
           "model": "random_forest_clf",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "brier_score": 0.6058707324975554,
-          "classification_accuracy": 0.592436974789916
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.6137698253216068,
+          "classification_accuracy": 0.28225806451612906
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "classification",
+          "model": "logistic",
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "brier_score": 0.6151792985221411,
+          "classification_accuracy": 0.2620967741935484
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "no_change_anchor",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.11787771047145577,
-          "return_rmse": 0.1518010642811866,
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.13168235126581215,
+          "return_rmse": 0.16396387189288275,
           "directional_accuracy": 0.0
         },
         {
@@ -1100,267 +1215,299 @@
           "bucket": "DOWN",
           "head": "regression",
           "model": "catboost_regressor",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.17428276577685242,
-          "return_rmse": 0.20533050514667103,
-          "directional_accuracy": 0.16055846422338568
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.18706021083141716,
+          "return_rmse": 0.21455220741285996,
+          "directional_accuracy": 0.18047882136279927
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "extra_trees",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.1751064860305704,
-          "return_rmse": 0.20925514636001305,
-          "directional_accuracy": 0.09773123909249563
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.19643316636122063,
+          "return_rmse": 0.22605576830077262,
+          "directional_accuracy": 0.11049723756906077
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "trimmed_regression_ensemble_equal",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.17828110488994933,
-          "return_rmse": 0.21795022137064501,
-          "directional_accuracy": 0.20767888307155322
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.19680071221152756,
+          "return_rmse": 0.22479407301412008,
+          "directional_accuracy": 0.08839779005524862
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "random_forest",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.17906563265949269,
-          "return_rmse": 0.21135349813437704,
-          "directional_accuracy": 0.10645724258289703
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.19737629809306892,
+          "return_rmse": 0.22435372344147828,
+          "directional_accuracy": 0.09392265193370165
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "DOWN",
+          "head": "regression",
+          "model": "lightgbm_regressor",
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.20706965439778802,
+          "return_rmse": 0.23592806153460147,
+          "directional_accuracy": 0.11970534069981584
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "hist_gbr",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.1845487127409935,
-          "return_rmse": 0.21634523159007205,
-          "directional_accuracy": 0.2181500872600349
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.209187731024018,
+          "return_rmse": 0.23859324245213434,
+          "directional_accuracy": 0.15285451197053407
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "ridge",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.20774781446397125,
-          "return_rmse": 0.2806683561242745,
-          "directional_accuracy": 0.6422338568935427
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.20927703088401797,
+          "return_rmse": 0.28066598504418855,
+          "directional_accuracy": 0.6095764272559853
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "knn_regressor",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.22346569482702738,
-          "return_rmse": 0.2771332257238011,
-          "directional_accuracy": 0.27399650959860383
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.2612523497030114,
+          "return_rmse": 0.31849883888611524,
+          "directional_accuracy": 0.21915285451197053
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "DOWN",
           "head": "regression",
           "model": "mlp_regressor",
-          "n": 573,
-          "mean_actual_return": -0.11787771047145577,
-          "return_mae": 0.235940604402697,
-          "return_rmse": 0.29107742502934164,
-          "directional_accuracy": 0.4363001745200698
+          "n": 543,
+          "mean_actual_return": -0.13168235126581215,
+          "return_mae": 0.29552244067772715,
+          "return_rmse": 0.3504658276033159,
+          "directional_accuracy": 0.31675874769797424
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
           "model": "mlp_clf",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.1231070605523977,
-          "classification_accuracy": 0.5533333333333333
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.14908338693548953,
+          "classification_accuracy": 0.7515723270440252
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
           "model": "trimmed_classification_ensemble_equal",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.13959877008590058,
-          "classification_accuracy": 0.4266666666666667
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "classification",
-          "model": "catboost_clf",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.1760296726622697,
-          "classification_accuracy": 0.3333333333333333
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "classification",
-          "model": "extra_trees_clf",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.18092118514735925,
-          "classification_accuracy": 0.45
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "classification",
-          "model": "knn_clf",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.18216898510954035,
-          "classification_accuracy": 0.2866666666666667
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.14923461620630465,
+          "classification_accuracy": 0.6729559748427673
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
           "model": "logistic",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.1879374997825691,
-          "classification_accuracy": 0.38333333333333336
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.16200685215716185,
+          "classification_accuracy": 0.6383647798742138
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
-          "model": "random_forest_clf",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.19505297042933595,
-          "classification_accuracy": 0.42333333333333334
+          "model": "lightgbm_clf",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.18758681250109163,
+          "classification_accuracy": 0.5125786163522013
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "classification",
           "model": "hist_gbc",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "brier_score": 0.20671693528859225,
-          "classification_accuracy": 0.25666666666666665
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.19718788581744437,
+          "classification_accuracy": 0.16666666666666666
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "extra_trees_clf",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.19885171183843173,
+          "classification_accuracy": 0.41509433962264153
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "random_forest_clf",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.20305577679545936,
+          "classification_accuracy": 0.5094339622641509
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "knn_clf",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.21940192131339525,
+          "classification_accuracy": 0.1761006289308176
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "classification",
+          "model": "catboost_clf",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "brier_score": 0.2550410055166858,
+          "classification_accuracy": 0.1918238993710692
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "extra_trees",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.15334587998222196,
-          "return_rmse": 0.22296759388041867,
-          "directional_accuracy": 0.8915187376725838
-        },
-        {
-          "bucket_type": "realized_direction",
-          "bucket": "UP",
-          "head": "regression",
-          "model": "random_forest",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.15754676813561172,
-          "return_rmse": 0.22919461654458687,
-          "directional_accuracy": 0.8284023668639053
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.15235751031113381,
+          "return_rmse": 0.21980113117797448,
+          "directional_accuracy": 0.8919925512104283
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "trimmed_regression_ensemble_equal",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.1649835016258556,
-          "return_rmse": 0.23032235189298392,
-          "directional_accuracy": 0.8027613412228797
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.15252319725863248,
+          "return_rmse": 0.22119025901297634,
+          "directional_accuracy": 0.8845437616387337
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
-          "model": "catboost_regressor",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.17393239119037293,
-          "return_rmse": 0.24287181181181655,
-          "directional_accuracy": 0.7021696252465484
+          "model": "random_forest",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.15601375236469697,
+          "return_rmse": 0.22441740153031015,
+          "directional_accuracy": 0.8063314711359404
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "regression",
+          "model": "lightgbm_regressor",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.17264725349884402,
+          "return_rmse": 0.2299161549116785,
+          "directional_accuracy": 0.7728119180633147
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "hist_gbr",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.17589553322072413,
-          "return_rmse": 0.23624959152309688,
-          "directional_accuracy": 0.7159763313609467
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.17775937405553408,
+          "return_rmse": 0.2323710550999609,
+          "directional_accuracy": 0.707635009310987
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
-          "model": "knn_regressor",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.18222420548712204,
-          "return_rmse": 0.24017210553350013,
-          "directional_accuracy": 0.6548323471400395
+          "model": "catboost_regressor",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.18233036799638397,
+          "return_rmse": 0.2492570115070141,
+          "directional_accuracy": 0.6108007448789572
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "no_change_anchor",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.18591935384452815,
-          "return_rmse": 0.25196292452177904,
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.18751512640550128,
+          "return_rmse": 0.24962220166696472,
           "directional_accuracy": 0.0
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
+          "model": "knn_regressor",
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.19387496165922258,
+          "return_rmse": 0.24942250226417437,
+          "directional_accuracy": 0.6554934823091247
+        },
+        {
+          "bucket_type": "realized_direction",
+          "bucket": "UP",
+          "head": "regression",
           "model": "ridge",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.24877235965527167,
-          "return_rmse": 0.3094018704884176,
-          "directional_accuracy": 0.5483234714003945
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.23406121270324784,
+          "return_rmse": 0.29641857439312036,
+          "directional_accuracy": 0.6014897579143389
         },
         {
           "bucket_type": "realized_direction",
           "bucket": "UP",
           "head": "regression",
           "model": "mlp_regressor",
-          "n": 507,
-          "mean_actual_return": 0.18591935384452815,
-          "return_mae": 0.2856402979923557,
-          "return_rmse": 0.3630133080117596,
-          "directional_accuracy": 0.5207100591715976
+          "n": 537,
+          "mean_actual_return": 0.18751512640550128,
+          "return_mae": 0.26719980669596083,
+          "return_rmse": 0.33893919041524356,
+          "directional_accuracy": 0.5642458100558659
         },
         {
           "bucket_type": "realized_volatility",
@@ -1368,69 +1515,69 @@
           "head": "classification",
           "model": "knn_clf",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.2539773374995566,
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.26973022818950054,
+          "classification_accuracy": 0.5444444444444444
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "hist_gbc",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.2895861494996781,
+          "classification_accuracy": 0.42962962962962964
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.29639766470858114,
+          "classification_accuracy": 0.6481481481481481
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "trimmed_classification_ensemble_equal",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.305552331490077,
+          "classification_accuracy": 0.6037037037037037
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "extra_trees_clf",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.3131545026522132,
+          "classification_accuracy": 0.5111111111111111
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "classification",
+          "model": "logistic",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.32738841151597575,
           "classification_accuracy": 0.5555555555555556
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "classification",
-          "model": "mlp_clf",
+          "model": "lightgbm_clf",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.27143578543038227,
-          "classification_accuracy": 0.5851851851851851
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "classification",
-          "model": "hist_gbc",
-          "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.2773066849143598,
-          "classification_accuracy": 0.5481481481481482
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "classification",
-          "model": "trimmed_classification_ensemble_equal",
-          "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.2814684109266185,
-          "classification_accuracy": 0.5518518518518518
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "classification",
-          "model": "extra_trees_clf",
-          "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.31127640976174,
-          "classification_accuracy": 0.5703703703703704
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "classification",
-          "model": "catboost_clf",
-          "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.31497210390192154,
-          "classification_accuracy": 0.5259259259259259
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "classification",
-          "model": "logistic",
-          "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.33188579104120186,
-          "classification_accuracy": 0.5037037037037037
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.33326429531979623,
+          "classification_accuracy": 0.48518518518518516
         },
         {
           "bucket_type": "realized_volatility",
@@ -1438,20 +1585,19 @@
           "head": "classification",
           "model": "random_forest_clf",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "brier_score": 0.3352274569682429,
-          "classification_accuracy": 0.5074074074074074
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.3456462472465066,
+          "classification_accuracy": 0.4888888888888889
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
-          "head": "regression",
-          "model": "hist_gbr",
+          "head": "classification",
+          "model": "catboost_clf",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.3479645222091254,
-          "return_rmse": 0.37282160249677965,
-          "directional_accuracy": 0.45925925925925926
+          "mean_actual_return": 0.12421546016072564,
+          "brier_score": 0.3936514859086642,
+          "classification_accuracy": 0.35185185185185186
         },
         {
           "bucket_type": "realized_volatility",
@@ -1459,9 +1605,9 @@
           "head": "regression",
           "model": "no_change_anchor",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.34913392910483243,
-          "return_rmse": 0.3698467899197967,
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.3543520502605387,
+          "return_rmse": 0.3734413777348742,
           "directional_accuracy": 0.0
         },
         {
@@ -1470,21 +1616,54 @@
           "head": "regression",
           "model": "extra_trees",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.35023005809673985,
-          "return_rmse": 0.37056603197022336,
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.3562289473679631,
+          "return_rmse": 0.3738283545524005,
           "directional_accuracy": 0.5222222222222223
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "regression",
+          "model": "trimmed_regression_ensemble_equal",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.3563298655502642,
+          "return_rmse": 0.3736850554992863,
+          "directional_accuracy": 0.5111111111111111
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "regression",
           "model": "random_forest",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.3522568202014488,
-          "return_rmse": 0.37591288534622314,
-          "directional_accuracy": 0.42592592592592593
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.3564307837325659,
+          "return_rmse": 0.3746439232910817,
+          "directional_accuracy": 0.43333333333333335
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "regression",
+          "model": "hist_gbr",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.35656810286715857,
+          "return_rmse": 0.3748360957299432,
+          "directional_accuracy": 0.45185185185185184
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "regression",
+          "model": "lightgbm_regressor",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.3587128828477658,
+          "return_rmse": 0.3772202198625506,
+          "directional_accuracy": 0.4666666666666667
         },
         {
           "bucket_type": "realized_volatility",
@@ -1492,10 +1671,10 @@
           "head": "regression",
           "model": "ridge",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.3532886303420765,
-          "return_rmse": 0.40656080728553406,
-          "directional_accuracy": 0.5703703703703704
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.36368146404468804,
+          "return_rmse": 0.41323820669877553,
+          "directional_accuracy": 0.5925925925925926
         },
         {
           "bucket_type": "realized_volatility",
@@ -1503,43 +1682,32 @@
           "head": "regression",
           "model": "catboost_regressor",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.3542608462811033,
-          "return_rmse": 0.37859371093672006,
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.36610332046949845,
+          "return_rmse": 0.38744957409974445,
+          "directional_accuracy": 0.37777777777777777
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "HIGH_VOL",
+          "head": "regression",
+          "model": "knn_regressor",
+          "n": 270,
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.3876957893354202,
+          "return_rmse": 0.42792876572126926,
           "directional_accuracy": 0.4111111111111111
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "HIGH_VOL",
           "head": "regression",
-          "model": "trimmed_regression_ensemble_equal",
-          "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.35498311764302465,
-          "return_rmse": 0.3798011640762561,
-          "directional_accuracy": 0.5259259259259259
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "regression",
-          "model": "knn_regressor",
-          "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.3712774059750529,
-          "return_rmse": 0.40989224550896286,
-          "directional_accuracy": 0.4148148148148148
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "HIGH_VOL",
-          "head": "regression",
           "model": "mlp_regressor",
           "n": 270,
-          "mean_actual_return": 0.12610011328419202,
-          "return_mae": 0.37496506283507924,
-          "return_rmse": 0.45251383115097016,
-          "directional_accuracy": 0.4740740740740741
+          "mean_actual_return": 0.12421546016072564,
+          "return_mae": 0.44317857422350904,
+          "return_rmse": 0.48674618561725214,
+          "directional_accuracy": 0.34074074074074073
         },
         {
           "bucket_type": "realized_volatility",
@@ -1547,7 +1715,7 @@
           "head": "classification",
           "model": "catboost_clf",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1555,7 +1723,7 @@
           "head": "classification",
           "model": "extra_trees_clf",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1563,7 +1731,7 @@
           "head": "classification",
           "model": "hist_gbc",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1571,7 +1739,15 @@
           "head": "classification",
           "model": "knn_clf",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "classification",
+          "model": "lightgbm_clf",
+          "n": 270,
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1579,7 +1755,7 @@
           "head": "classification",
           "model": "logistic",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1587,7 +1763,7 @@
           "head": "classification",
           "model": "mlp_clf",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1595,7 +1771,7 @@
           "head": "classification",
           "model": "random_forest_clf",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1603,7 +1779,7 @@
           "head": "classification",
           "model": "trimmed_classification_ensemble_equal",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007
+          "mean_actual_return": -0.0049796280668123125
         },
         {
           "bucket_type": "realized_volatility",
@@ -1611,9 +1787,9 @@
           "head": "regression",
           "model": "no_change_anchor",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.020467348991480144,
-          "return_rmse": 0.023899406427311917,
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.026312461439633707,
+          "return_rmse": 0.030579905695744303,
           "directional_accuracy": 0.0
         },
         {
@@ -1622,43 +1798,54 @@
           "head": "regression",
           "model": "extra_trees",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.055460979427061324,
-          "return_rmse": 0.06812968754952316,
-          "directional_accuracy": 0.4777777777777778
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "LOW_VOL",
-          "head": "regression",
-          "model": "random_forest",
-          "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.06482606729001392,
-          "return_rmse": 0.07772827572315306,
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.06733613150944287,
+          "return_rmse": 0.08126052416901872,
           "directional_accuracy": 0.4666666666666667
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "LOW_VOL",
           "head": "regression",
-          "model": "catboost_regressor",
+          "model": "trimmed_regression_ensemble_equal",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.06889685214920915,
-          "return_rmse": 0.08224442572545941,
-          "directional_accuracy": 0.4444444444444444
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.07015200779065917,
+          "return_rmse": 0.08276229959075714,
+          "directional_accuracy": 0.43333333333333335
         },
         {
           "bucket_type": "realized_volatility",
           "bucket": "LOW_VOL",
           "head": "regression",
-          "model": "trimmed_regression_ensemble_equal",
+          "model": "random_forest",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.0714315873141483,
-          "return_rmse": 0.09584672702173204,
-          "directional_accuracy": 0.4703703703703704
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.07512824698073524,
+          "return_rmse": 0.08726481809103138,
+          "directional_accuracy": 0.4111111111111111
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "regression",
+          "model": "catboost_regressor",
+          "n": 270,
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.07966584701802633,
+          "return_rmse": 0.09296796848420875,
+          "directional_accuracy": 0.37777777777777777
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "regression",
+          "model": "lightgbm_regressor",
+          "n": 270,
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.09723437955158047,
+          "return_rmse": 0.11164615379386052,
+          "directional_accuracy": 0.4111111111111111
         },
         {
           "bucket_type": "realized_volatility",
@@ -1666,10 +1853,10 @@
           "head": "regression",
           "model": "hist_gbr",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.09731412866837094,
-          "return_rmse": 0.11661615453917276,
-          "directional_accuracy": 0.46296296296296297
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.10318250967688751,
+          "return_rmse": 0.1270218417716416,
+          "directional_accuracy": 0.44074074074074077
         },
         {
           "bucket_type": "realized_volatility",
@@ -1677,21 +1864,10 @@
           "head": "regression",
           "model": "knn_regressor",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.10441003293224149,
-          "return_rmse": 0.14151055260356765,
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.11244827382897797,
+          "return_rmse": 0.15350515730866912,
           "directional_accuracy": 0.5111111111111111
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "LOW_VOL",
-          "head": "regression",
-          "model": "mlp_regressor",
-          "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.19779578991688532,
-          "return_rmse": 0.24739019146708258,
-          "directional_accuracy": 0.5074074074074074
         },
         {
           "bucket_type": "realized_volatility",
@@ -1699,10 +1875,21 @@
           "head": "regression",
           "model": "ridge",
           "n": 270,
-          "mean_actual_return": -0.0035691667322640007,
-          "return_mae": 0.20129991560823413,
-          "return_rmse": 0.2628510917806146,
-          "directional_accuracy": 0.5370370370370371
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.1824227792731594,
+          "return_rmse": 0.2450598811044572,
+          "directional_accuracy": 0.5555555555555556
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "LOW_VOL",
+          "head": "regression",
+          "model": "mlp_regressor",
+          "n": 270,
+          "mean_actual_return": -0.0049796280668123125,
+          "return_mae": 0.19297573054227313,
+          "return_rmse": 0.23899598898613664,
+          "directional_accuracy": 0.5037037037037037
         },
         {
           "bucket_type": "realized_volatility",
@@ -1710,9 +1897,9 @@
           "head": "classification",
           "model": "hist_gbc",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.35244689311590016,
-          "classification_accuracy": 0.5298507462686567
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.31791479588925764,
+          "classification_accuracy": 0.527027027027027
         },
         {
           "bucket_type": "realized_volatility",
@@ -1720,29 +1907,9 @@
           "head": "classification",
           "model": "knn_clf",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.3680508024795715,
-          "classification_accuracy": 0.4253731343283582
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "classification",
-          "model": "mlp_clf",
-          "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.372094849072086,
-          "classification_accuracy": 0.44029850746268656
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "classification",
-          "model": "trimmed_classification_ensemble_equal",
-          "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.3824686188280664,
-          "classification_accuracy": 0.4253731343283582
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.35770214113373394,
+          "classification_accuracy": 0.47297297297297297
         },
         {
           "bucket_type": "realized_volatility",
@@ -1750,9 +1917,19 @@
           "head": "classification",
           "model": "catboost_clf",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.38259647551308545,
-          "classification_accuracy": 0.4701492537313433
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.3844383963920382,
+          "classification_accuracy": 0.41216216216216217
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "trimmed_classification_ensemble_equal",
+          "n": 540,
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.3895001125234509,
+          "classification_accuracy": 0.39864864864864863
         },
         {
           "bucket_type": "realized_volatility",
@@ -1760,9 +1937,29 @@
           "head": "classification",
           "model": "logistic",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.4092676147569141,
-          "classification_accuracy": 0.44402985074626866
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.3908370740207948,
+          "classification_accuracy": 0.39864864864864863
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "mlp_clf",
+          "n": 540,
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.3939830839226939,
+          "classification_accuracy": 0.40878378378378377
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "classification",
+          "model": "lightgbm_clf",
+          "n": 540,
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.3998309602841352,
+          "classification_accuracy": 0.375
         },
         {
           "bucket_type": "realized_volatility",
@@ -1770,9 +1967,9 @@
           "head": "classification",
           "model": "extra_trees_clf",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.41036689246230307,
-          "classification_accuracy": 0.44029850746268656
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.4132925103545546,
+          "classification_accuracy": 0.42905405405405406
         },
         {
           "bucket_type": "realized_volatility",
@@ -1780,9 +1977,9 @@
           "head": "classification",
           "model": "random_forest_clf",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "brier_score": 0.4186631047828117,
-          "classification_accuracy": 0.48880597014925375
+          "mean_actual_return": -0.005558460227663812,
+          "brier_score": 0.4171019153518842,
+          "classification_accuracy": 0.33783783783783783
         },
         {
           "bucket_type": "realized_volatility",
@@ -1790,32 +1987,10 @@
           "head": "regression",
           "model": "no_change_anchor",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.11483832483947322,
-          "return_rmse": 0.12401017384251108,
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.12855503973711777,
+          "return_rmse": 0.13711958668767987,
           "directional_accuracy": 0.0
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "regression",
-          "model": "extra_trees",
-          "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.12693666206495746,
-          "return_rmse": 0.14886117608041893,
-          "directional_accuracy": 0.44074074074074077
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "regression",
-          "model": "random_forest",
-          "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.1293859987702769,
-          "return_rmse": 0.15180269056804843,
-          "directional_accuracy": 0.4444444444444444
         },
         {
           "bucket_type": "realized_volatility",
@@ -1823,10 +1998,32 @@
           "head": "regression",
           "model": "trimmed_regression_ensemble_equal",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.130869885347802,
-          "return_rmse": 0.15327751822752309,
-          "directional_accuracy": 0.4759259259259259
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.136328958993881,
+          "return_rmse": 0.161930156587751,
+          "directional_accuracy": 0.4962962962962963
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "regression",
+          "model": "extra_trees",
+          "n": 540,
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.1372530019894855,
+          "return_rmse": 0.16203019641349756,
+          "directional_accuracy": 0.5037037037037037
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "regression",
+          "model": "random_forest",
+          "n": 540,
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.13784032702182822,
+          "return_rmse": 0.16343498922656685,
+          "directional_accuracy": 0.4740740740740741
         },
         {
           "bucket_type": "realized_volatility",
@@ -1834,10 +2031,21 @@
           "head": "regression",
           "model": "catboost_regressor",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.13665771953235387,
-          "return_rmse": 0.15833635037338795,
-          "directional_accuracy": 0.40185185185185185
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.14653227198867788,
+          "return_rmse": 0.16938764767458703,
+          "directional_accuracy": 0.4111111111111111
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "regression",
+          "model": "lightgbm_regressor",
+          "n": 540,
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.15193451225750876,
+          "return_rmse": 0.17651931480423363,
+          "directional_accuracy": 0.45
         },
         {
           "bucket_type": "realized_volatility",
@@ -1845,21 +2053,10 @@
           "head": "regression",
           "model": "hist_gbr",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.13833372593809695,
-          "return_rmse": 0.16053337705898862,
-          "directional_accuracy": 0.4425925925925926
-        },
-        {
-          "bucket_type": "realized_volatility",
-          "bucket": "MID_VOL",
-          "head": "regression",
-          "model": "knn_regressor",
-          "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.170366494097941,
-          "return_rmse": 0.2040477299165377,
-          "directional_accuracy": 0.4425925925925926
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.15724640079068722,
+          "return_rmse": 0.18061284360093255,
+          "directional_accuracy": 0.4111111111111111
         },
         {
           "bucket_type": "realized_volatility",
@@ -1867,10 +2064,21 @@
           "head": "regression",
           "model": "ridge",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.17671884560461912,
-          "return_rmse": 0.23722757895911142,
-          "directional_accuracy": 0.6425925925925926
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.1701484320293465,
+          "return_rmse": 0.2262228609233165,
+          "directional_accuracy": 0.6370370370370371
+        },
+        {
+          "bucket_type": "realized_volatility",
+          "bucket": "MID_VOL",
+          "head": "regression",
+          "model": "knn_regressor",
+          "n": 540,
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.20542959860250054,
+          "return_rmse": 0.24602359259499632,
+          "directional_accuracy": 0.4111111111111111
         },
         {
           "bucket_type": "realized_volatility",
@@ -1878,18 +2086,15 @@
           "head": "regression",
           "model": "mlp_regressor",
           "n": 540,
-          "mean_actual_return": -0.011789206055535037,
-          "return_mae": 0.23216327252192479,
-          "return_rmse": 0.28397879449077307,
-          "directional_accuracy": 0.46111111111111114
+          "mean_actual_return": -0.005558460227663812,
+          "return_mae": 0.24480244295736256,
+          "return_rmse": 0.30121379861583936,
+          "directional_accuracy": 0.45740740740740743
         }
       ]
     }
   },
-  "failures": [
-    "h7 threshold_sweep accuracy_on_signals: 53.23 < min 58",
-    "h7 classification best_roc_auc: 0.4991 < min 0.5"
-  ],
+  "failures": [],
   "warnings": [],
-  "gate_status": "FAIL"
+  "gate_status": "PASS"
 }
