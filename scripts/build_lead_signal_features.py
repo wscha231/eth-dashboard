@@ -38,6 +38,8 @@ from forecasting.lead_signals import (
     feature_group_columns,
 )
 
+FEATURE_FLOAT_FORMAT = "%.12g"
+
 
 def log(message: str) -> None:
     print(message, flush=True)
@@ -528,7 +530,11 @@ def main() -> int:
         reporting_lag_days=args.reporting_lag_days,
         excluded_market_dates=excluded_market_dates,
     )
-    output_sha256 = write_daily_csv(features, args.output)
+    output_sha256 = write_daily_csv(
+        features,
+        args.output,
+        float_format=FEATURE_FLOAT_FORMAT,
+    )
     groups = feature_group_columns(features)
     manifest = {
         "schema_version": 1,
@@ -554,6 +560,7 @@ def main() -> int:
         "feature_table": {
             "path": relative_path(args.output),
             "sha256": output_sha256,
+            "float_serialization": FEATURE_FLOAT_FORMAT,
             "row_count": len(features),
             "column_count": len(features.columns),
             "first_date": pd.Timestamp(features.index.min()).date().isoformat(),

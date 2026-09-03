@@ -683,13 +683,21 @@ def validate_daily_history(frame: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def write_daily_csv(frame: pd.DataFrame, path: Path) -> str:
+def write_daily_csv(
+    frame: pd.DataFrame,
+    path: Path,
+    *,
+    float_format: str | None = None,
+) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     output = frame.copy()
     output.index = pd.DatetimeIndex(output.index).strftime("%Y-%m-%d")
     output.index.name = "date"
     temporary = path.with_suffix(f"{path.suffix}.tmp")
-    csv_payload = output.to_csv(lineterminator="\n").encode("utf-8")
+    csv_payload = output.to_csv(
+        lineterminator="\n",
+        float_format=float_format,
+    ).encode("utf-8")
     if path.suffix == ".gz":
         with (
             temporary.open("wb") as raw_handle,

@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from forecasting.lead_signal_data import write_daily_csv
 from scripts.build_lead_signal_features import (
+    FEATURE_FLOAT_FORMAT,
     _feature_report,
     _source_months,
     archive_evidence_records,
@@ -82,6 +84,28 @@ def test_archive_evidence_excludes_execution_host_paths() -> None:
     assert evidence[0]["cache_path"] == ("binance/binance_spot_ethusdt_1h/archive.zip")
 
 
+def test_feature_csv_quantizes_subprecision_reduction_drift(tmp_path: Path) -> None:
+    index = pd.DatetimeIndex(["2026-07-31"])
+    first = pd.DataFrame({"signal": [0.0012432661688646252]}, index=index)
+    second = pd.DataFrame({"signal": [0.0012432661688646254]}, index=index)
+    first_path = tmp_path / "first.csv.gz"
+    second_path = tmp_path / "second.csv.gz"
+
+    first_hash = write_daily_csv(
+        first,
+        first_path,
+        float_format=FEATURE_FLOAT_FORMAT,
+    )
+    second_hash = write_daily_csv(
+        second,
+        second_path,
+        float_format=FEATURE_FLOAT_FORMAT,
+    )
+
+    assert first_hash == second_hash
+    assert first_path.read_bytes() == second_path.read_bytes()
+
+
 def test_generated_feature_artifact_matches_immutable_manifest() -> None:
     feature_path = Path("lake/gold/lead_signal_daily.csv.gz")
     manifest_path = Path("lake/manifests/lead_signal_features.json")
@@ -96,6 +120,7 @@ def test_generated_feature_artifact_matches_immutable_manifest() -> None:
 
     assert manifest["scope"] == "offline_lead_signal_daily_features"
     assert manifest["feature_table"]["sha256"] == observed_hash
+    assert manifest["feature_table"]["float_serialization"] == FEATURE_FLOAT_FORMAT
     assert report["feature_table"]["sha256"] == observed_hash
     assert report["decision"] == "pass_for_pr3_offline_evaluation"
     assert report["gate"]["production_use_approved"] is False
