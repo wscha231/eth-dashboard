@@ -219,6 +219,13 @@ This command does not modify or feed the promoted daily forecast. Raw monthly
 ZIPs remain under ignored `lake/raw/lead_signal_full/`; production use remains
 blocked until later matched-date Gate A/B evaluation and terms review pass.
 
+The 2026-09-03 locked PR2 build validated 374 archives and produced 3,269
+daily rows with 177 columns through 2026-07-31. Its four-stream common window
+contains 2,388 eligible days, with the first authoritative PR3 test date set
+to 2021-12-31. Historical hourly-grid anomalies are declared in the manifest
+and their 34 affected UTC days are quarantined. Floating outputs use ten
+significant digits so identical pinned inputs rebuild to identical bytes.
+
 ### 2. Run Dual-Horizon Forecasts From The Master Dataset
 Compact output is now designed to keep only the two main CSV reports plus `summary.json`.
 

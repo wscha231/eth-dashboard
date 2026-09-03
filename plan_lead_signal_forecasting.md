@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 
-Status: **PR 1 implemented offline; awaiting review before PR 2**
+Status: **PR 2 implemented offline; full-source contract passed; PR 3 next**
 
 Research basis: `research_lead_signal_forecasting.md`
 
@@ -175,6 +175,22 @@ Proposed files:
 - `forecasting/tail_events.py` - additive target helpers only;
 - `tests/test_lead_signals.py`;
 - `tests/test_tail_events.py` - additive target/episode cases.
+
+Implementation result (2026-09-03):
+
+- all 374 checksum-pinned monthly archives validated through the common
+  complete month `2026-07`;
+- the immutable feature table contains 3,269 daily rows and 177 columns from
+  `2017-08-18` through `2026-07-31`;
+- the four-stream common-hourly window contains 2,388 eligible days from
+  `2020-01-01`, making `2021-12-31` the first authoritative PR 3 test date;
+- 452 declared historical hourly-grid anomalies affecting 34 UTC dates are
+  quarantined as missing market days rather than silently repaired;
+- the five disjoint model groups contain 28 order-flow, 14 leverage/basis,
+  20 intraday-risk, 88 cross-asset-leadership, and 18 Ethereum-liquidity
+  columns;
+- the readiness decision is `pass_for_pr3_offline_evaluation`, while
+  production use, model training, and public-contract changes remain false.
 
 ### PR 3 - source-ablation Gate A and Gate B
 
@@ -392,9 +408,9 @@ challenger.
 
 ## Next approval scope
 
-Review and merge **PR 1 only**. After that, approve PR 2 separately to build
-fold-safe daily aggregates and the factorized targets from the ready Binance
-and DefiLlama sources. Deribit should remain an optional ablation and OKX must
-remain excluded until its access and terms gates are resolved.
+Review the exact **PR 2** feature and label contract. The next bounded step is
+PR 3 matched-date source ablation: Gate A first, then Gate B only if the
+engineering gate passes. Deribit remains optional and OKX remains excluded
+until its access and terms gates are resolved.
 
-No model, daily forecast, or site behavior changes are authorized by PR 1.
+No model, daily forecast, or site behavior changes are authorized by PR 2.

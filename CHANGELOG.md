@@ -21,6 +21,12 @@ are UTC.
   diagnostic barrier-label helpers.
 - Added a path-limited GitHub Actions contract that builds and verifies the
   full review artifact without changing the daily forecast path.
+- Locked the passing full-source evidence at 3,269 daily rows and 177 columns,
+  backed by 374 checksum-verified monthly archives through 2026-07.
+- Declared and quarantined 34 UTC dates affected by historical Binance
+  hourly-grid anomalies instead of synthesizing missing or shifted sessions.
+- Canonicalized archive cache paths and quantized feature serialization to ten
+  significant digits so CI can byte-compare a rebuild with committed evidence.
 
 ### Safety
 

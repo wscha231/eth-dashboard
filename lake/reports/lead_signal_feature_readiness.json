@@ -1,0 +1,58 @@
+{
+  "archive_validation": {
+    "all_passed": true,
+    "archive_count": 374,
+    "declared_market_gap_count": 452,
+    "download_bytes": 14964972
+  },
+  "as_of_date": "2026-07-31",
+  "common_hourly_coverage": {
+    "earliest_authoritative_test_date": "2021-12-31",
+    "first_date": "2020-01-01",
+    "last_date": "2026-07-31",
+    "minimum_prior_days": 730,
+    "row_count": 2388
+  },
+  "decision": "pass_for_pr3_offline_evaluation",
+  "feature_manifest_sha256": "4d4bac44bab47e9958801a271393b243dc2c6c3e55bd1e99d4cc6d0f26c457b8",
+  "feature_table": {
+    "column_count": 177,
+    "first_date": "2017-08-18",
+    "group_column_counts": {
+      "cross_asset_leadership": 88,
+      "ethereum_liquidity": 18,
+      "intraday_risk": 20,
+      "leverage_basis": 14,
+      "order_flow": 28
+    },
+    "last_date": "2026-07-31",
+    "row_count": 3269,
+    "sha256": "a598bbd3fedfb6717017a56ea6a168e91e3a35215d5aba132b4080a05f679128"
+  },
+  "gate": {
+    "conditions": [
+      "DefiLlama historical publication vintages are unavailable; values are lagged one day and remain offline-only",
+      "External source terms require review before production use",
+      "OKX remains excluded",
+      "August 2026 spot hourly data is excluded until its complete monthly archive is available"
+    ],
+    "daily_forecast_modified": false,
+    "model_training_performed": false,
+    "offline_model_evaluation_approved": true,
+    "production_use_approved": false,
+    "public_contract_modified": false
+  },
+  "schema_version": 1,
+  "target_contract": {
+    "barrier_labels": "diagnostic_only",
+    "direct": "tail_up_primary = 1[terminal_return_3d >= 0.12]",
+    "factorized": "large_move_primary times direction_up with final-score recalibration",
+    "horizon_days": 3,
+    "multiclass": [
+      "DOWN_TAIL",
+      "NORMAL",
+      "UP_TAIL"
+    ],
+    "tail_threshold": 0.12
+  }
+}
