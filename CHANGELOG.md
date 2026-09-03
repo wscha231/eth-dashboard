@@ -8,6 +8,37 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-09-03 (offline lead-signal source ablation)
+
+### Added
+
+- Added a matched-date, leakage-safe three-day upside-tail evaluator for
+  direct, factorized, and multiclass formulations across core, order-flow,
+  market-lead, liquidity, and combined feature sets.
+- Added fold-local feature eligibility, prior-only sigmoid calibration,
+  prior-only false-alert-constrained thresholds, event episodes, moving-block
+  bootstrap, calendar concentration checks, and candidate-specific numerical
+  rejection.
+- Added an automatic six-block Gate A workflow and a manual five-calendar-
+  block Gate B mode. Both are isolated from the scheduled forecast.
+
+### Evaluation
+
+- Gate A passed in 433.75 seconds at 410.86 MB peak RSS.
+- Gate B covered 1,672 matched OOF dates and passed infrastructure limits in
+  507.13 seconds at 428.10 MB peak RSS.
+- The best all-lead HistGradientBoosting candidate improved AP by 86.15% and
+  Brier score by 16.13% versus its matched core-only family, but failed the
+  predeclared promotion gate: 34.78% episode recall, 3.39 false alerts per 90
+  days, and 66.84% of total Brier gain concentrated in 2023.
+
+### Safety
+
+- No lead-signal candidate was promoted. Daily models, model manifests,
+  public JSON, database, UI, alerts, and notifications remain unchanged.
+- No additional nonlinear model search or deep sequence challenger was run
+  after the authoritative failure.
+
 ## [Unreleased] · 2026-09-03 (offline lead-signal feature contract)
 
 ### Added

@@ -97,3 +97,20 @@ def test_lead_signal_feature_contract_is_offline_and_time_bounded() -> None:
     assert "eth_data_collector.py" not in workflow
     assert "eth_price_forecast.py" not in workflow
     assert "daily_forecast.yml" not in workflow
+
+
+def test_lead_signal_ablation_workflow_is_offline_and_gate_b_is_manual() -> None:
+    workflow = _read(".github/workflows/lead_signal_source_ablation.yml")
+
+    assert "timeout-minutes: 35" in workflow
+    assert "scripts/evaluate_lead_signal_ablation.py" in workflow
+    assert "origin/data/daily-forecast" in workflow
+    assert "default: smoke" in workflow
+    assert "- full" in workflow
+    assert "candidate_scope=ci_matched_pair" in workflow
+    assert '--candidate-scope "$candidate_scope"' in workflow
+    assert "continue-on-error: true" in workflow
+    assert '.gate.infrastructure_status == "PASS"' in workflow
+    assert "eth_data_collector.py" not in workflow
+    assert "daily_forecast.yml" not in workflow
+    assert "forecast_site/public" not in workflow

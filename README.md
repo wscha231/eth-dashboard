@@ -226,6 +226,40 @@ to 2021-12-31. Historical hourly-grid anomalies are declared in the manifest
 and their 34 affected UTC days are quarantined. Floating outputs use ten
 significant digits so identical pinned inputs rebuild to identical bytes.
 
+### Offline Lead-Signal Source Ablation
+
+PR3 compares every source-augmented candidate with the same model family on
+the same dates. Gate A is a six-block engineering smoke; Gate B is a manual,
+expanding calendar-year OOF evaluation with a three-day purge, prior-only
+calibration, and prior-only alert thresholds:
+
+```bash
+python scripts/evaluate_lead_signal_ablation.py \
+  --profile smoke \
+  --data-git-ref origin/data/daily-forecast \
+  --nonlinear histgradient \
+  --output /tmp/lead-signal-gate-a.json
+```
+
+The frozen Gate B run covered 1,672 OOF dates in 2022-2026. The best all-lead
+HistGradientBoosting candidate improved AP from 0.03204 to 0.05964 and Brier
+score from 0.03437 to 0.02883 against its matched core-only baseline, but it
+failed the absolute promotion contract: episode recall was 34.78%, false
+alerts were 3.39 per 90 days, and 66.84% of aggregate Brier gain came from one
+calendar block. The candidate therefore remains offline. Full compact
+evidence is in `tests/phase0/lead_signal_source_ablation_metrics.json`.
+
+Pull-request CI keeps all six matched 30-day folds but bounds the automatic
+smoke to the direct logistic core/all-leads pair. This exercises the data,
+fold-safety, calibration, threshold, and serialization contracts within the
+10-minute infrastructure budget. The predeclared nonlinear registry is only
+rerun through manual `full` dispatch; its frozen Gate A/B evidence remains the
+authoritative performance record.
+
+This evaluator does not write the model registry, daily outputs, database,
+site files, or notifications. A failed Gate B is evidence to retain the data
+layer and stop model promotion, not permission to relax thresholds.
+
 ### 2. Run Dual-Horizon Forecasts From The Master Dataset
 Compact output is now designed to keep only the two main CSV reports plus `summary.json`.
 
