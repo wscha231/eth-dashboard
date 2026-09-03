@@ -38,7 +38,7 @@ from forecasting.lead_signals import (
     feature_group_columns,
 )
 
-FEATURE_FLOAT_FORMAT = "%.12g"
+FEATURE_FLOAT_FORMAT = "%.10g"
 
 
 def log(message: str) -> None:
