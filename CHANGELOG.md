@@ -8,6 +8,23 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-09-03 (offline intraday breakout nowcast)
+
+### Added
+
+- Added a causal hourly breakout evaluator using checksum-verified Binance
+  spot and perpetual bars for ETH and BTC.
+- Fixed three rules before evaluation: price impulse, volume confirmation, and
+  cross-market confirmation for a forward 48-hour +8% target.
+- Added prior-only rolling thresholds, 24-hour alert refresh accounting,
+  independent event metrics, calendar-block checks, and an isolated workflow.
+
+### Safety
+
+- The initial historical run can authorize shadow evaluation only. It cannot
+  change the daily model, public forecast JSON, database, UI, or alerts.
+- No candidate threshold may be retuned after the full-history result.
+
 ## [Unreleased] · 2026-09-03 (offline adaptive interval gate)
 
 ### Added

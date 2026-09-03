@@ -260,6 +260,32 @@ This evaluator does not write the model registry, daily outputs, database,
 site files, or notifications. A failed Gate B is evidence to retain the data
 layer and stop model promotion, not permission to relax thresholds.
 
+### Offline Intraday Breakout Nowcast
+
+The next isolated challenger tests whether fully closed one-hour Binance bars
+can detect a breakout early enough to preserve useful remaining upside after
+an unannounced catalyst. It is a nowcast, not a claim that news can be forecast
+before it exists. The fixed target is a maximum ETH spot return of at least 8%
+within the next 48 hours. Three predeclared rules compare a prior-only 4-hour
+price impulse with volume confirmation and cross-market confirmation.
+
+All rolling quantiles exclude the current bar, use up to 180 days of history,
+and require at least 90 days of prior observations. Sustained alarms are
+counted again every 24 hours. The initial review workflow runs one full-history
+gate against checksum-verified official archives; after evidence is frozen,
+automatic pull-request runs are reduced to the last 13 complete months.
+
+```bash
+python scripts/evaluate_intraday_nowcast.py \
+  --profile smoke \
+  --raw-dir lake/raw/intraday_nowcast \
+  --output /tmp/intraday-nowcast.json
+```
+
+Even a passing historical gate authorizes only a shadow experiment. It does
+not modify the daily 7/30-day forecast, public JSON, UI, trading decisions, or
+notifications.
+
 ### Offline Adaptive Asymmetric Intervals
 
 The PR4 evaluator tests a 3-day 90% return interval before considering longer
