@@ -94,7 +94,11 @@ def _normalize_hourly_frame(
     return output
 
 
-def _complete_utc_days(frame: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DatetimeIndex:
+def _complete_utc_days(
+    frame: pd.DataFrame,
+    cutoff: pd.Timestamp,
+    excluded_dates: pd.DatetimeIndex,
+) -> pd.DatetimeIndex:
     counts = frame.groupby("date", sort=True)["open_time"].count()
     first_open = frame.groupby("date", sort=True)["open_time"].min()
     last_open = frame.groupby("date", sort=True)["open_time"].max()
@@ -113,6 +117,7 @@ def _complete_utc_days(frame: pd.DataFrame, cutoff: pd.Timestamp) -> pd.Datetime
         incomplete = expected.difference(observed_complete)
         first_observed = pd.Timestamp(counts.index.min())
         incomplete = incomplete[incomplete != first_observed]
+        incomplete = incomplete.difference(excluded_dates)
         if len(incomplete):
             sample = ", ".join(value.date().isoformat() for value in incomplete[:5])
             raise ValueError(f"Incomplete interior UTC days: {sample}")
@@ -181,7 +186,7 @@ def aggregate_hourly_stream(
         [_naive_utc(value).floor("D") for value in excluded_dates]
     )
     hourly = _normalize_hourly_frame(frame, cutoff_timestamp, excluded)
-    complete_days = _complete_utc_days(hourly, cutoff_timestamp)
+    complete_days = _complete_utc_days(hourly, cutoff_timestamp, excluded)
     if complete_days.empty:
         raise ValueError("No complete UTC days are available at the declared cutoff")
 

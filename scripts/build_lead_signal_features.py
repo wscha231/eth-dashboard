@@ -137,10 +137,14 @@ def download_and_validate_archive(
         )
 
     counts = validation["counts"]
-    non_duration_violations = {
+    declared_violation_names = {
+        "close_duration_violation_count",
+        "missing_bar_count",
+    }
+    undeclared_violations = {
         name: value
         for name, value in counts.items()
-        if name != "close_duration_violation_count"
+        if name not in declared_violation_names
         and (value is True if isinstance(value, bool) else value != 0)
     }
     duration = frame["close_time"] - frame["open_time"]
@@ -148,17 +152,29 @@ def download_and_validate_archive(
         (duration > pd.Timedelta(hours=1) - pd.Timedelta(milliseconds=2))
         & (duration <= pd.Timedelta(hours=1))
     )
-    declared_gap_times = [
-        pd.Timestamp(value).isoformat()
-        for value in frame.loc[bad_duration, "open_time"].tolist()
-    ]
-    if non_duration_violations:
+    expected_open_times = pd.date_range(
+        expected_start,
+        month_end,
+        freq="h",
+        inclusive="left",
+    )
+    observed_open_times = pd.DatetimeIndex(frame["open_time"])
+    missing_open_times = expected_open_times.difference(observed_open_times)
+    declared_gap_times = sorted(
+        {
+            pd.Timestamp(value).isoformat()
+            for value in (
+                list(frame.loc[bad_duration, "open_time"]) + list(missing_open_times)
+            )
+        }
+    )
+    if undeclared_violations:
         raise ValueError(
             f"Hourly validation failed for {spec.source_id} {month}: "
             f"{strict_json_dumps(validation).strip()}"
         )
     validation_status = (
-        "pass_with_declared_session_gap" if declared_gap_times else "pass"
+        "pass_with_declared_market_gap" if declared_gap_times else "pass"
     )
     return {
         "source_id": spec.source_id,
@@ -179,7 +195,7 @@ def download_and_validate_archive(
         "first_open_time": validation["first_open_time"],
         "last_open_time": validation["last_open_time"],
         "validation_status": validation_status,
-        "declared_session_gap_open_times": declared_gap_times,
+        "declared_market_gap_open_times": declared_gap_times,
     }
 
 
@@ -328,7 +344,7 @@ def _feature_report(
         "OKX remains excluded",
         "August 2026 spot hourly data is excluded until its complete monthly archive is available",
     ]
-    accepted_statuses = {"pass", "pass_with_declared_session_gap"}
+    accepted_statuses = {"pass", "pass_with_declared_market_gap"}
     ready = (
         bool(len(common_dates) >= 730)
         and common_end == as_of_date
@@ -364,8 +380,8 @@ def _feature_report(
                 item["validation_status"] in accepted_statuses
                 for item in archive_records
             ),
-            "declared_session_gap_count": sum(
-                len(item.get("declared_session_gap_open_times", []))
+            "declared_market_gap_count": sum(
+                len(item.get("declared_market_gap_open_times", []))
                 for item in archive_records
             ),
             "download_bytes": sum(item["size_bytes"] for item in archive_records),
@@ -477,7 +493,7 @@ def main() -> int:
             {
                 pd.Timestamp(timestamp).floor("D")
                 for item in archive_records
-                for timestamp in item["declared_session_gap_open_times"]
+                for timestamp in item["declared_market_gap_open_times"]
             }
         )
     )
@@ -538,7 +554,7 @@ def main() -> int:
             "fold_local_imputation": True,
             "minimum_source_history_before_authoritative_test_days": 730,
             "partial_current_day_allowed": False,
-            "declared_session_gap_dates": [
+            "declared_market_gap_dates": [
                 value.date().isoformat() for value in excluded_market_dates
             ],
         },

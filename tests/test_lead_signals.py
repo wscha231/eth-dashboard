@@ -105,6 +105,14 @@ def test_aggregate_hourly_stream_rejects_interior_missing_day() -> None:
             cutoff=pd.Timestamp("2020-01-05"),
         )
 
+    accepted = aggregate_hourly_stream(
+        frame,
+        prefix="eth_spot",
+        cutoff=pd.Timestamp("2020-01-05"),
+        excluded_dates=(pd.Timestamp("2020-01-02"),),
+    )
+    assert pd.Timestamp("2020-01-02") not in accepted.index
+
 
 def test_partial_session_requires_declaration_and_nulls_entire_day() -> None:
     streams = _streams(days=4)
