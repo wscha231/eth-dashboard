@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 
-Status: **PR 2 implemented offline; full-source contract passed; PR 3 next**
+Status: **PR 3 completed offline; promotion gate failed; PR 4 next**
 
 Research basis: `research_lead_signal_forecasting.md`
 
@@ -201,7 +201,7 @@ Candidate families:
 1. existing direct core-only tail baseline;
 2. direct model + order-flow group;
 3. direct model + Ethereum-liquidity group;
-4. direct model + order flow + liquidity;
+4. direct model + market leads, then all available lead groups;
 5. factorized large-move/direction model on the same groups;
 6. direct three-class model;
 7. optional OKX/Deribit ablations only where coverage passes.
@@ -251,13 +251,35 @@ two individually calibrated heads is not assumed to remain calibrated.
 
 Proposed files:
 
-- `scripts/evaluate_lead_signal_candidate.py`;
-- `tests/phase0/longrun_oof_lead_signals.py`;
-- `tests/test_evaluate_lead_signal_candidate.py`;
-- `tests/phase0/lead_signal_gate_result.json`.
+- `forecasting/tail_evaluation.py`;
+- `scripts/evaluate_lead_signal_ablation.py`;
+- `tests/test_evaluate_lead_signal_ablation.py`;
+- `tests/phase0/lead_signal_source_ablation_metrics.json`.
 
 If every candidate fails, retain the data layer and evaluator but stop. Do not
 move to a deep model to rescue a negative source-ablation result.
+
+Implementation result (2026-09-03):
+
+- Gate A passed its engineering contract on six matched 30-day blocks in
+  433.75 seconds at 410.86 MB peak RSS.
+- Gate B evaluated 1,672 matched OOF dates across five expanding calendar
+  blocks from 2022 through 2026, containing 23 primary upside-tail episodes.
+- The best source model was fixed HistGradientBoosting with all lead groups.
+  Against the identical core-only family, AP rose from 0.03204 to 0.05964 and
+  Brier score fell from 0.03437 to 0.02883; the 2,000-sample paired bootstrap
+  assigned 100% probability to the Brier improvement.
+- Promotion still failed. The model detected 8/23 episodes (34.78%, below the
+  35% floor), produced 3.39 false-alert episodes per 90 days (above 3.0), and
+  66.84% of aggregate Brier gain came from 2023 (above the 50% concentration
+  cap).
+- One all-lead multiclass logistic candidate was rejected when its first
+  prior-only threshold window became numerically degenerate. The remaining
+  candidates completed; no threshold or model was retuned after observing
+  Gate B.
+- The immutable source/feature layer and evaluator are retained for research,
+  but no candidate is promoted, no deep sequence challenger is authorized,
+  and the daily forecast remains unchanged.
 
 ### PR 4 - adaptive asymmetric interval challenger
 
@@ -408,9 +430,10 @@ challenger.
 
 ## Next approval scope
 
-Review the exact **PR 2** feature and label contract. The next bounded step is
-PR 3 matched-date source ablation: Gate A first, then Gate B only if the
-engineering gate passes. Deribit remains optional and OKX remains excluded
-until its access and terms gates are resolved.
+Review the exact **PR 3** matched-date evidence. The next bounded step is PR 4
+adaptive asymmetric interval evaluation, starting with the 3-day upper-tail
+range. It is independent of the rejected alert classifier and may improve
+range honesty even when directional alpha is insufficient.
 
-No model, daily forecast, or site behavior changes are authorized by PR 2.
+No model, daily forecast, public range, or site behavior change is authorized
+by PR 3. PR 4 remains offline until its own historical gate passes.

@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "mode": "offline_lead_signal_source_ablation",
+  "generated_at_utc": "2026-09-03T10:40:51.984743+00:00",
+  "decision": "retain_offline_only",
+  "production_use": false,
+  "model_promotion": false,
+  "daily_forecast_wiring": false,
+  "public_contract_change": false,
+  "next_step": "adaptive_interval_pr4_only",
+  "inputs": {
+    "market_data_ref": "origin/data/daily-forecast",
+    "market_data_commit": "103f7b8879750ab9c693267a782dc9cb6b74f40d",
+    "market_data_sha256": "7e63a35a5f86ab165f9e911ca5c3c633a989cec2a1fd13a28d70b0df26c1550e",
+    "market_data_end_date": "2026-09-03",
+    "lead_feature_sha256": "a598bbd3fedfb6717017a56ea6a168e91e3a35215d5aba132b4080a05f679128",
+    "lead_manifest_sha256": "4d4bac44bab47e9958801a271393b243dc2c6c3e55bd1e99d4cc6d0f26c457b8",
+    "lead_feature_end_date": "2026-07-31"
+  },
+  "matched_data": {
+    "feature_rows": 2388,
+    "feature_start_date": "2020-01-01",
+    "feature_end_date": "2026-07-31",
+    "authoritative_oof_rows": 1672,
+    "authoritative_test_start_date": "2022-01-01",
+    "authoritative_test_end_date": "2026-07-31",
+    "outer_fold_count": 5,
+    "purge_days": 3,
+    "primary_positive_rows": 46,
+    "primary_event_episodes": 23
+  },
+  "gate_a": {
+    "profile": "smoke",
+    "generated_at_utc": "2026-09-03T10:28:25.543741+00:00",
+    "outer_fold_count": 6,
+    "test_rows_per_fold": 30,
+    "infrastructure_status": "PASS",
+    "promotion_status": "NOT_EVALUATED",
+    "runtime_seconds": 433.7468201640004,
+    "peak_rss_mb": 410.85546875,
+    "runtime_budget_seconds": 600.0,
+    "peak_rss_budget_mb": 1024.0
+  },
+  "gate_b": {
+    "profile": "full",
+    "infrastructure_status": "PASS",
+    "promotion_status": "FAIL",
+    "runtime_seconds": 507.13068620700506,
+    "peak_rss_mb": 428.09765625,
+    "runtime_budget_seconds": 1800.0,
+    "peak_rss_budget_mb": 1024.0,
+    "winner": "direct_histgradient_all_leads",
+    "matched_core_baseline": "direct_histgradient_core",
+    "checks": {
+      "average_precision_20pct_above_matched_core": true,
+      "positive_brier_skill_vs_matched_core": true,
+      "episode_recall_at_least_35pct": false,
+      "false_alert_budget": false,
+      "bootstrap_probability_at_least_90pct": true,
+      "improvement_in_at_least_four_calendar_blocks": true,
+      "largest_block_contribution_at_most_50pct": false,
+      "dynamic_nonnegative_brier_skill": true
+    },
+    "failure_reasons": [
+      "primary episode recall was 0.34782608695652173, below 0.35",
+      "primary false alerts were 3.3911483253588517 per 90 days, above 3.0",
+      "the largest calendar block supplied 0.6684172879568283 of aggregate Brier gain, above 0.50"
+    ],
+    "winner_primary": {
+      "average_precision": 0.05963943311897103,
+      "matched_core_average_precision": 0.0320375267396821,
+      "average_precision_ratio": 1.861549226429544,
+      "brier_score": 0.028830541535633754,
+      "matched_core_brier_score": 0.03437452603374371,
+      "brier_skill_vs_matched_core": 0.16128177280663336,
+      "event_episode_count": 23,
+      "detected_event_episode_count": 8,
+      "episode_recall": 0.34782608695652173,
+      "false_alert_episode_count": 63,
+      "false_alert_episodes_per_90_days": 3.3911483253588517,
+      "episode_precision": 0.14864864864864866,
+      "median_lead_days": 3.5
+    },
+    "winner_dynamic": {
+      "average_precision": 0.03463320211297998,
+      "brier_skill_vs_matched_core": 0.2763925902573151,
+      "episode_recall": 0.22727272727272727,
+      "false_alert_episodes_per_90_days": 3.8217703349282295
+    },
+    "bootstrap": {
+      "samples": 2000,
+      "block_length_days": 7,
+      "brier_improvement": 0.005543984498109958,
+      "brier_probability_improvement": 1.0,
+      "brier_improvement_p05": 0.004142577786323801,
+      "brier_improvement_p95": 0.006918669092803503,
+      "average_precision_improvement": 0.027601906379288936,
+      "average_precision_probability_improvement": 0.9525,
+      "improved_calendar_blocks": 5,
+      "largest_positive_block_share": 0.6684172879568283
+    },
+    "candidate_rejections": {
+      "multiclass_logistic_all_leads": [
+        "degenerate prior-threshold probabilities: 2022/tail_up_primary"
+      ]
+    }
+  },
+  "source_ablation_primary": [
+    {
+      "candidate": "direct_logistic_order_flow",
+      "matched_core": "direct_logistic_core",
+      "average_precision": 0.04164660012784828,
+      "average_precision_ratio": 1.0319305248133914,
+      "brier_skill_vs_matched_core": -0.05280535247729912,
+      "episode_recall": 0.4782608695652174,
+      "false_alerts_per_90_days": 8.3433014354067
+    },
+    {
+      "candidate": "direct_logistic_liquidity",
+      "matched_core": "direct_logistic_core",
+      "average_precision": 0.04075583128697145,
+      "average_precision_ratio": 1.0098588177681198,
+      "brier_skill_vs_matched_core": -0.17549786458103567,
+      "episode_recall": 0.5217391304347826,
+      "false_alerts_per_90_days": 4.898325358851674
+    },
+    {
+      "candidate": "direct_logistic_market_leads",
+      "matched_core": "direct_logistic_core",
+      "average_precision": 0.03841913916990634,
+      "average_precision_ratio": 0.9519596395569812,
+      "brier_skill_vs_matched_core": 0.0009370351616354577,
+      "episode_recall": 0.4782608695652174,
+      "false_alerts_per_90_days": 6.5669856459330145
+    },
+    {
+      "candidate": "direct_logistic_all_leads",
+      "matched_core": "direct_logistic_core",
+      "average_precision": 0.03947431731995814,
+      "average_precision_ratio": 0.9781051241538491,
+      "brier_skill_vs_matched_core": -0.061383633998267184,
+      "episode_recall": 0.4782608695652174,
+      "false_alerts_per_90_days": 5.598086124401914
+    },
+    {
+      "candidate": "factorized_logistic_all_leads",
+      "matched_core": "factorized_logistic_core",
+      "average_precision": 0.04882007166986746,
+      "average_precision_ratio": 1.1726299694540232,
+      "brier_skill_vs_matched_core": -0.028524459182734274,
+      "episode_recall": 0.4782608695652174,
+      "false_alerts_per_90_days": 5.382775119617225
+    },
+    {
+      "candidate": "direct_histgradient_order_flow",
+      "matched_core": "direct_histgradient_core",
+      "average_precision": 0.042846798171150065,
+      "average_precision_ratio": 1.3373940666299768,
+      "brier_skill_vs_matched_core": -0.006828947195963719,
+      "episode_recall": 0.4782608695652174,
+      "false_alerts_per_90_days": 4.521531100478469
+    },
+    {
+      "candidate": "direct_histgradient_liquidity",
+      "matched_core": "direct_histgradient_core",
+      "average_precision": 0.03577498634852874,
+      "average_precision_ratio": 1.116658805756606,
+      "brier_skill_vs_matched_core": -0.00014949637795602655,
+      "episode_recall": 0.34782608695652173,
+      "false_alerts_per_90_days": 3.175837320574163
+    },
+    {
+      "candidate": "direct_histgradient_market_leads",
+      "matched_core": "direct_histgradient_core",
+      "average_precision": 0.04165754026632976,
+      "average_precision_ratio": 1.3002732890342683,
+      "brier_skill_vs_matched_core": 0.1264664194573727,
+      "episode_recall": 0.391304347826087,
+      "false_alerts_per_90_days": 3.9294258373205744
+    },
+    {
+      "candidate": "direct_histgradient_all_leads",
+      "matched_core": "direct_histgradient_core",
+      "average_precision": 0.05963943311897103,
+      "average_precision_ratio": 1.861549226429544,
+      "brier_skill_vs_matched_core": 0.16128177280663336,
+      "episode_recall": 0.34782608695652173,
+      "false_alerts_per_90_days": 3.3911483253588517
+    }
+  ]
+}
