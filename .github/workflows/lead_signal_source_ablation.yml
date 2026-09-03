@@ -65,13 +65,18 @@ jobs:
         run: |
           if [[ "$EVAL_PROFILE" == "full" ]]; then
             bootstrap_samples=2000
+            nonlinear=histgradient
+            candidate_scope=full
           else
-            bootstrap_samples=200
+            bootstrap_samples=100
+            nonlinear=none
+            candidate_scope=ci_matched_pair
           fi
           python scripts/evaluate_lead_signal_ablation.py \
             --profile "$EVAL_PROFILE" \
             --data-git-ref origin/data/daily-forecast \
-            --nonlinear histgradient \
+            --nonlinear "$nonlinear" \
+            --candidate-scope "$candidate_scope" \
             --bootstrap-samples "$bootstrap_samples" \
             --output "${RUNNER_TEMP}/lead-signal-ablation.json" \
             --markdown-output "${RUNNER_TEMP}/lead-signal-ablation.md"

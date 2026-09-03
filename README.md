@@ -249,6 +249,13 @@ alerts were 3.39 per 90 days, and 66.84% of aggregate Brier gain came from one
 calendar block. The candidate therefore remains offline. Full compact
 evidence is in `tests/phase0/lead_signal_source_ablation_metrics.json`.
 
+Pull-request CI keeps all six matched 30-day folds but bounds the automatic
+smoke to the direct logistic core/all-leads pair. This exercises the data,
+fold-safety, calibration, threshold, and serialization contracts within the
+10-minute infrastructure budget. The predeclared nonlinear registry is only
+rerun through manual `full` dispatch; its frozen Gate A/B evidence remains the
+authoritative performance record.
+
 This evaluator does not write the model registry, daily outputs, database,
 site files, or notifications. A failed Gate B is evidence to retain the data
 layer and stop model promotion, not permission to relax thresholds.

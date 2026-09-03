@@ -507,7 +507,27 @@ def select_lead_features(
     return selected, audit
 
 
-def lead_candidate_specs(nonlinear: str) -> tuple[CandidateSpec, ...]:
+def lead_candidate_specs(
+    nonlinear: str,
+    *,
+    candidate_scope: str = "full",
+) -> tuple[CandidateSpec, ...]:
+    if candidate_scope == "ci_matched_pair":
+        if nonlinear != "none":
+            raise ValueError("The CI matched-pair scope is intentionally logistic-only")
+        return (
+            CandidateSpec(CLIMATOLOGY_MODEL, "none", "climatology", "core"),
+            CandidateSpec("direct_logistic_core", "logistic", "direct", "core"),
+            CandidateSpec(
+                "direct_logistic_all_leads",
+                "logistic",
+                "direct",
+                "all_leads",
+            ),
+        )
+    if candidate_scope != "full":
+        raise ValueError(f"Unsupported candidate scope: {candidate_scope}")
+
     specs = [CandidateSpec(CLIMATOLOGY_MODEL, "none", "climatology", "core")]
     specs.extend(
         CandidateSpec(
@@ -1607,6 +1627,10 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
 
 def run_evaluation(args: argparse.Namespace) -> dict[str, Any]:
+    if args.profile == "full" and args.candidate_scope != "full":
+        raise ValueError(
+            "Authoritative full evaluation requires the full candidate scope"
+        )
     started = time.monotonic()
     data, data_metadata = load_market_data(
         data_path=args.data_path,
@@ -1641,7 +1665,10 @@ def run_evaluation(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("Matched dataset lacks the required two-year source history")
 
     folds = make_outer_folds(dataset.index, profile=args.profile)
-    specs = lead_candidate_specs(args.nonlinear)
+    specs = lead_candidate_specs(
+        args.nonlinear,
+        candidate_scope=args.candidate_scope,
+    )
     prediction_rows: list[dict[str, Any]] = []
     fold_metadata: list[dict[str, Any]] = []
     candidate_rejections: dict[str, list[str]] = {}
@@ -1738,6 +1765,7 @@ def run_evaluation(args: argparse.Namespace) -> dict[str, Any]:
             ],
             "candidate_rejections": candidate_rejections,
             "nonlinear": args.nonlinear,
+            "candidate_scope": args.candidate_scope,
             "feature_sets": {
                 name: list(groups) for name, groups in FEATURE_SET_GROUPS.items()
             },
@@ -1769,6 +1797,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=("none", "histgradient", "lightgbm"),
         default="histgradient",
         help="Evaluate at most one nonlinear candidate per run.",
+    )
+    parser.add_argument(
+        "--candidate-scope",
+        choices=("full", "ci_matched_pair"),
+        default="full",
+        help=(
+            "Use the full predeclared registry, or the bounded logistic core/all-leads "
+            "pair used only for pull-request infrastructure smoke checks."
+        ),
     )
     parser.add_argument(
         "--lead-feature-path",

@@ -258,6 +258,22 @@ def test_candidate_specs_pair_every_augmented_model_with_same_family_core() -> N
             assert spec.baseline_name in names
 
 
+def test_ci_candidate_scope_is_bounded_to_one_matched_logistic_pair() -> None:
+    specs = lead_candidate_specs("none", candidate_scope="ci_matched_pair")
+
+    assert tuple(spec.name for spec in specs) == (
+        CLIMATOLOGY_MODEL,
+        "direct_logistic_core",
+        "direct_logistic_all_leads",
+    )
+    assert specs[-1].baseline_name == specs[-2].name
+
+
+def test_ci_candidate_scope_rejects_nonlinear_search() -> None:
+    with np.testing.assert_raises_regex(ValueError, "logistic-only"):
+        lead_candidate_specs("histgradient", candidate_scope="ci_matched_pair")
+
+
 def test_committed_lead_artifact_is_approved_only_for_offline_evaluation() -> None:
     frame, groups, metadata = load_lead_signal_features(
         feature_path=Path("lake/gold/lead_signal_daily.csv.gz"),
