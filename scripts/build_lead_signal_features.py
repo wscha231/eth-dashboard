@@ -139,6 +139,7 @@ def download_and_validate_archive(
     counts = validation["counts"]
     declared_violation_names = {
         "close_duration_violation_count",
+        "hour_alignment_violation_count",
         "missing_bar_count",
     }
     undeclared_violations = {
@@ -160,11 +161,14 @@ def download_and_validate_archive(
     )
     observed_open_times = pd.DatetimeIndex(frame["open_time"])
     missing_open_times = expected_open_times.difference(observed_open_times)
+    aligned = frame["open_time"].dt.floor("h").eq(frame["open_time"])
     declared_gap_times = sorted(
         {
             pd.Timestamp(value).isoformat()
             for value in (
-                list(frame.loc[bad_duration, "open_time"]) + list(missing_open_times)
+                list(frame.loc[bad_duration, "open_time"])
+                + list(frame.loc[~aligned, "open_time"])
+                + list(missing_open_times)
             )
         }
     )

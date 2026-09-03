@@ -87,10 +87,12 @@ def _normalize_hourly_frame(
         & (duration <= pd.Timedelta(hours=1))
     )
     invalid_dates = pd.DatetimeIndex(output.loc[invalid_duration, "date"].unique())
-    undeclared = invalid_dates.difference(excluded_dates)
+    aligned = output["open_time"].dt.floor("h").eq(output["open_time"])
+    unaligned_dates = pd.DatetimeIndex(output.loc[~aligned, "date"].unique())
+    undeclared = invalid_dates.union(unaligned_dates).difference(excluded_dates)
     if len(undeclared):
         sample = ", ".join(value.date().isoformat() for value in undeclared[:5])
-        raise ValueError(f"Undeclared partial hourly sessions on UTC days: {sample}")
+        raise ValueError(f"Undeclared irregular hourly sessions on UTC days: {sample}")
     return output
 
 

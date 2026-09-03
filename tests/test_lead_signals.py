@@ -121,7 +121,7 @@ def test_partial_session_requires_declaration_and_nulls_entire_day() -> None:
         mask = frame["open_time"] == pd.Timestamp("2020-01-02 12:00:00")
         frame.loc[mask, "close_time"] = pd.Timestamp("2020-01-02 12:30:00")
 
-    with pytest.raises(ValueError, match="Undeclared partial hourly sessions"):
+    with pytest.raises(ValueError, match="Undeclared irregular hourly sessions"):
         build_market_daily_features(streams, cutoff=pd.Timestamp("2020-01-05"))
 
     output = build_market_daily_features(
@@ -133,6 +133,27 @@ def test_partial_session_requires_declaration_and_nulls_entire_day() -> None:
     assert pd.isna(output.loc[bad_date, "eth_spot_close"])
     assert pd.isna(output.loc[bad_date, "btc_perp_basis"])
     assert output.loc[pd.Timestamp("2020-01-01"), "market_data_excluded"] == 0
+
+
+def test_unaligned_official_session_requires_declared_day() -> None:
+    frame = _hourly_stream(days=3)
+    mask = frame["open_time"].dt.floor("D") == pd.Timestamp("2020-01-02")
+    frame.loc[mask, "open_time"] += pd.Timedelta(minutes=28)
+    frame.loc[mask, "close_time"] += pd.Timedelta(minutes=28)
+
+    with pytest.raises(ValueError, match="Undeclared irregular hourly sessions"):
+        aggregate_hourly_stream(
+            frame,
+            prefix="eth_spot",
+            cutoff=pd.Timestamp("2020-01-04"),
+        )
+    accepted = aggregate_hourly_stream(
+        frame,
+        prefix="eth_spot",
+        cutoff=pd.Timestamp("2020-01-04"),
+        excluded_dates=(pd.Timestamp("2020-01-02"),),
+    )
+    assert pd.Timestamp("2020-01-02") not in accepted.index
 
 
 def test_market_features_match_flow_basis_and_cross_asset_contract() -> None:
