@@ -189,6 +189,36 @@ manifest is intentionally not overwritten unless `--replace-outputs` is
 passed. A passing preflight approves only offline feature work; it does not
 approve production use, model promotion, or public output changes.
 
+### Offline Lead-Signal Daily Features
+
+After the source preflight passes, build the PR2 review artifact from all four
+checksum-pinned monthly streams through their latest common complete month:
+
+```bash
+python scripts/build_lead_signal_features.py --workers 6
+```
+
+The builder creates:
+
+- `lake/gold/lead_signal_daily.csv.gz`: compact daily order-flow, basis,
+  intraday-risk, BTC-leadership, and Ethereum-liquidity features;
+- `lake/manifests/lead_signal_features.json`: immutable archive checksums,
+  UTC availability rules, feature groups, and output hash;
+- `lake/reports/lead_signal_feature_readiness.json`: the strict offline gate
+  for the next source-ablation evaluation.
+
+Every Binance day requires all 24 hourly bars to close before the declared UTC
+cutoff. DefiLlama values are delayed by one feature day because historical
+publication vintages are unavailable. Missing-value imputation, eligibility,
+and standardization are fitted separately inside each outer training fold.
+The accompanying target helpers add direct upside/downside tails, a factorized
+large-move/direction target, and a three-class tail label. Barrier labels are
+diagnostic only.
+
+This command does not modify or feed the promoted daily forecast. Raw monthly
+ZIPs remain under ignored `lake/raw/lead_signal_full/`; production use remains
+blocked until later matched-date Gate A/B evaluation and terms review pass.
+
 ### 2. Run Dual-Horizon Forecasts From The Master Dataset
 Compact output is now designed to keep only the two main CSV reports plus `summary.json`.
 
