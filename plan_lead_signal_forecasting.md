@@ -2,7 +2,7 @@
 
 Date: 2026-08-31
 
-Status: **PR 3 completed offline; promotion gate failed; PR 4 next**
+Status: **PR 4 completed offline; interval gate failed; no promotion**
 
 Research basis: `research_lead_signal_forecasting.md`
 
@@ -287,11 +287,10 @@ Purpose: improve upper-range reliability independently of directional alpha.
 
 Candidates:
 
-1. current central forecast + current conformal range;
+1. fixed HistGradientBoosting center + rolling residual conformal range;
 2. `q05/q50/q95` quantile boosting + conformalized quantile residuals;
 3. volatility-scaled online conformal;
-4. change-point-aware conformal using existing regime probabilities and a
-   small state-transition model.
+4. regime-reset adaptive conformal using the prior-only volatility regime.
 
 Evaluation horizons:
 
@@ -326,9 +325,33 @@ central point or widen the public range in this PR.
 Proposed files:
 
 - `forecasting/adaptive_intervals.py`;
-- `scripts/evaluate_adaptive_interval_candidate.py`;
+- `scripts/evaluate_adaptive_intervals.py`;
 - `tests/test_adaptive_intervals.py`;
-- `tests/phase0/adaptive_interval_gate_result.json`.
+- `tests/phase0/adaptive_interval_gate_metrics.json`.
+
+Implementation result (2026-09-03):
+
+- The 3-day 90% interval Gate A passed on six 30-day blocks in 12.85 seconds
+  at 416.36 MB peak RSS.
+- Gate B evaluated 2,435 matched OOF origins in seven expanding calendar-year
+  blocks from 2020 through 2026, including 120 upside-tail and 87 downside-tail
+  origins. Every test residual became available only after its 3-day maturity.
+- CQR had the lowest WIS, 0.02939 versus 0.02954 for residual conformal, and
+  slightly lower q95 pinball loss, 0.00844 versus 0.00865. The improvements
+  were not decisive: paired probabilities were 64.2% for WIS and 87.6% for
+  q95, below the 90% gate.
+- CQR made the target failure worse: upside-tail upper coverage fell from
+  42.5% to 25.83%, while mean upside exceedance grew from 4.09 to 4.90
+  percentage points.
+- Volatility-scaled ACI raised upside-tail coverage to 48.33% but worsened WIS
+  and q95 pinball loss. Regime-reset ACI also failed to improve both overall
+  quality and upside-tail exceedance.
+- All four methods missed the 2026-08-16 through 2026-08-18 origins before the
+  observed 3-day returns of +20.15%, +21.66%, and +31.25%. The online methods
+  widened only after those outcomes matured, which is reaction rather than
+  advance warning.
+- No interval is promoted. The 7-day and 30-day extensions are skipped because
+  the predeclared 3-day entry gate failed.
 
 ### PR 5 - optional hourly sequence challenger
 
@@ -430,10 +453,13 @@ challenger.
 
 ## Next approval scope
 
-Review the exact **PR 3** matched-date evidence. The next bounded step is PR 4
-adaptive asymmetric interval evaluation, starting with the 3-day upper-tail
-range. It is independent of the rejected alert classifier and may improve
-range honesty even when directional alpha is insufficient.
+Review the exact **PR 4** interval evidence. Both predictive routes now fail
+their historical gates: new lead signals do not meet the alert contract and
+adaptive 90% intervals do not improve overall scoring and upside-tail
+coverage together. PR 5 remains unauthorized.
 
-No model, daily forecast, public range, or site behavior change is authorized
-by PR 3. PR 4 remains offline until its own historical gate passes.
+Any next proposal must add genuinely new exogenous tail information (for
+example options skew/open interest or timestamped event catalysts) or define a
+separate non-predictive stress band. It must not relabel a wider stress range
+as a calibrated forecast. No model, daily forecast, public range, or site
+behavior change is authorized by PR 4.

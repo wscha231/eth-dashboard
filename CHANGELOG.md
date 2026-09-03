@@ -8,6 +8,37 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-09-03 (offline adaptive interval gate)
+
+### Added
+
+- Added a leakage-safe 3-day 90% interval evaluator for residual conformal,
+  conformalized q05/q50/q95 boosting, volatility-scaled adaptive conformal,
+  and regime-reset adaptive conformal.
+- Added finite-sample correction, quantile-crossing repair, strict 3-day
+  outcome maturity, WIS/pinball/coverage/exceedance metrics, calendar and
+  volatility breakdowns, and paired moving-block bootstrap.
+- Added an automatic six-block Gate A workflow, explicit manual Gate B, and a
+  compact immutable failure record.
+
+### Evaluation
+
+- Gate A passed in 12.85 seconds at 416.36 MB peak RSS.
+- Gate B covered 2,435 OOF origins across 2020-2026 and passed infrastructure
+  limits in 13.56 seconds at 424.14 MB peak RSS.
+- CQR reduced WIS by 0.49% and q95 pinball by 2.53%, but bootstrap confidence
+  was only 64.2% and 87.6%, respectively. Its upside-tail coverage fell from
+  42.5% to 25.83% and mean exceedance worsened.
+- Volatility-scaled ACI raised upside-tail coverage to 48.33% but worsened WIS
+  and q95 pinball. No method jointly passed overall and tail-quality gates.
+
+### Safety
+
+- No interval was promoted. The public range, point forecast, database, UI,
+  alerts, notifications, and scheduled forecast remain unchanged.
+- The 7-day and 30-day interval extensions were skipped after the 3-day entry
+  gate failed; post-event widening is not presented as advance prediction.
+
 ## [Unreleased] · 2026-09-03 (offline lead-signal source ablation)
 
 ### Added
