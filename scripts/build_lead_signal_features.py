@@ -131,13 +131,35 @@ def download_and_validate_archive(
     if spec.market == "spot" and month_start >= BINANCE_SPOT_MICROSECOND_START:
         expected_unit = "us"
     if validation["open_time_unit"] != expected_unit:
-        validation["status"] = "fail"
-        validation["expected_timestamp_unit"] = expected_unit
-    if validation["status"] != "pass":
+        raise ValueError(
+            f"Timestamp unit mismatch for {spec.source_id} {month}: "
+            f"expected {expected_unit}, observed {validation['open_time_unit']}"
+        )
+
+    counts = validation["counts"]
+    non_duration_violations = {
+        name: value
+        for name, value in counts.items()
+        if name != "close_duration_violation_count"
+        and (value is True if isinstance(value, bool) else value != 0)
+    }
+    duration = frame["close_time"] - frame["open_time"]
+    bad_duration = ~(
+        (duration > pd.Timedelta(hours=1) - pd.Timedelta(milliseconds=2))
+        & (duration <= pd.Timedelta(hours=1))
+    )
+    declared_gap_times = [
+        pd.Timestamp(value).isoformat()
+        for value in frame.loc[bad_duration, "open_time"].tolist()
+    ]
+    if non_duration_violations:
         raise ValueError(
             f"Hourly validation failed for {spec.source_id} {month}: "
             f"{strict_json_dumps(validation).strip()}"
         )
+    validation_status = (
+        "pass_with_declared_session_gap" if declared_gap_times else "pass"
+    )
     return {
         "source_id": spec.source_id,
         "month": month,
@@ -156,7 +178,8 @@ def download_and_validate_archive(
         "row_count": validation["row_count"],
         "first_open_time": validation["first_open_time"],
         "last_open_time": validation["last_open_time"],
-        "validation_status": validation["status"],
+        "validation_status": validation_status,
+        "declared_session_gap_open_times": declared_gap_times,
     }
 
 
@@ -305,10 +328,13 @@ def _feature_report(
         "OKX remains excluded",
         "August 2026 spot hourly data is excluded until its complete monthly archive is available",
     ]
+    accepted_statuses = {"pass", "pass_with_declared_session_gap"}
     ready = (
         bool(len(common_dates) >= 730)
         and common_end == as_of_date
-        and all(item["validation_status"] == "pass" for item in archive_records)
+        and all(
+            item["validation_status"] in accepted_statuses for item in archive_records
+        )
         and all(groups.values())
     )
     return {
@@ -335,7 +361,12 @@ def _feature_report(
         "archive_validation": {
             "archive_count": len(archive_records),
             "all_passed": all(
-                item["validation_status"] == "pass" for item in archive_records
+                item["validation_status"] in accepted_statuses
+                for item in archive_records
+            ),
+            "declared_session_gap_count": sum(
+                len(item.get("declared_session_gap_open_times", []))
+                for item in archive_records
             ),
             "download_bytes": sum(item["size_bytes"] for item in archive_records),
         },
@@ -441,6 +472,15 @@ def main() -> int:
         timeout_seconds=args.timeout_seconds,
     )
     streams = load_hourly_streams(archive_records)
+    excluded_market_dates = tuple(
+        sorted(
+            {
+                pd.Timestamp(timestamp).floor("D")
+                for item in archive_records
+                for timestamp in item["declared_session_gap_open_times"]
+            }
+        )
+    )
     defillama, defillama_evidence = load_defillama_sources(source_manifest)
     _, common_end_month = _source_months(source_manifest)
     _, month_end_exclusive = month_bounds(common_end_month)
@@ -455,6 +495,7 @@ def main() -> int:
         as_of_date=as_of_date,
         market_daily=_load_market_daily(args.market_daily),
         reporting_lag_days=args.reporting_lag_days,
+        excluded_market_dates=excluded_market_dates,
     )
     output_sha256 = write_daily_csv(features, args.output)
     groups = feature_group_columns(features)
@@ -497,6 +538,9 @@ def main() -> int:
             "fold_local_imputation": True,
             "minimum_source_history_before_authoritative_test_days": 730,
             "partial_current_day_allowed": False,
+            "declared_session_gap_dates": [
+                value.date().isoformat() for value in excluded_market_dates
+            ],
         },
         "gate": {
             "production_use_approved": False,

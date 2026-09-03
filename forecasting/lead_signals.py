@@ -44,7 +44,11 @@ def _safe_divide(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
     return output.replace([np.inf, -np.inf], np.nan)
 
 
-def _normalize_hourly_frame(frame: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataFrame:
+def _normalize_hourly_frame(
+    frame: pd.DataFrame,
+    cutoff: pd.Timestamp,
+    excluded_dates: pd.DatetimeIndex,
+) -> pd.DataFrame:
     required = {"open_time", "close_time", *HOURLY_NUMERIC_COLUMNS}
     missing = sorted(required - set(frame.columns))
     if missing:
@@ -77,6 +81,16 @@ def _normalize_hourly_frame(frame: pd.DataFrame, cutoff: pd.Timestamp) -> pd.Dat
     if output.empty:
         raise ValueError("No closed bars remain at the declared cutoff")
     output["date"] = output["open_time"].dt.floor("D")
+    duration = output["close_time"] - output["open_time"]
+    invalid_duration = ~(
+        (duration > pd.Timedelta(hours=1) - pd.Timedelta(milliseconds=2))
+        & (duration <= pd.Timedelta(hours=1))
+    )
+    invalid_dates = pd.DatetimeIndex(output.loc[invalid_duration, "date"].unique())
+    undeclared = invalid_dates.difference(excluded_dates)
+    if len(undeclared):
+        sample = ", ".join(value.date().isoformat() for value in undeclared[:5])
+        raise ValueError(f"Undeclared partial hourly sessions on UTC days: {sample}")
     return output
 
 
@@ -158,11 +172,15 @@ def aggregate_hourly_stream(
     *,
     prefix: str,
     cutoff: Any,
+    excluded_dates: tuple[Any, ...] = (),
 ) -> pd.DataFrame:
     """Aggregate only complete UTC days whose final bar closed by ``cutoff``."""
 
     cutoff_timestamp = _naive_utc(cutoff)
-    hourly = _normalize_hourly_frame(frame, cutoff_timestamp)
+    excluded = pd.DatetimeIndex(
+        [_naive_utc(value).floor("D") for value in excluded_dates]
+    )
+    hourly = _normalize_hourly_frame(frame, cutoff_timestamp, excluded)
     complete_days = _complete_utc_days(hourly, cutoff_timestamp)
     if complete_days.empty:
         raise ValueError("No complete UTC days are available at the declared cutoff")
@@ -198,6 +216,7 @@ def build_market_daily_features(
     streams: dict[str, pd.DataFrame],
     *,
     cutoff: Any,
+    excluded_dates: tuple[Any, ...] = (),
 ) -> pd.DataFrame:
     missing = sorted(set(REQUIRED_STREAM_IDS) - set(streams))
     if missing:
@@ -211,9 +230,19 @@ def build_market_daily_features(
                 streams[source_id],
                 prefix=STREAM_PREFIXES[source_id],
                 cutoff=cutoff_timestamp,
+                excluded_dates=excluded_dates,
             )
         )
     output = pd.concat(daily_frames, axis=1, join="outer").sort_index()
+    output["market_data_excluded"] = 0.0
+    excluded = pd.DatetimeIndex(
+        [_naive_utc(value).floor("D") for value in excluded_dates]
+    )
+    present_exclusions = output.index.intersection(excluded)
+    if len(present_exclusions):
+        numeric = output.select_dtypes(include=[np.number]).columns
+        output.loc[present_exclusions, numeric] = np.nan
+        output.loc[present_exclusions, "market_data_excluded"] = 1.0
 
     for asset in ("eth", "btc"):
         output[f"{asset}_spot_perp_flow_divergence"] = (
@@ -410,11 +439,13 @@ def build_lead_signal_daily_features(
     as_of_date: Any,
     market_daily: pd.DataFrame | None = None,
     reporting_lag_days: int = 1,
+    excluded_market_dates: tuple[Any, ...] = (),
 ) -> pd.DataFrame:
     as_of = _naive_utc(as_of_date).floor("D")
     market_features = build_market_daily_features(
         streams,
         cutoff=as_of + UTC_DAY,
+        excluded_dates=excluded_market_dates,
     ).drop(columns="feature_available_at_utc")
     liquidity = build_ethereum_liquidity_features(
         stablecoins=stablecoins,
@@ -439,7 +470,12 @@ def feature_group_columns(frame: pd.DataFrame) -> dict[str, list[str]]:
         column
         for column in numeric
         if column.endswith("_bar_count")
-        or column in {"cg_eth_market_cap_usd", "cg_global_total_market_cap_usd"}
+        or column
+        in {
+            "cg_eth_market_cap_usd",
+            "cg_global_total_market_cap_usd",
+            "market_data_excluded",
+        }
     }
     usable = numeric - diagnostics
 

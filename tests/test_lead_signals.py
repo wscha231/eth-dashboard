@@ -106,6 +106,27 @@ def test_aggregate_hourly_stream_rejects_interior_missing_day() -> None:
         )
 
 
+def test_partial_session_requires_declaration_and_nulls_entire_day() -> None:
+    streams = _streams(days=4)
+    bad_date = pd.Timestamp("2020-01-02")
+    for frame in streams.values():
+        mask = frame["open_time"] == pd.Timestamp("2020-01-02 12:00:00")
+        frame.loc[mask, "close_time"] = pd.Timestamp("2020-01-02 12:30:00")
+
+    with pytest.raises(ValueError, match="Undeclared partial hourly sessions"):
+        build_market_daily_features(streams, cutoff=pd.Timestamp("2020-01-05"))
+
+    output = build_market_daily_features(
+        streams,
+        cutoff=pd.Timestamp("2020-01-05"),
+        excluded_dates=(bad_date,),
+    )
+    assert output.loc[bad_date, "market_data_excluded"] == 1
+    assert pd.isna(output.loc[bad_date, "eth_spot_close"])
+    assert pd.isna(output.loc[bad_date, "btc_perp_basis"])
+    assert output.loc[pd.Timestamp("2020-01-01"), "market_data_excluded"] == 0
+
+
 def test_market_features_match_flow_basis_and_cross_asset_contract() -> None:
     output = build_market_daily_features(_streams(), cutoff=pd.Timestamp("2020-01-13"))
     row = output.loc[pd.Timestamp("2020-01-12")]
