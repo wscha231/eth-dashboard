@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from forecasting.lead_signal_data import write_daily_csv
+from scripts.build_lead_signal_features import (
+    FEATURE_FLOAT_FORMAT,
+    _feature_report,
+    _source_months,
+    archive_evidence_records,
+)
+
+
+def test_pr1_manifest_pins_four_streams_to_one_common_month() -> None:
+    manifest = json.loads(
+        Path("lake/manifests/lead_signal_sources.json").read_text(encoding="utf-8")
+    )
+    months, common_end = _source_months(manifest)
+
+    assert common_end == "2026-07"
+    assert {name: len(values) for name, values in months.items()} == {
+        "binance_spot_ethusdt_1h": 108,
+        "binance_um_ethusdt_1h": 79,
+        "binance_spot_btcusdt_1h": 108,
+        "binance_um_btcusdt_1h": 79,
+    }
+    assert sum(len(values) for values in months.values()) == 374
+
+
+def test_feature_readiness_requires_two_year_common_history() -> None:
+    index = pd.date_range("2020-01-01", periods=731, freq="D")
+    features = pd.DataFrame(
+        {
+            "eth_spot_bar_count": 24.0,
+            "eth_perp_bar_count": 24.0,
+            "btc_spot_bar_count": 24.0,
+            "btc_perp_bar_count": 24.0,
+            "signal": np.arange(len(index), dtype=float),
+        },
+        index=index,
+    )
+    groups = {
+        "order_flow": ["signal"],
+        "leverage_basis": ["signal"],
+        "intraday_risk": ["signal"],
+        "cross_asset_leadership": ["signal"],
+        "ethereum_liquidity": ["signal"],
+    }
+    report = _feature_report(
+        features=features,
+        groups=groups,
+        archive_records=[{"validation_status": "pass", "size_bytes": 10}],
+        as_of_date=index[-1],
+        output_sha256="a" * 64,
+        manifest_sha256="b" * 64,
+    )
+
+    assert report["decision"] == "pass_for_pr3_offline_evaluation"
+    assert report["common_hourly_coverage"]["minimum_prior_days"] == 730
+    assert report["gate"]["production_use_approved"] is False
+    assert report["gate"]["model_training_performed"] is False
+
+
+def test_archive_evidence_excludes_execution_host_paths() -> None:
+    records = [
+        {
+            "source_id": "binance_spot_ethusdt_1h",
+            "month": "2026-07",
+            "local_path": "/home/runner/work/_temp/lead_signal/archive.zip",
+            "cache_path": "binance/binance_spot_ethusdt_1h/archive.zip",
+            "local_sha256": "a" * 64,
+        }
+    ]
+
+    evidence = archive_evidence_records(records)
+
+    assert "local_path" not in evidence[0]
+    assert evidence[0]["cache_path"] == ("binance/binance_spot_ethusdt_1h/archive.zip")
+
+
+def test_feature_csv_quantizes_subprecision_reduction_drift(tmp_path: Path) -> None:
+    index = pd.DatetimeIndex(["2026-07-31"])
+    first = pd.DataFrame({"signal": [0.0012432661688646252]}, index=index)
+    second = pd.DataFrame({"signal": [0.0012432661688646254]}, index=index)
+    first_path = tmp_path / "first.csv.gz"
+    second_path = tmp_path / "second.csv.gz"
+
+    first_hash = write_daily_csv(
+        first,
+        first_path,
+        float_format=FEATURE_FLOAT_FORMAT,
+    )
+    second_hash = write_daily_csv(
+        second,
+        second_path,
+        float_format=FEATURE_FLOAT_FORMAT,
+    )
+
+    assert first_hash == second_hash
+    assert first_path.read_bytes() == second_path.read_bytes()
+
+
+def test_generated_feature_artifact_matches_immutable_manifest() -> None:
+    feature_path = Path("lake/gold/lead_signal_daily.csv.gz")
+    manifest_path = Path("lake/manifests/lead_signal_features.json")
+    report_path = Path("lake/reports/lead_signal_feature_readiness.json")
+    if not all(path.is_file() for path in (feature_path, manifest_path, report_path)):
+        pytest.skip("full source-derived feature artifact has not been generated")
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    frame = pd.read_csv(feature_path, parse_dates=["date"])
+    observed_hash = hashlib.sha256(feature_path.read_bytes()).hexdigest()
+
+    assert manifest["scope"] == "offline_lead_signal_daily_features"
+    assert manifest["feature_table"]["sha256"] == observed_hash
+    assert manifest["feature_table"]["float_serialization"] == FEATURE_FLOAT_FORMAT
+    assert report["feature_table"]["sha256"] == observed_hash
+    assert report["decision"] == "pass_for_pr3_offline_evaluation"
+    assert report["gate"]["production_use_approved"] is False
+    assert len(manifest["binance_archives"]) == 374
+    assert all(
+        item["remote_sha256"] == item["local_sha256"]
+        for item in manifest["binance_archives"]
+    )
+    assert all("local_path" not in item for item in manifest["binance_archives"])
+    assert all(
+        not Path(item["cache_path"]).is_absolute()
+        for item in manifest["binance_archives"]
+    )
+    assert not frame["date"].duplicated().any()
+    assert frame["date"].max() == pd.Timestamp(manifest["as_of_date"])
+    assert frame["feature_available_at_utc"].max() == "2026-08-01T00:00:00Z"

@@ -8,6 +8,31 @@ are UTC.
 
 ---
 
+## [Unreleased] · 2026-09-03 (offline lead-signal feature contract)
+
+### Added
+
+- Added checksum-pinned full monthly Binance ETH/BTC spot and perpetual
+  backfill for offline review, with complete-UTC-day order-flow, basis,
+  intraday-risk, and cross-asset aggregates.
+- Added one-day-lagged DefiLlama liquidity features, immutable feature
+  manifests, fold-local imputation/standardization, and future-mutation tests.
+- Added direct, factorized large-move/direction, multiclass tail, and
+  diagnostic barrier-label helpers.
+- Added a path-limited GitHub Actions contract that builds and verifies the
+  full review artifact without changing the daily forecast path.
+- Locked the passing full-source evidence at 3,269 daily rows and 177 columns,
+  backed by 374 checksum-verified monthly archives through 2026-07.
+- Declared and quarantined 34 UTC dates affected by historical Binance
+  hourly-grid anomalies instead of synthesizing missing or shifted sessions.
+- Canonicalized archive cache paths and quantized feature serialization to ten
+  significant digits so CI can byte-compare a rebuild with committed evidence.
+
+### Safety
+
+- Production use, model training, public JSON, database, UI, notifications,
+  and the promoted 7-day/30-day models remain unchanged.
+
 ## [Unreleased] · 2026-08-27 (compact 30-day regression challenger)
 
 ### Added

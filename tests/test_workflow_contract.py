@@ -78,3 +78,22 @@ def test_lead_signal_source_preflight_is_bounded_and_isolated() -> None:
     assert "scripts/backfill_lead_signals.py" in workflow
     assert "eth_data_collector.py" not in workflow
     assert "daily_forecast.yml" not in workflow
+
+
+def test_lead_signal_feature_contract_is_offline_and_time_bounded() -> None:
+    workflow = _read(".github/workflows/lead_signal_feature_contract.yml")
+
+    assert "timeout-minutes: 30" in workflow
+    assert "scripts/build_lead_signal_features.py" in workflow
+    assert "tests/test_lead_signals.py" in workflow
+    assert "tests/test_tail_events.py" in workflow
+    assert "--workers 8" in workflow
+    assert "--replace-outputs" in workflow
+    assert "Record committed evidence hashes" in workflow
+    assert "Verify deterministic rebuild" in workflow
+    assert "lake/gold/lead_signal_daily.csv.gz" in workflow
+    assert "lake/manifests/lead_signal_features.json" in workflow
+    assert "lake/reports/lead_signal_feature_readiness.json" in workflow
+    assert "eth_data_collector.py" not in workflow
+    assert "eth_price_forecast.py" not in workflow
+    assert "daily_forecast.yml" not in workflow
