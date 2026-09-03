@@ -112,3 +112,18 @@ def test_lead_signal_ablation_workflow_is_offline_and_gate_b_is_manual() -> None
     assert "eth_data_collector.py" not in workflow
     assert "daily_forecast.yml" not in workflow
     assert "forecast_site/public" not in workflow
+
+
+def test_adaptive_interval_workflow_is_offline_and_gate_b_is_manual() -> None:
+    workflow = _read(".github/workflows/adaptive_interval_evaluation.yml")
+
+    assert "timeout-minutes: 15" in workflow
+    assert "scripts/evaluate_adaptive_intervals.py" in workflow
+    assert "origin/data/daily-forecast" in workflow
+    assert "default: smoke" in workflow
+    assert "- full" in workflow
+    assert "continue-on-error: true" in workflow
+    assert '.gate.infrastructure_status == "PASS"' in workflow
+    assert "eth_data_collector.py" not in workflow
+    assert "daily_forecast.yml" not in workflow
+    assert "forecast_site/public" not in workflow

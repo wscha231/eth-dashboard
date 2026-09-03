@@ -253,6 +253,31 @@ This evaluator does not write the model registry, daily outputs, database,
 site files, or notifications. A failed Gate B is evidence to retain the data
 layer and stop model promotion, not permission to relax thresholds.
 
+### Offline Adaptive Asymmetric Intervals
+
+The PR4 evaluator tests a 3-day 90% return interval before considering longer
+horizons. It compares residual conformal, conformalized q05/q50/q95 boosting,
+volatility-scaled adaptive conformal, and regime-reset adaptive conformal:
+
+```bash
+python scripts/evaluate_adaptive_intervals.py \
+  --profile smoke \
+  --data-git-ref origin/data/daily-forecast \
+  --output /tmp/adaptive-interval-gate-a.json
+```
+
+Gate B covered 2,435 OOF origins in 2020-2026. CQR slightly improved WIS
+(`0.02939` versus `0.02954`) and q95 pinball loss (`0.00844` versus
+`0.00865`), but paired confidence was below 90% and upside-tail coverage fell
+from 42.5% to 25.83%. Volatility-scaled ACI improved tail coverage to 48.33%
+only by losing overall WIS and q95 quality. Every method missed the August
+16-18, 2026 jump origins before their 3-day outcomes matured.
+
+The frozen result is `tests/phase0/adaptive_interval_gate_metrics.json`.
+Because the 3-day gate failed, no 7-day/30-day extension or public interval
+change is allowed. Online widening after a realized miss is explicitly not
+reported as advance prediction.
+
 ### 2. Run Dual-Horizon Forecasts From The Master Dataset
 Compact output is now designed to keep only the two main CSV reports plus `summary.json`.
 
