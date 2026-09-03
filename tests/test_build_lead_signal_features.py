@@ -8,7 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.build_lead_signal_features import _feature_report, _source_months
+from scripts.build_lead_signal_features import (
+    _feature_report,
+    _source_months,
+    archive_evidence_records,
+)
 
 
 def test_pr1_manifest_pins_four_streams_to_one_common_month() -> None:
@@ -61,6 +65,23 @@ def test_feature_readiness_requires_two_year_common_history() -> None:
     assert report["gate"]["model_training_performed"] is False
 
 
+def test_archive_evidence_excludes_execution_host_paths() -> None:
+    records = [
+        {
+            "source_id": "binance_spot_ethusdt_1h",
+            "month": "2026-07",
+            "local_path": "/home/runner/work/_temp/lead_signal/archive.zip",
+            "cache_path": "binance/binance_spot_ethusdt_1h/archive.zip",
+            "local_sha256": "a" * 64,
+        }
+    ]
+
+    evidence = archive_evidence_records(records)
+
+    assert "local_path" not in evidence[0]
+    assert evidence[0]["cache_path"] == ("binance/binance_spot_ethusdt_1h/archive.zip")
+
+
 def test_generated_feature_artifact_matches_immutable_manifest() -> None:
     feature_path = Path("lake/gold/lead_signal_daily.csv.gz")
     manifest_path = Path("lake/manifests/lead_signal_features.json")
@@ -81,6 +102,11 @@ def test_generated_feature_artifact_matches_immutable_manifest() -> None:
     assert len(manifest["binance_archives"]) == 374
     assert all(
         item["remote_sha256"] == item["local_sha256"]
+        for item in manifest["binance_archives"]
+    )
+    assert all("local_path" not in item for item in manifest["binance_archives"])
+    assert all(
+        not Path(item["cache_path"]).is_absolute()
         for item in manifest["binance_archives"]
     )
     assert not frame["date"].duplicated().any()

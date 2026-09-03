@@ -192,6 +192,7 @@ def download_and_validate_archive(
         "local_sha256": local_digest,
         "expected_sha256": expected_digest,
         "local_path": relative_path(archive_path),
+        "cache_path": archive_path.relative_to(raw_dir).as_posix(),
         "size_bytes": archive_path.stat().st_size,
         "cache_validation": "sha256_verified",
         "timestamp_unit": validation["open_time_unit"],
@@ -201,6 +202,16 @@ def download_and_validate_archive(
         "validation_status": validation_status,
         "declared_market_gap_open_times": declared_gap_times,
     }
+
+
+def archive_evidence_records(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Remove execution-host paths from the immutable review manifest."""
+    return [
+        {key: value for key, value in record.items() if key != "local_path"}
+        for record in records
+    ]
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -538,7 +549,7 @@ def main() -> int:
             "path": relative_path(args.source_manifest),
             "sha256": source_manifest_hash,
         },
-        "binance_archives": archive_records,
+        "binance_archives": archive_evidence_records(archive_records),
         "defillama_inputs": defillama_evidence,
         "feature_table": {
             "path": relative_path(args.output),
