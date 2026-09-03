@@ -107,6 +107,8 @@ def test_lead_signal_ablation_workflow_is_offline_and_gate_b_is_manual() -> None
     assert "origin/data/daily-forecast" in workflow
     assert "default: smoke" in workflow
     assert "- full" in workflow
+    assert "candidate_scope=ci_matched_pair" in workflow
+    assert '--candidate-scope "$candidate_scope"' in workflow
     assert "continue-on-error: true" in workflow
     assert '.gate.infrastructure_status == "PASS"' in workflow
     assert "eth_data_collector.py" not in workflow
