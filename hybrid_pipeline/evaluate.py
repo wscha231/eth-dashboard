@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from forecasting.daily_data import utc_timestamp
-from hybrid_pipeline.data import targets, runtime_hash
+from hybrid_pipeline.data import targets, runtime_hash, training_positions
 from hybrid_pipeline.protocol import BASE_MODELS, PROTOCOL, PROTOCOL_HASH
 from research_pipeline.forward import block_interval
 
@@ -42,7 +42,36 @@ def optimize(available):
     return choice,bool(loss < baseline),{'hybrid_mae':loss,'reference_mae':baseline}
 
 
+def guard_points(base,raw):
+    """Bound point estimates using only the actual outer training cohort.
+
+    Raw neural outputs remain in base_predictions.csv.gz for audit. These
+    bounds constrain point extrapolation, not the uncertainty distribution.
+    """
+    guarded=base.copy();bounds={}
+    for name in BASE_MODELS:guarded[name+'_guarded']=False
+    for horizon,data in base.groupby('horizon'):
+        y,sigma=targets(raw,int(horizon));log_returns=y*sigma
+        for period,current in data.groupby(data.origin.dt.to_period('M')):
+            month=period.start_time;month_bounds={}
+            for kind in ('short','long'):
+                pos=training_positions(raw.index,y,month,int(horizon),kind)
+                if not len(pos):raise ValueError('No matured training labels for point bounds')
+                lower,upper=np.quantile(log_returns.iloc[pos],PROTOCOL['point_guard']['quantiles'])
+                lower,upper=min(float(lower),0.),max(float(upper),0.)
+                month_bounds[kind]={'lower_log_return':lower,'upper_log_return':upper,'training_rows':len(pos),
+                                    'last_training_target':(raw.index[pos[-1]]+pd.Timedelta(days=int(horizon))).date().isoformat()}
+                for name in (n for n in BASE_MODELS if n.endswith('_'+kind)):
+                    original=current[name]*current.sigma
+                    clipped=original.clip(lower=lower,upper=upper)
+                    guarded.loc[current.index,name]=clipped/current.sigma
+                    guarded.loc[current.index,name+'_guarded']=(clipped!=original)
+            bounds[(int(horizon),month.date().isoformat())]=month_bounds
+    return guarded,bounds
+
+
 def make_paths(base,raw):
+    base,point_bounds=guard_points(base,raw)
     records=[]; decisions=[]
     for horizon,data in base.groupby('horizon'):
         data=data.sort_values('origin').copy();y,sigma=targets(raw,int(horizon))
@@ -65,19 +94,24 @@ def make_paths(base,raw):
                 raise ValueError('No finite past-only uncertainty calibration values')
             decision={'horizon':int(horizon),'month':cutoff.date().isoformat(),'choice':choice,
                       'selection_rows':len(available),'selection_latest_target':available.target.max().date().isoformat() if len(available) else None,
-                      'safe_uses_model':use_model,'validation':losses,'calibration':calibration,'calibration_rows':len(residual)}
+                      'safe_uses_model':use_model,'validation':losses,'calibration':calibration,'calibration_rows':len(residual),
+                      'point_guard_bounds':point_bounds[(int(horizon),cutoff.date().isoformat())]}
             decisions.append(decision)
             for row in current.itertuples():
                 values={name:float(getattr(row,name)) for name in BASE_MODELS}
                 chosen=float(blend(values,choice)); zvalues={**values,'no_change':0.,
                      'equal_hybrid':.5*(values['cat_short']+values['transformer_short']),
                      'optimized_hybrid':chosen,'safe_policy':chosen if use_model else 0.}
+                guarded_flags={name:bool(getattr(row,name+'_guarded')) for name in BASE_MODELS}
+                selected_guarded=(choice['cat_weight']>0 and guarded_flags[choice['cat']]) or (choice['cat_weight']<1 and guarded_flags[choice['transformer']])
+                guarded_flags.update(no_change=False,equal_hybrid=guarded_flags['cat_short'] or guarded_flags['transformer_short'],
+                                     optimized_hybrid=selected_guarded,safe_policy=use_model and selected_guarded)
                 threshold=float(np.clip(row.sigma*cfg['multiplier'],cfg['floor'],cfg['cap']))
                 for name,z in zvalues.items():
                     item={'origin':row.origin,'target':row.target,'horizon':int(horizon),'model':name,
                           'reference_price':row.reference_price,'actual_price':row.actual_price,'actual_return':row.actual_return,
                           'predicted_return':float(simple_return(z,row.sigma)),'event_threshold':threshold,
-                          'log_prediction_clipped':bool(abs(z*row.sigma)>3)}
+                          'log_prediction_clipped':bool(abs(z*row.sigma)>3),'point_prediction_guarded':guarded_flags[name]}
                     if name in ('optimized_hybrid','safe_policy','no_change'):
                         errors=reference_residual if name=='no_change' or (name=='safe_policy' and not use_model) else residual
                         draws=simple_return(z+errors,row.sigma)
@@ -102,6 +136,7 @@ def metrics(data, *, confidence=False):
             'up_precision':float(np.mean(actual[predicted==2]==2)) if (predicted==2).any() else None,
             'up_false_positive_rate':float(np.mean(predicted[actual!=2]==2)) if (actual!=2).any() else None,
             'clipped_predictions':int(data.log_prediction_clipped.sum()),
+            'guarded_predictions':int(data.point_prediction_guarded.sum()),
             'mae_improvement_95ci':block_interval(base-loss,data.origin,int(data.horizon.iloc[0])) if confidence else None}
     if data.p_up.notna().all():
         probability=data[['p_down','p_flat','p_up']].to_numpy()
@@ -144,7 +179,8 @@ def report(base,raw,runtimes,source_hashes,*,now=None,legacy=None):
                          'lower_price':float(one.reference_price*(1+one.lower_return)),
                          'upper_price':float(one.reference_price*(1+one.upper_return)),
                          'probability_down_flat_up':[float(one.p_down),float(one.p_flat),float(one.p_up)],
-                         'choice':last_choice,'status':'prospective_research','verified_predictive_edge':False}
+                         'choice':last_choice,'point_prediction_guarded':bool(one.point_prediction_guarded),
+                         'status':'prospective_research','verified_predictive_edge':False}
         learned=[r for r in leaderboard if r['model'] not in ('no_change','safe_policy')]
         horizons[str(h)]={'matched_origins':len(points),'first_origin':points[0]['origin'],'last_target':points[-1]['target'],
                           'best_fixed_retrospective':min(learned,key=lambda r:r['return_mae'])['model'],

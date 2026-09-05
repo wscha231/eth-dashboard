@@ -105,6 +105,21 @@ def test_future_outcomes_cannot_change_prior_blend_or_uncertainty():
         assert d['selection_latest_target'] is None or d['selection_latest_target']<d['month']
 
 
+def test_point_guard_limits_extrapolation_without_using_future_prices():
+    _,raw,base,_=base_fixture();base.loc[:,'transformer_long']=1000.
+    first,bounds=evaluate.guard_points(base,raw)
+    assert first.transformer_long_guarded.all()
+    assert (first.transformer_long*first.sigma < 3).all()
+    cutoff=pd.Timestamp('2025-06-01');changed=raw.copy();changed.loc[changed.index>=cutoff,'eth_close']*=100
+    second,later_bounds=evaluate.guard_points(base,changed)
+    before=base.origin<'2025-07-01'
+    pd.testing.assert_frame_equal(first.loc[before],second.loc[before])
+    for (h,month),windows in bounds.items():
+        for value in windows.values():
+            assert pd.Timestamp(value['last_training_target'])<pd.Timestamp(month)-pd.Timedelta(days=PROTOCOL['embargo_days'][str(h)])
+        if month<='2025-06-01':assert windows==later_bounds[(h,month)]
+
+
 def test_missing_calendar_cohorts_cannot_be_published(monkeypatch):
     _,raw,base,now=base_fixture();monkeypatch.setattr(evaluate,'block_interval',lambda *args:[-.1,.1])
     bad=base.drop(base[(base.horizon==7)].index[50])
@@ -123,6 +138,26 @@ def test_current_bundle_is_reused_when_a_new_day_changes_only_test_inputs(tmp_pa
     b,meta=engine.replay(updated,f,7,tmp_path,part='current',now=now)
     assert len(calls)==4 and meta['refitted_months']==0 and meta['reused_current_bundles']==1
     np.testing.assert_array_equal(a[BASE_MODELS],b[BASE_MODELS])
+
+
+def test_cache_uses_source_observations_and_invalidates_changed_flow(tmp_path,monkeypatch):
+    m,f,now=fixture(850);calls=[];original_features=engine.features
+    def fake_fit(name,x,y,positions,horizon):
+        calls.append(name);return {'value':.1},{'seconds':0,'steps':1}
+    monkeypatch.setattr(engine,'fit_model',fake_fit)
+    monkeypatch.setattr(engine,'predict_model',lambda state,x,positions:np.full(len(positions),state['value']))
+    first,_=engine.replay(m,f,7,tmp_path,part='current',now=now)
+    def rounded_features(*args,**kwargs):
+        raw,x=original_features(*args,**kwargs)
+        x['eth_btc_correlation_30']+=1e-15
+        return raw,x
+    monkeypatch.setattr(engine,'features',rounded_features)
+    again,meta=engine.replay(m,f,7,tmp_path,part='current',now=now)
+    assert len(calls)==4 and meta['cached_months']==1 and meta['refitted_months']==0
+    pd.testing.assert_frame_equal(first,again)
+    changed=f.copy();changed.loc[changed.index[-100],FLOW_COLUMNS[0]]+=.01
+    _,meta=engine.replay(m,changed,7,tmp_path,part='current',now=now)
+    assert len(calls)==8 and meta['refitted_months']==1
 
 
 def test_new_live_record_is_immutable_and_never_backdates_replay(tmp_path,monkeypatch):

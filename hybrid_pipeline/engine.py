@@ -11,6 +11,7 @@ import torch
 from hybrid_pipeline.data import features, targets, training_positions, frame_hash, runtime_hash
 from hybrid_pipeline.models import fit_model, predict_model
 from hybrid_pipeline.protocol import BASE_MODELS, PROTOCOL, PROTOCOL_HASH
+from research_pipeline.protocol import FLOW_COLUMNS
 
 
 def atomic_json(path, value):
@@ -45,8 +46,11 @@ def replay(master, flow, horizon, root, *, part='all', now=None, budget_seconds=
         test = np.flatnonzero((x.index >= month)&(x.index < month+pd.offsets.MonthBegin(1)))
         end = x.index[test[-1]]
         past = x.index < month
-        train_key = hashlib.sha256((code+str(horizon)+month.isoformat()+frame_hash(raw.loc[past])+frame_hash(x.loc[past])).encode()).hexdigest()
-        pred_key = hashlib.sha256((train_key+frame_hash(raw.loc[:end])+frame_hash(x.loc[:end])).encode()).hexdigest()
+        # Cache the source observations plus code, not recomputed log/correlation
+        # floats whose final bits can differ between CPU implementations.
+        # All feature transformations are covered by the code fingerprint.
+        train_key = hashlib.sha256((code+str(horizon)+month.isoformat()+frame_hash(raw.loc[past])+frame_hash(x.loc[past,FLOW_COLUMNS])).encode()).hexdigest()
+        pred_key = hashlib.sha256((train_key+frame_hash(raw.loc[:end])+frame_hash(x.loc[:end,FLOW_COLUMNS])).encode()).hexdigest()
         path = cache/f'h{horizon}_{month:%Y-%m}.json'
         cached = json.loads(path.read_text()) if path.exists() else None
         bundle_path = root/f'bundle_h{horizon}.pt'

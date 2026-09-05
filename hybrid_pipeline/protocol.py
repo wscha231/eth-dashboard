@@ -1,10 +1,10 @@
-"""A bounded search specified before reading its replay results."""
+"""Versioned development protocol; each replay uses only its recorded past."""
 import hashlib
 import json
 
 BASE_MODELS = ['cat_short', 'cat_long', 'transformer_short', 'transformer_long']
 PROTOCOL = {
-    'version': 'cat_patch_transformer_v1', 'horizons': [7, 30], 'seed': 1729,
+    'version': 'cat_patch_transformer_v2', 'horizons': [7, 30], 'seed': 1729,
     'features': 'closed ETH/BTC OHLCV only, plus verified flow lagged one extra calendar day; no macro/on-chain publication vintages',
     'source_limit': 'Reconstructed exchange history, not a claim of original publication-vintage verification.',
     'target': 'direct horizon log return divided by (origin trailing 30-day volatility * sqrt(horizon))',
@@ -24,6 +24,8 @@ PROTOCOL = {
     },
     'neural_training': {'batch_size': 128, 'learning_rate': .001, 'weight_decay': .02,
                         'dropout': .1, 'patience': 4, 'gradient_clip': 1.0},
+    'point_guard': {'quantiles': [.05, .95], 'basis': 'matured outer-training log returns, separately by horizon/window/month; preserve zero inside bounds',
+                    'reason': 'v1 development replay exposed extreme volatility-rescaling extrapolation in March 2020; v2 is a disclosed development revision, not a fresh holdout'},
     'objective': 'return MAE on prior matured out-of-sample origins; baseline reported separately',
     'selection_days': {'7': 365, '30': 730}, 'selection_min_rows': 180,
     'blend_weights_cat': [0.0, .25, .5, .75, 1.0], 'amplitudes': [.5, 1.0],
