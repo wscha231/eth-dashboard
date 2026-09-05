@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-09-05T05:45:38.628999+00:00",
+  "generated_at": "2026-09-05T08:35:42.087525+00:00",
   "status": "degraded",
   "notes": [
     "tail-event feature coverage is weak"
@@ -8,8 +8,8 @@
   "components": {
     "live_forecast": {
       "status": "ok",
-      "input_timestamp_utc": "2026-09-05 00:00:00",
-      "age_hours": 5.76,
+      "input_timestamp_utc": "2026-09-05T00:00:00Z",
+      "age_hours": 8.6,
       "slo_hours": 27.0,
       "reason": null
     },
@@ -18,13 +18,13 @@
       "latest_by_horizon": {
         "7": {
           "horizon_days": 7,
-          "resolved_count": 94,
-          "latest_resolved_target_utc": "2026-09-05 00:00:00"
+          "resolved_count": 93,
+          "latest_resolved_target_utc": "2026-09-04T00:00:00Z"
         },
         "30": {
           "horizon_days": 30,
-          "resolved_count": 71,
-          "latest_resolved_target_utc": "2026-09-05 00:00:00"
+          "resolved_count": 70,
+          "latest_resolved_target_utc": "2026-09-04T00:00:00Z"
         }
       },
       "unresolved_due_count_by_horizon": {},
@@ -37,7 +37,7 @@
         "7": "2026-08-30",
         "30": "2026-08-30"
       },
-      "age_hours": 149.76,
+      "age_hours": 152.6,
       "slo_hours": 192.0,
       "reason": null
     },
@@ -53,44 +53,49 @@
     "oof_evaluation_max_age_hours": 192.0
   },
   "latest_run": {
-    "run_id": 101,
-    "run_timestamp_utc": "2026-09-05T05:45:35.138636+00:00",
-    "input_timestamp_utc": "2026-09-05 00:00:00",
-    "model_phase": "phase6_production",
-    "code_version": "sha256:0890f2e61da6"
+    "run_id": 102,
+    "run_timestamp_utc": "2026-09-05T08:35:39.511961Z",
+    "input_timestamp_utc": "2026-09-05T00:00:00Z",
+    "model_phase": "phase6_closed_daily",
+    "code_version": "sha256:88e70b66b8aa",
+    "model_version": "08317717ec14903572e0",
+    "source_bar_date": "2026-09-04",
+    "training_cutoff_utc": "2026-09-05T00:00:00Z"
   },
   "latest_forecasts_by_horizon": {
     "7": {
       "horizon_days": 7,
-      "forecast_target_timestamp_utc": "2026-09-12 00:00:00",
-      "input_timestamp_utc": "2026-09-05 00:00:00",
-      "run_timestamp_utc": "2026-09-05T05:45:35.138636+00:00"
+      "forecast_target_timestamp_utc": "2026-09-12T00:00:00Z",
+      "time_contract": "utc_bar_end_v2",
+      "input_timestamp_utc": "2026-09-05T00:00:00Z",
+      "run_timestamp_utc": "2026-09-05T08:35:39.511961Z"
     },
     "30": {
       "horizon_days": 30,
-      "forecast_target_timestamp_utc": "2026-10-05 00:00:00",
-      "input_timestamp_utc": "2026-09-05 00:00:00",
-      "run_timestamp_utc": "2026-09-05T05:45:35.138636+00:00"
+      "forecast_target_timestamp_utc": "2026-10-05T00:00:00Z",
+      "time_contract": "utc_bar_end_v2",
+      "input_timestamp_utc": "2026-09-05T00:00:00Z",
+      "run_timestamp_utc": "2026-09-05T08:35:39.511961Z"
     }
   },
   "latest_resolved_by_horizon": {
     "7": {
       "horizon_days": 7,
-      "resolved_count": 94,
-      "latest_resolved_target_utc": "2026-09-05 00:00:00"
+      "resolved_count": 93,
+      "latest_resolved_target_utc": "2026-09-04T00:00:00Z"
     },
     "30": {
       "horizon_days": 30,
-      "resolved_count": 71,
-      "latest_resolved_target_utc": "2026-09-05 00:00:00"
+      "resolved_count": 70,
+      "latest_resolved_target_utc": "2026-09-04T00:00:00Z"
     }
   },
   "unresolved_due_count_by_horizon": {},
   "db_counts": {
-    "forecast_runs": 101,
-    "forecasts": 202,
-    "actuals": 165,
-    "accuracy_snapshot": 660,
+    "forecast_runs": 102,
+    "forecasts": 204,
+    "actuals": 163,
+    "accuracy_snapshot": 668,
     "backtest_runs": 16,
     "backtest_predictions": 50280
   }

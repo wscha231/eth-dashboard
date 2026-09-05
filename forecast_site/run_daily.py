@@ -39,7 +39,7 @@ def _run(cmd: list[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model-phase", default="phase6_production",
+    parser.add_argument("--model-phase", default="phase6_closed_daily",
                         help="Label written into forecast_runs.model_phase")
     parser.add_argument("--fast-mode", action="store_true",
                         help="Pass --fast-mode to eth_price_forecast")
@@ -55,6 +55,9 @@ def main() -> None:
                         help="Skip export_json step")
     parser.add_argument("--skip-notify", action="store_true",
                         help="Skip Telegram notification step")
+    parser.add_argument("--notify", action="store_true", help="Explicitly send the configured notification")
+    parser.add_argument("--research-suite", action="store_true", help="Explicit expensive CV/research path")
+    parser.add_argument("--bundle", default="models/champion.joblib")
     parser.add_argument("--master-data-csv", default=str(DEFAULT_MASTER_CSV))
     parser.add_argument("--summary-csv", default=str(DEFAULT_SUMMARY_CSV))
     parser.add_argument("--prediction-history-csv", default=str(DEFAULT_PREDICTION_HISTORY_CSV),
@@ -73,7 +76,12 @@ def main() -> None:
             "--master-data-csv", args.master_data_csv,
             "--prediction-history-csv", args.prediction_history_csv,
         ]
-        if args.fast_mode:
+        if not args.research_suite:
+            if args.fast_mode:
+                raise SystemExit("--fast-mode changes candidates; use --research-suite for research")
+            forecast_cmd = [python,"scripts/predict_latest.py","--master-data-csv",args.master_data_csv,
+                            "--bundle",args.bundle,"--summary-csv",args.summary_csv]
+        elif args.fast_mode:
             forecast_cmd.append("--fast-mode")
         _run(forecast_cmd)
 
@@ -105,7 +113,7 @@ def main() -> None:
         ])
 
     # Telegram alert. Best-effort; never aborts the pipeline.
-    if not args.skip_notify:
+    if args.notify and not args.skip_notify:
         _run([python, "-m", "forecast_site.notify_telegram"])
 
     print("\n[run_daily] Complete.")

@@ -33,6 +33,8 @@ def validate_health(
     now: dt.datetime | None = None,
     max_live_age_hours: float = 27.0,
     max_health_age_hours: float = 30.0,
+    expected_run_id: int | None = None,
+    expected_model_version: str | None = None,
 ) -> list[str]:
     now = now or dt.datetime.now(tz=dt.timezone.utc)
     if now.tzinfo is None:
@@ -41,6 +43,16 @@ def validate_health(
     errors: list[str] = []
 
     latest_run = payload.get("latest_run") or {}
+    horizons = payload.get("latest_forecasts_by_horizon") or {}
+    if set(horizons) != {"7", "30"}:
+        errors.append("latest run must include both required horizons: 7 and 30")
+    if expected_run_id is not None and latest_run.get("run_id") != expected_run_id:
+        errors.append("deployed run_id differs from the expected run")
+    if expected_model_version is not None and latest_run.get("model_version") != expected_model_version:
+        errors.append("deployed model_version differs from the expected model")
+    for horizon, forecast in horizons.items():
+        if forecast.get("input_timestamp_utc") != latest_run.get("input_timestamp_utc"):
+            errors.append(f"horizon {horizon} is from a different input timestamp")
     input_timestamp = latest_run.get("input_timestamp_utc")
     live_age = _age_hours(input_timestamp, now)
     if live_age is None:
@@ -83,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout-seconds", type=float, default=20.0)
     parser.add_argument("--retries", type=int, default=1)
     parser.add_argument("--retry-seconds", type=float, default=60.0)
+    parser.add_argument("--expected-run-id", type=int)
+    parser.add_argument("--expected-model-version")
     args = parser.parse_args(argv)
 
     attempts = max(1, args.retries)
@@ -94,6 +108,8 @@ def main(argv: list[str] | None = None) -> int:
                 payload,
                 max_live_age_hours=args.max_live_age_hours,
                 max_health_age_hours=args.max_health_age_hours,
+                expected_run_id=args.expected_run_id,
+                expected_model_version=args.expected_model_version,
             )
             if not errors:
                 latest = payload.get("latest_run") or {}

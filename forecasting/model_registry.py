@@ -112,7 +112,7 @@ def catboost_regressor_params(horizon: int | None = None) -> dict[str, Any]:
         "random_seed": 42,
         "verbose": False,
         "allow_writing_files": False,
-        "thread_count": -1,
+        "thread_count": 2,
     }
     if horizon is not None and horizon >= 30:
         params.update(
@@ -145,7 +145,7 @@ def catboost_classifier_params(
         "random_seed": 42,
         "verbose": False,
         "allow_writing_files": False,
-        "thread_count": -1,
+        "thread_count": 2,
     }
     if horizon is not None and horizon >= 30:
         params.update(
@@ -181,7 +181,7 @@ def lightgbm_regressor_params(horizon: int | None = None) -> dict[str, Any]:
         "reg_lambda": 2.0 if long_horizon else 1.5,
         "max_bin": 127,
         "random_state": 42,
-        "n_jobs": -1,
+        "n_jobs": 2,
         "verbosity": -1,
         "deterministic": True,
         "force_col_wise": True,
@@ -209,7 +209,7 @@ def lightgbm_classifier_params(
         "max_bin": 127,
         "class_weight": "balanced",
         "random_state": 42,
-        "n_jobs": -1,
+        "n_jobs": 2,
         "verbosity": -1,
         "deterministic": True,
         "force_col_wise": True,
@@ -244,7 +244,7 @@ def build_regression_models(
                         min_samples_leaf=5,
                         max_features="sqrt",
                         random_state=42,
-                        n_jobs=-1,
+                        n_jobs=2,
                     ),
                 ),
             ]
@@ -260,7 +260,7 @@ def build_regression_models(
                         min_samples_leaf=4,
                         max_features="sqrt",
                         random_state=42,
-                        n_jobs=-1,
+                        n_jobs=2,
                     ),
                 ),
             ]
@@ -377,7 +377,7 @@ def build_classification_models(
                         max_features="sqrt",
                         class_weight="balanced",
                         random_state=42,
-                        n_jobs=-1,
+                        n_jobs=2,
                     ),
                 ),
             ]
@@ -394,7 +394,7 @@ def build_classification_models(
                         max_features="sqrt",
                         class_weight="balanced_subsample",
                         random_state=42,
-                        n_jobs=-1,
+                        n_jobs=2,
                     ),
                 ),
             ]

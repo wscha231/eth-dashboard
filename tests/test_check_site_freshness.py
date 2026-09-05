@@ -12,6 +12,7 @@ def _health(*, input_timestamp: str, generated_at: str, runs: int = 87) -> dict:
     return {
         "generated_at": generated_at,
         "latest_run": {"run_id": runs, "input_timestamp_utc": input_timestamp},
+        "latest_forecasts_by_horizon": {str(h): {"input_timestamp_utc": input_timestamp} for h in (7,30)},
         "db_counts": {"forecast_runs": runs},
     }
 
@@ -45,3 +46,10 @@ def test_validate_health_rejects_cached_old_health_payload() -> None:
     errors = validate_health(payload, now=NOW)
 
     assert any("health payload" in error for error in errors)
+
+
+def test_fresh_partial_or_wrong_deployment_fails():
+    payload = _health(input_timestamp="2026-08-23T00:00:00Z", generated_at="2026-08-23T03:30:00Z")
+    del payload["latest_forecasts_by_horizon"]["30"]
+    assert any("required horizons" in e for e in validate_health(payload,now=NOW))
+    assert any("run_id" in e for e in validate_health(payload,now=NOW,expected_run_id=999))

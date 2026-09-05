@@ -1780,6 +1780,8 @@ def collect_sources(
     market_notes: list[str] = []
     fallback_aliases = [str(alias) for alias in market_meta.get("fallback_cached_aliases", [])]
     failed_aliases = [str(alias) for alias in market_meta.get("failed_aliases", [])]
+    if bool(market_meta.get("used_cached_only")) or "eth" in fallback_aliases:
+        raise ValueError("ETH source refresh failed; cached/in-progress prices cannot certify today's closed bar")
     gap_refresh_start = str(market_meta.get("gap_refresh_start", "")).strip()
     if gap_refresh_start:
         market_notes.append(f"recovered_eth_gap_from={gap_refresh_start}")
@@ -2564,6 +2566,35 @@ def main(argv: list[str] | None = None) -> None:
     )
     if not existing_master.empty:
         master_data = merge_history_frame(existing_master, master_data, overwrite_start=start_date)
+
+    # Carry yesterday's observed vendor snapshots forward without ever using
+    # the provisional OHLCV prices as a replacement for a refreshed final close.
+    pending = load_market_data_csv(paths.master_data_csv.with_name("eth_provisional_daily.csv"))
+    if not pending.empty:
+        core_columns = {f"{alias}_{field}" for alias in DEFAULT_TICKERS
+                        for field in ("open", "high", "low", "close", "volume", "adj_close")}
+        vendor_columns = [column for column in pending if column not in core_columns]
+        completed = pending.loc[pending.index < today, vendor_columns]
+        if not completed.empty:
+            for column in vendor_columns:
+                if column not in master_data:
+                    master_data[column] = np.nan
+                master_data[column] = master_data[column].combine_first(completed[column])
+
+    # Persist progressing daily bars separately; they are never training labels
+    # or official settlement prices. Date labels remain SOURCE bar starts.
+    from forecasting.daily_data import closed_daily_rows, iso_utc
+    closed_master = closed_daily_rows(master_data)
+    provisional = master_data.loc[~master_data.index.isin(closed_master.index)]
+    save_market_data_csv(provisional, paths.master_data_csv.with_name("eth_provisional_daily.csv"))
+    master_data = closed_master
+    if master_data.empty:
+        raise ValueError("Collection did not produce a closed daily ETH bar")
+    paths.master_data_csv.with_suffix(".availability.json").write_text(
+        json.dumps({"observed_at_utc": iso_utc(None), "bar_labels": "UTC_start",
+                    "latest_source_bar_date": str(master_data.index[-1].date()),
+                    "finality_policy": "elapsed_UTC_day_plus_15m_provider_delay",
+                    "provisional_rows": len(provisional)}, indent=2), encoding="utf-8")
 
     remaining_eth_gaps = find_missing_daily_eth_dates(master_data)
     if len(remaining_eth_gaps):

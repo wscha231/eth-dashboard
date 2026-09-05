@@ -42,6 +42,10 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from forecasting.model_bundle import cached_final_fit, final_model_cache
+from forecasting.feature_store import cached_fold_selection
+from forecasting.runtime_metrics import timed
+
 from forecasting.model_registry import (
     COMPACT_H30_FEATURE_COUNT,
     PROMOTED_REGRESSION_MODEL_BY_HORIZON,
@@ -2278,6 +2282,7 @@ def select_usable_feature_columns(
     return selected, coverage_summary
 
 
+@cached_fold_selection
 def select_fold_features(
     dataset: pd.DataFrame,
     candidate_feature_columns: list[str],
@@ -2947,6 +2952,7 @@ def build_state_targets(close: pd.Series, horizon: int) -> pd.DataFrame:
     )
 
 
+@timed
 def build_features(
     data: pd.DataFrame,
     horizon: int,
@@ -4329,6 +4335,7 @@ def empty_explainability_artifacts(model_name: str, reason: str) -> Explainabili
     )
 
 
+@timed
 def build_explainability_artifacts(
     dataset: pd.DataFrame,
     prediction_frame: pd.DataFrame,
@@ -5544,6 +5551,7 @@ def backtest_classification_models(
     return leaderboard, equity_curves
 
 
+@timed
 def walk_forward_state_classification(
     dataset: pd.DataFrame,
     feature_columns: list[str],
@@ -5778,6 +5786,7 @@ def backtest_benchmark_strategies(
     return leaderboard, equity_curves
 
 
+@timed
 def build_recent_holdout_report(
     dataset: pd.DataFrame,
     feature_columns: list[str],
@@ -8210,6 +8219,7 @@ def select_state_forecast_model(
     return str(viable.loc[0, "model"]), f"leaderboard_balanced_accuracy{macro_suffix}"
 
 
+@timed
 def walk_forward_leaderboard(
     dataset: pd.DataFrame,
     feature_columns: list[str],
@@ -8316,6 +8326,7 @@ def walk_forward_leaderboard(
     return leaderboard, oof
 
 
+@timed
 def walk_forward_classification(
     dataset: pd.DataFrame,
     feature_columns: list[str],
@@ -8577,6 +8588,8 @@ def choose_classification_evaluation_threshold(
     return best_threshold, best_metrics
 
 
+@cached_final_fit
+@timed
 def fit_best_model(
     dataset: pd.DataFrame,
     feature_columns: list[str],
@@ -8594,6 +8607,8 @@ def fit_best_model(
     return model
 
 
+@cached_final_fit
+@timed
 def fit_best_classifier(
     dataset: pd.DataFrame,
     feature_columns: list[str],
@@ -8685,16 +8700,11 @@ def estimate_prediction_interval_from_residuals(
             - pd.to_numeric(aligned[oof_column], errors="coerce")
         ).dropna()
 
-    if residuals.shape[0] < 80:
-        fitted = pd.Series(
-            point_model.predict(training_dataset[feature_columns]),
-            index=training_dataset.index,
-            dtype=float,
-        )
-        residuals = (
-            pd.to_numeric(training_dataset["target_return"], errors="coerce")
-            - pd.to_numeric(fitted, errors="coerce")
-        ).dropna()
+    if residuals.shape[0] < 20:
+        # Do not advertise in-sample fitted residuals as held-out uncertainty.
+        # With insufficient OOF evidence use an explicitly unverified historical
+        # return band around the baseline, not training-error compression.
+        residuals = pd.to_numeric(training_dataset["target_return"], errors="coerce").dropna()
 
     if residuals.empty:
         return 0.0, 0.0
@@ -8983,6 +8993,11 @@ def choose_regression_blend_components(
     if selected_model == NO_CHANGE_ANCHOR_MODEL:
         return [NO_CHANGE_ANCHOR_MODEL]
     if score_frame.empty:
+        return [selected_model]
+    required = {"holdout_total_return", "holdout_sharpe", "backtest_total_return", "backtest_sharpe", "cv_price_rmse"}
+    if not required.issubset(score_frame.columns):
+        # An inference policy can intentionally omit unavailable selection
+        # evidence. Preserve its chosen model instead of inventing peer ranks.
         return [selected_model]
 
     if max_models is None:
@@ -9724,6 +9739,8 @@ def interval_to_offset(interval: str) -> pd.tseries.offsets.BaseOffset:
     return mapping.get(interval, pd.offsets.Day(1))
 
 
+@cached_final_fit
+@timed
 def fit_best_state_model(
     dataset: pd.DataFrame,
     feature_columns: list[str],
@@ -10776,7 +10793,7 @@ def forecast_next_step(
             ).iloc[0]
         )
 
-    component_models = choose_regression_blend_components(
+    component_models = [] if model_name == TRIMMED_REGRESSION_ENSEMBLE_MODEL else choose_regression_blend_components(
         score_frame=score_frame,
         selected_model=model_name,
         horizon=horizon,
@@ -11170,6 +11187,7 @@ def run_pipeline(
         set_runtime_options(fast_mode=previous_fast_mode)
 
 
+@timed
 def run_horizon_pipeline(
     market_data: pd.DataFrame,
     interval: str,
@@ -11185,6 +11203,7 @@ def run_horizon_pipeline(
     build_explainability: bool = True,
     verbose: bool = True,
     cv_embargo: int = 0,
+    bundle_record: dict | None = None,
 ) -> HorizonArtifacts:
     label = f"[{horizon}d] "
     state_target_columns = [
@@ -11679,6 +11698,99 @@ def run_horizon_pipeline(
         )
 
     log_progress(verbose, f"{label}fitting final forecast models...")
+    policy = {
+        "training_dataset": training_dataset,
+        "feature_columns": feature_columns,
+        "interval": interval,
+        "horizon": horizon,
+        "sample_weights": sample_weights,
+        "regression_oof_predictions": regression_oof_predictions,
+        "regression_leaderboard": regression_leaderboard,
+        "regression_backtest": regression_backtest,
+        "recent_holdout_report": recent_holdout_report,
+        "prediction_feedback_summary": prediction_feedback_summary,
+        "regression_interval_model": regression_interval_model,
+        "regression_interval_selection_basis": regression_interval_selection_basis,
+        "best_regression_model": best_regression_model,
+        "regression_selection_basis": regression_selection_basis,
+        "best_classification_model": best_classification_model,
+        "classification_selection_basis": classification_selection_basis,
+        "classification_threshold": classification_threshold,
+        "classification_leaderboard": classification_leaderboard,
+        "classification_backtest": classification_backtest,
+        "best_regime_model": best_regime_model,
+        "regime_selection_basis": regime_selection_basis,
+        "best_reversal_model": best_reversal_model,
+        "reversal_selection_basis": reversal_selection_basis,
+    }
+    fitted_models = {}
+    with final_model_cache("record", fitted_models):
+        regression_forecast, classification_forecast, regime_forecast, reversal_forecast, hybrid_forecast = predict_frozen_policy(policy, prediction_frame, price_reference)
+    if bundle_record is not None:
+        bundle_record[horizon] = {"policy": policy, "models": fitted_models, "candidate_feature_columns": raw_candidate_feature_columns}
+
+    return HorizonArtifacts(
+        horizon_steps=horizon,
+        regression_forecast=regression_forecast,
+        classification_forecast=classification_forecast,
+        regime_forecast=regime_forecast,
+        reversal_forecast=reversal_forecast,
+        hybrid_forecast=hybrid_forecast,
+        regression_leaderboard=regression_leaderboard,
+        classification_leaderboard=classification_leaderboard,
+        regime_leaderboard=regime_leaderboard,
+        reversal_leaderboard=reversal_leaderboard,
+        regression_backtest=regression_backtest,
+        classification_backtest=classification_backtest,
+        regime_backtest=regime_backtest,
+        reversal_backtest=reversal_backtest,
+        benchmark_backtest=benchmark_backtest,
+        regression_oof_predictions=regression_oof_predictions,
+        classification_oof_predictions=classification_oof_predictions,
+        regime_oof_predictions=regime_oof_predictions,
+        reversal_oof_predictions=reversal_oof_predictions,
+        regression_equity_curves=regression_equity_curves,
+        classification_equity_curves=classification_equity_curves,
+        regime_equity_curves=regime_equity_curves,
+        reversal_equity_curves=reversal_equity_curves,
+        benchmark_equity_curves=benchmark_equity_curves,
+        data_window_summary=data_window_summary,
+        feature_coverage_summary=feature_coverage_summary,
+        recent_holdout_report=recent_holdout_report,
+        feature_snapshot=prediction_frame[feature_columns].tail(1).T.rename(
+            columns={prediction_frame.index[-1]: "latest_value"}
+        ),
+        regression_explainability=regression_explainability,
+        classification_explainability=classification_explainability,
+    )
+
+
+
+def predict_frozen_policy(policy: dict, prediction_frame: pd.DataFrame, price_reference: PriceReference):
+    """Apply a frozen selection/calibration policy with an explicit fitted-model cache."""
+    training_dataset = policy["training_dataset"]
+    feature_columns = policy["feature_columns"]
+    interval = policy["interval"]
+    horizon = policy["horizon"]
+    sample_weights = policy["sample_weights"]
+    regression_oof_predictions = policy["regression_oof_predictions"]
+    regression_leaderboard = policy["regression_leaderboard"]
+    regression_backtest = policy["regression_backtest"]
+    recent_holdout_report = policy["recent_holdout_report"]
+    prediction_feedback_summary = policy["prediction_feedback_summary"]
+    regression_interval_model = policy["regression_interval_model"]
+    regression_interval_selection_basis = policy["regression_interval_selection_basis"]
+    best_regression_model = policy["best_regression_model"]
+    regression_selection_basis = policy["regression_selection_basis"]
+    best_classification_model = policy["best_classification_model"]
+    classification_selection_basis = policy["classification_selection_basis"]
+    classification_threshold = policy["classification_threshold"]
+    classification_leaderboard = policy["classification_leaderboard"]
+    classification_backtest = policy["classification_backtest"]
+    best_regime_model = policy["best_regime_model"]
+    regime_selection_basis = policy["regime_selection_basis"]
+    best_reversal_model = policy["best_reversal_model"]
+    reversal_selection_basis = policy["reversal_selection_basis"]
     regression_forecast = forecast_next_step(
         training_dataset=training_dataset,
         prediction_frame=prediction_frame,
@@ -11764,41 +11876,7 @@ def run_horizon_pipeline(
         recent_holdout_report=recent_holdout_report,
     )
 
-    return HorizonArtifacts(
-        horizon_steps=horizon,
-        regression_forecast=regression_forecast,
-        classification_forecast=classification_forecast,
-        regime_forecast=regime_forecast,
-        reversal_forecast=reversal_forecast,
-        hybrid_forecast=hybrid_forecast,
-        regression_leaderboard=regression_leaderboard,
-        classification_leaderboard=classification_leaderboard,
-        regime_leaderboard=regime_leaderboard,
-        reversal_leaderboard=reversal_leaderboard,
-        regression_backtest=regression_backtest,
-        classification_backtest=classification_backtest,
-        regime_backtest=regime_backtest,
-        reversal_backtest=reversal_backtest,
-        benchmark_backtest=benchmark_backtest,
-        regression_oof_predictions=regression_oof_predictions,
-        classification_oof_predictions=classification_oof_predictions,
-        regime_oof_predictions=regime_oof_predictions,
-        reversal_oof_predictions=reversal_oof_predictions,
-        regression_equity_curves=regression_equity_curves,
-        classification_equity_curves=classification_equity_curves,
-        regime_equity_curves=regime_equity_curves,
-        reversal_equity_curves=reversal_equity_curves,
-        benchmark_equity_curves=benchmark_equity_curves,
-        data_window_summary=data_window_summary,
-        feature_coverage_summary=feature_coverage_summary,
-        recent_holdout_report=recent_holdout_report,
-        feature_snapshot=prediction_frame[feature_columns].tail(1).T.rename(
-            columns={prediction_frame.index[-1]: "latest_value"}
-        ),
-        regression_explainability=regression_explainability,
-        classification_explainability=classification_explainability,
-    )
-
+    return (regression_forecast, classification_forecast, regime_forecast, reversal_forecast, hybrid_forecast)
 
 def save_horizon_artifacts(artifacts: HorizonArtifacts, output_dir: str | Path) -> None:
     destination = Path(output_dir)

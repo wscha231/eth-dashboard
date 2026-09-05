@@ -13,6 +13,9 @@ from pathlib import Path
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path(__file__).parent / "predictions.db"
 FORECAST_OPTIONAL_COLUMNS: dict[str, str] = {
+    "time_contract": "TEXT",
+    "classification_event_threshold": "REAL",
+    "classification_probability_event": "TEXT",
     "classification_direction_score_up": "REAL",
     "forecast_decision_mode": "TEXT",
     "forecast_actionability": "TEXT",
@@ -54,8 +57,11 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 def _ensure_optional_columns(conn: sqlite3.Connection) -> None:
     """Add new nullable columns when an existing committed DB predates schema.sql."""
     optional_columns_by_table = {
+        "forecast_runs": {"model_version": "TEXT", "source_bar_date": "TEXT", "data_hash": "TEXT", "training_cutoff_utc": "TEXT"},
         "forecasts": FORECAST_OPTIONAL_COLUMNS,
         "backtest_predictions": BACKTEST_PREDICTION_OPTIONAL_COLUMNS,
+        "actuals": {"evaluation_version": "TEXT", "actual_bar_end_utc": "TEXT", "source_hash": "TEXT"},
+        "accuracy_snapshot": {"signal_count": "INTEGER", "correct_count": "INTEGER", "abstain_count": "INTEGER", "brier_count": "INTEGER", "evaluation_version": "TEXT", "time_contract": "TEXT"},
     }
     for table, optional_columns in optional_columns_by_table.items():
         existing = {

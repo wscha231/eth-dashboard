@@ -39,7 +39,13 @@ DEFAULT_OUTPUT_DIR = Path(__file__).parent / "public"
 
 
 def _row_to_dict(row) -> dict:
-    return {k: row[k] for k in row.keys()}
+    result = {k: row[k] for k in row.keys()}
+    for key, value in result.items():
+        if value and (key.endswith("_utc") or key == "snapshot_utc"):
+            parsed = _parse_utc(value)
+            if parsed is not None:
+                result[key] = parsed.isoformat().replace("+00:00", "Z")
+    return result
 
 
 def export_latest(conn) -> dict:
@@ -47,7 +53,7 @@ def export_latest(conn) -> dict:
         """
         SELECT run_id, run_timestamp_utc, input_timestamp_utc, reference_price,
                reference_price_source, reference_price_timestamp_utc,
-               model_phase, code_version, fast_mode
+               model_phase, code_version, fast_mode, model_version, source_bar_date, data_hash, training_cutoff_utc
         FROM forecast_runs
         ORDER BY run_timestamp_utc DESC
         LIMIT 1
@@ -58,7 +64,8 @@ def export_latest(conn) -> dict:
                 "run": None, "horizons": {}}
     forecasts = conn.execute(
         """
-        SELECT horizon_days, forecast_target_timestamp_utc,
+        SELECT horizon_days, forecast_target_timestamp_utc, time_contract,
+               classification_event_threshold, classification_probability_event,
                regression_model, regression_predicted_return, regression_predicted_close,
                regression_lower_close_10, regression_upper_close_90,
                classification_model, classification_predicted_direction,
@@ -96,7 +103,8 @@ def export_accuracy(conn) -> dict:
     rows = conn.execute(
         """
         SELECT horizon_days, window_days, snapshot_utc, resolved_count,
-               direction_accuracy, brier_score, price_mape_percent, price_rmse, return_mae
+               direction_accuracy, brier_score, price_mape_percent, price_rmse, return_mae,
+               signal_count, correct_count, abstain_count, brier_count, evaluation_version, time_contract
         FROM accuracy_snapshot a
         WHERE snapshot_utc = (
             SELECT MAX(snapshot_utc) FROM accuracy_snapshot
@@ -112,6 +120,9 @@ def export_accuracy(conn) -> dict:
         out.setdefault(h, {})[w] = _row_to_dict(row)
     return {
         "generated_at": _dt.datetime.now(tz=_dt.timezone.utc).isoformat(),
+        "price_output": "regression_as_issued",
+        "direction_output": "classification_as_issued",
+        "brier_event": "up_conditional_on_large_move; only rows with a recorded event threshold",
         "horizons": out,
     }
 
@@ -121,7 +132,7 @@ def export_history(conn, limit: int = 200) -> list[dict]:
     rows = conn.execute(
         """
         SELECT r.run_timestamp_utc, r.input_timestamp_utc, r.reference_price,
-               f.horizon_days, f.forecast_target_timestamp_utc,
+               f.horizon_days, f.forecast_target_timestamp_utc, f.time_contract,
                f.regression_model, f.regression_predicted_close,
                f.active_predicted_close, f.active_predicted_direction,
                f.forecast_decision_mode, f.forecast_actionability,
@@ -130,7 +141,8 @@ def export_history(conn, limit: int = 200) -> list[dict]:
                f.classification_signal_threshold,
                f.classification_predicted_direction, f.hybrid_signal_tier,
                a.actual_close, a.actual_return, a.direction_actual,
-               a.direction_correct, a.price_absolute_error, a.brier_contribution
+               a.direction_correct, a.price_absolute_error, a.brier_contribution,
+               a.evaluation_version, a.actual_bar_end_utc
         FROM actuals a
         JOIN forecasts f ON f.forecast_id = a.forecast_id
         JOIN forecast_runs r ON r.run_id = f.run_id
@@ -139,6 +151,19 @@ def export_history(conn, limit: int = 200) -> list[dict]:
         """,
         (limit,),
     ).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def export_issued_history(conn, limit: int = 28) -> list[dict]:
+    """Recent as-issued forecasts, including targets that have not matured."""
+    rows = conn.execute("""SELECT r.run_id, r.input_timestamp_utc, r.run_timestamp_utc,
+        r.reference_price, r.model_version, f.horizon_days, f.forecast_target_timestamp_utc,
+        f.regression_predicted_close, f.regression_predicted_return, f.regression_model,
+        f.classification_predicted_direction, f.classification_probability_up,
+        a.actual_close, a.evaluation_version
+        FROM forecasts f JOIN forecast_runs r ON r.run_id=f.run_id
+        LEFT JOIN actuals a ON a.forecast_id=f.forecast_id
+        ORDER BY r.run_timestamp_utc DESC, f.horizon_days LIMIT ?""", (limit,)).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
@@ -226,7 +251,8 @@ def export_health(
     generated_at = now.isoformat()
     latest_run = conn.execute(
         """
-        SELECT run_id, run_timestamp_utc, input_timestamp_utc, model_phase, code_version
+        SELECT run_id, run_timestamp_utc, input_timestamp_utc, model_phase, code_version,
+               model_version, source_bar_date, training_cutoff_utc
         FROM forecast_runs
         ORDER BY run_timestamp_utc DESC
         LIMIT 1
@@ -234,7 +260,7 @@ def export_health(
     ).fetchone()
     latest_by_horizon = conn.execute(
         """
-        SELECT f.horizon_days, f.forecast_target_timestamp_utc,
+        SELECT f.horizon_days, f.forecast_target_timestamp_utc, f.time_contract,
                r.input_timestamp_utc, r.run_timestamp_utc
         FROM forecasts f
         JOIN forecast_runs r ON r.run_id = f.run_id
@@ -294,6 +320,9 @@ def export_health(
     else:
         live_status = "ok"
         live_reason = None
+    if set(latest) != {"7", "30"}:
+        live_status = "stale"
+        live_reason = "latest run must contain both 7-day and 30-day forecasts"
 
     if counts["actuals"] == 0:
         resolved_status = "bootstrap"
@@ -415,6 +444,7 @@ def main() -> None:
         latest = export_latest(conn)
         accuracy = export_accuracy(conn)
         history = export_history(conn, limit=args.history_limit)
+        issued_history = export_issued_history(conn)
         health = export_health(
             conn,
             model_eval_report=model_eval_report,
@@ -423,6 +453,7 @@ def main() -> None:
     finally:
         conn.close()
 
+    (out_dir / "issued_history.json").write_text(json.dumps(issued_history, indent=2), encoding="utf-8")
     (out_dir / "latest.json").write_text(
         json.dumps(latest, indent=2, default=str), encoding="utf-8")
     (out_dir / "accuracy.json").write_text(
