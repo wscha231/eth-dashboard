@@ -1,0 +1,36 @@
+"""Frozen prospective protocol. Change version before changing model settings."""
+import hashlib
+import json
+
+FLOW_COLUMNS = [
+    "eth_spot_taker_buy_quote_share", "eth_spot_signed_taker_flow_ratio",
+    "eth_spot_jump_variation_ratio", "eth_spot_last_4h_return",
+    "eth_spot_last_8h_return", "eth_spot_last_12h_return",
+    "eth_spot_last_4h_quote_volume_share", "eth_perp_basis",
+    "eth_spot_perp_flow_divergence", "eth_futures_spot_quote_volume_ratio",
+    "eth_btc_spot_flow_spread", "eth_btc_perp_flow_spread", "eth_btc_basis_spread",
+    "btc_spot_last_4h_return", "eth_perp_taker_buy_quote_share",
+    "eth_perp_basis_delta_7d", "eth_spot_signed_taker_flow_ratio_delta_7d",
+]
+PROTOCOL = {
+    "version": "prospective_daily_v1", "horizons": [7, 30],
+    "candidates": ["ridge_price", "hist_price", "hist_price_flow"],
+    "train_years": 3, "training_cutoff": "calendar month start",
+    "purge": "training origin + horizon < training cutoff",
+    "matched_training": "all candidates use identical complete flow-history origins",
+    "origin": "latest closed UTC bar end; issue before next UTC day; target = origin + horizon",
+    "refit": "fixed monthly training slice; cheap deterministic fit at issuance",
+    "seed": 42, "ridge_alpha": 100.0, "logistic_C": 0.1,
+    "hgb": {"max_iter": 100, "max_leaf_nodes": 15, "min_samples_leaf": 30,
+            "learning_rate": 0.05, "l2_regularization": 1.0},
+    "event_threshold": {"7": {"multiplier": .40, "floor": .008, "cap": .045},
+                        "30": {"multiplier": .65, "floor": .055, "cap": .160}},
+    "probability": "unconditional DOWN/FLAT/UP; all outcomes scored",
+    "training_min_rows": 500, "training_feature_min_coverage": .60,
+    "fit_budget_seconds": 30, "bootstrap_replicates": 1000,
+    "review_min_rows": 90, "review_min_nonoverlapping_blocks": 6,
+    "promotion": "research_only; never automatically changes production",
+    "historical_limit": "Reconstructed training data; historical publication vintages unverified",
+    "flow_columns": FLOW_COLUMNS,
+}
+PROTOCOL_HASH = hashlib.sha256(json.dumps(PROTOCOL, sort_keys=True).encode()).hexdigest()

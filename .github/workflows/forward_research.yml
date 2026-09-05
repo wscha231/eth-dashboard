@@ -1,0 +1,110 @@
+name: Daily ETH forward research
+on:
+  push:
+    branches: [main]
+    paths:
+      - research_pipeline/**
+      - research/forward/**
+      - scripts/run_forward_research.py
+      - requirements-research.txt
+      - forecast_site/public/index.html
+      - .github/workflows/forward_research.yml
+  workflow_run:
+    workflows: ["Daily ETH forecast"]
+    types: [completed]
+    branches: [main]
+  schedule:
+    # Daily archive publication can lag the official daily forecast (KST 15:17).
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false
+jobs:
+  research:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-research.txt
+      - run: python -m pip install -r requirements-research.txt
+      - name: Restore official prices and durable research evidence
+        run: |
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+          git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv > lake/gold/eth_master_daily.csv
+          mkdir -p lake/forward
+          if git ls-remote --exit-code --heads origin data/forward-research > /dev/null; then
+            git fetch origin data/forward-research:refs/remotes/origin/data/forward-research
+            git archive origin/data/forward-research lake/forward | tar -x
+          fi
+      - name: Incremental collection and bounded prospective evaluation
+        timeout-minutes: 10
+        run: python scripts/run_forward_research.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forward-research-${{ github.run_id }}
+          path: |
+            lake/forward/forward.json
+            lake/forward/source_status.json
+            lake/forward/protocol.json
+          retention-days: 30
+      - name: Persist issued forecasts before publishing the website
+        run: |
+          git config user.name "eth-forecast-bot"
+          git config user.email "eth-forecast-bot@users.noreply.github.com"
+          if git show-ref --verify --quiet refs/remotes/origin/data/forward-research; then
+            research_base=origin/data/forward-research
+          else
+            research_base=origin/data/daily-forecast
+          fi
+          git worktree add --detach "$RUNNER_TEMP/forward-ledger" "$research_base"
+          mkdir -p "$RUNNER_TEMP/forward-ledger/lake/forward"
+          cp -a lake/forward/. "$RUNNER_TEMP/forward-ledger/lake/forward/"
+          git -C "$RUNNER_TEMP/forward-ledger" add -f lake/forward
+          git -C "$RUNNER_TEMP/forward-ledger" commit -m "chore(research): append daily forward evidence"
+          git -C "$RUNNER_TEMP/forward-ledger" push origin HEAD:data/forward-research
+      - name: Publish research panel with the official forecast preserved
+        run: |
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+          git worktree add --detach "$RUNNER_TEMP/forward-site" origin/data/daily-forecast
+          cp lake/forward/forward.json "$RUNNER_TEMP/forward-site/forecast_site/public/forward.json"
+          cp forecast_site/public/index.html "$RUNNER_TEMP/forward-site/forecast_site/public/index.html"
+          git -C "$RUNNER_TEMP/forward-site" add -f forecast_site/public/forward.json forecast_site/public/index.html
+          git -C "$RUNNER_TEMP/forward-site" commit -m "chore(site): publish prospective model comparison"
+          git -C "$RUNNER_TEMP/forward-site" push origin HEAD:data/daily-forecast
+      - name: Verify the deployed research timestamp and panel
+        timeout-minutes: 4
+        run: |
+          python - <<'PY'
+          import json, time
+          from urllib.request import urlopen
+          expected = json.load(open('lake/forward/forward.json'))
+          for attempt in range(18):
+              try:
+                  with urlopen('https://etherforecast.live/forward.json', timeout=10) as response:
+                      actual = json.load(response)
+                  with urlopen('https://etherforecast.live/', timeout=10) as response:
+                      html = response.read().decode()
+                  if actual.get('generated_at') == expected['generated_at'] and 'id="forward-research"' in html:
+                      print('forward deployment verified:', actual['generated_at'], actual['issued_count'], actual['resolved_count'])
+                      break
+              except Exception as exc:
+                  print('deployment pending:', type(exc).__name__)
+              time.sleep(8)
+          else:
+              raise SystemExit('Research deployment did not become current within the verification budget')
+          PY

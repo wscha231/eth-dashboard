@@ -253,6 +253,15 @@
       <div id="issued-history" style="overflow-x:auto"></div>
     </details>
 
+    <details class="panel" id="forward-research" style="margin-top:20px">
+      <summary>Prospective model comparison · research only</summary>
+      <p class="small" id="forward-status">Loading daily research evidence…</p>
+      <p class="small">These experimental forecasts are saved when issued and scored after their 7-day or 30-day target. UP / FLAT / DOWN probabilities cover all outcomes. Improvement over the no-change benchmark is not yet established.</p>
+      <div id="forward-table" style="overflow-x:auto"></div>
+      <p class="small" id="forward-skips"></p>
+      <p class="small">MAE skill above zero means lower error than no change on the same dates. Formal review needs at least 90 resolved forecasts and six non-overlapping 30-day blocks. Research results do not automatically replace the official forecast.</p>
+    </details>
+
     <div class="section-heading">
       <div>
         <p class="eyebrow">Daily live evidence</p>
@@ -770,6 +779,44 @@ function renderChart(id, rows, labels = {}) {
   });
 }
 
+function renderForwardResearch(data) {
+  if (!data) {
+    $("forward-status").textContent = "Research evidence is currently unavailable.";
+    return;
+  }
+  const source = data.source || {};
+  const currentOrigin = new Date().toISOString().slice(0, 10);
+  const current = (data.latest_origin || "").slice(0, 10) === currentOrigin;
+  $("forward-status").textContent = `${current ? "Current issue" : "Latest issue (awaiting refresh)"}: ${fmtDate(data.latest_origin)} · Flow data through ${source.latest_source_day || "unknown"} (expected ${source.expected_source_day || "unknown"}) · ${data.resolved_count || 0} resolved / ${data.pending_count || 0} pending · Updated ${data.generated_at || "unknown"}`;
+  const table = document.createElement("table");
+  table.style.cssText = "width:100%;border-collapse:collapse;min-width:740px;text-align:left";
+  function appendRow(values, header = false) {
+    const tr = document.createElement("tr");
+    for (const value of values) {
+      const cell = document.createElement(header ? "th" : "td");
+      cell.style.cssText = "padding:10px 8px;border-bottom:1px solid var(--line)";
+      cell.textContent = value;
+      tr.appendChild(cell);
+    }
+    table.appendChild(tr);
+  }
+  const names = {ridge_price: "Linear · price", hist_price: "Trees · price", hist_price_flow: "Trees · price + flow"};
+  const percentage = v => typeof v === "number" && Number.isFinite(v) ? `${(100*v).toFixed(1)}%` : "—";
+  appendRow(["Candidate", "Target", "Forecast", "Return", "UP / FLAT / DOWN", "Resolved", "MAE skill"], true);
+  for (const row of data.latest || []) {
+    const metric = (data.metrics || []).find(m => m.horizon === row.horizon && m.candidate === row.candidate) || {};
+    const p = row.probability_down_flat_up || [];
+    appendRow([`${names[row.candidate] || row.candidate} · ${row.horizon}d`, fmtDate(row.target), fmtUSD(row.predicted_price),
+      percentage(row.predicted_return), [p[2], p[1], p[0]].map(percentage).join(" / "), metric.resolved || 0,
+      metric.resolved ? percentage(metric.mae_skill_vs_no_change) : "Awaiting outcomes"]);
+  }
+  $("forward-table").replaceChildren(table);
+  const reasons = (data.attempt?.skips || []).map(r => `${r.candidate} ${r.horizon}d: ${r.reason}`);
+  if (data.attempt?.error) reasons.push(data.attempt.error);
+  if (!source.ready_for_current_origin) reasons.push("Current flow archive is incomplete; price candidates can still issue.");
+  $("forward-skips").textContent = reasons.join(" · ");
+}
+
 async function refreshLivePrice() {
   try {
     livePrice = await fetchLiveEthPrice();
@@ -799,6 +846,7 @@ async function refreshLivePrice() {
   renderFreshness(latest, health, latestReport, lastPassReport);
   renderDonations(donations);
   loadJSON("issued_history.json").then(renderIssuedHistory).catch(() => {});
+  loadJSON("forward.json").then(renderForwardResearch).catch(() => renderForwardResearch(null));
 
   const liveH7 = liveHistoryRows(history, 7);
   const liveH30 = liveHistoryRows(history, 30);
