@@ -105,6 +105,21 @@ def test_future_outcomes_cannot_change_prior_blend_or_uncertainty():
         assert d['selection_latest_target'] is None or d['selection_latest_target']<d['month']
 
 
+def test_point_guard_limits_extrapolation_without_using_future_prices():
+    _,raw,base,_=base_fixture();base.loc[:,'transformer_long']=1000.
+    first,bounds=evaluate.guard_points(base,raw)
+    assert first.transformer_long_guarded.all()
+    assert (first.transformer_long*first.sigma < 3).all()
+    cutoff=pd.Timestamp('2025-06-01');changed=raw.copy();changed.loc[changed.index>=cutoff,'eth_close']*=100
+    second,later_bounds=evaluate.guard_points(base,changed)
+    before=base.origin<'2025-07-01'
+    pd.testing.assert_frame_equal(first.loc[before],second.loc[before])
+    for (h,month),windows in bounds.items():
+        for value in windows.values():
+            assert pd.Timestamp(value['last_training_target'])<pd.Timestamp(month)-pd.Timedelta(days=PROTOCOL['embargo_days'][str(h)])
+        if month<='2025-06-01':assert windows==later_bounds[(h,month)]
+
+
 def test_missing_calendar_cohorts_cannot_be_published(monkeypatch):
     _,raw,base,now=base_fixture();monkeypatch.setattr(evaluate,'block_interval',lambda *args:[-.1,.1])
     bad=base.drop(base[(base.horizon==7)].index[50])

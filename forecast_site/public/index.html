@@ -951,7 +951,7 @@ function refreshHybridCharts() {
     const metric=scores.find(r=>r.model===model),name=hybridPayload.model_names[model];
     $("hybrid-metrics-"+h).textContent=metric ? `${metric.rows} origins · Return MAE ${fmtPct(metric.return_mae,2)} · MAE skill ${signedPct(metric.mae_skill_vs_no_change)} · UP recall ${fmtPct(metric.up_recall)} · False UP rate ${fmtPct(metric.up_false_positive_rate)}${metric.coverage80!=null ? " · 80% interval coverage "+fmtPct(metric.coverage80) : ""}` : "No matured targets in this period.";
     renderChart("chart-hybrid-"+h,hybridRows(hybridPayload,h,model,period,unit),{predicted:name,raw:"No-change reference",unit,originLabel:"Replay origin"});
-    hybridTable("hybrid-table-"+h,[["Candidate / policy","Return MAE","MAE skill","Price RMSE","UP precision"],...[...scores].sort((a,b)=>a.return_mae-b.return_mae).map(r=>[hybridPayload.model_names[r.model],fmtPct(r.return_mae,2),signedPct(r.mae_skill_vs_no_change),fmtUSD(r.price_rmse),fmtPct(r.up_precision)])]);
+    hybridTable("hybrid-table-"+h,[["Candidate / policy","Return MAE","MAE skill","Price RMSE","UP precision","Bounded points"],...[...scores].sort((a,b)=>a.return_mae-b.return_mae).map(r=>[hybridPayload.model_names[r.model],fmtPct(r.return_mae,2),signedPct(r.mae_skill_vs_no_change),fmtUSD(r.price_rmse),fmtPct(r.up_precision),`${r.guarded_predictions||0} / ${r.rows}`])]);
   }
 }
 
