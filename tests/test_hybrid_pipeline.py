@@ -140,6 +140,26 @@ def test_current_bundle_is_reused_when_a_new_day_changes_only_test_inputs(tmp_pa
     np.testing.assert_array_equal(a[BASE_MODELS],b[BASE_MODELS])
 
 
+def test_cache_uses_source_observations_and_invalidates_changed_flow(tmp_path,monkeypatch):
+    m,f,now=fixture(850);calls=[];original_features=engine.features
+    def fake_fit(name,x,y,positions,horizon):
+        calls.append(name);return {'value':.1},{'seconds':0,'steps':1}
+    monkeypatch.setattr(engine,'fit_model',fake_fit)
+    monkeypatch.setattr(engine,'predict_model',lambda state,x,positions:np.full(len(positions),state['value']))
+    first,_=engine.replay(m,f,7,tmp_path,part='current',now=now)
+    def rounded_features(*args,**kwargs):
+        raw,x=original_features(*args,**kwargs)
+        x['eth_btc_correlation_30']+=1e-15
+        return raw,x
+    monkeypatch.setattr(engine,'features',rounded_features)
+    again,meta=engine.replay(m,f,7,tmp_path,part='current',now=now)
+    assert len(calls)==4 and meta['cached_months']==1 and meta['refitted_months']==0
+    pd.testing.assert_frame_equal(first,again)
+    changed=f.copy();changed.loc[changed.index[-100],FLOW_COLUMNS[0]]+=.01
+    _,meta=engine.replay(m,changed,7,tmp_path,part='current',now=now)
+    assert len(calls)==8 and meta['refitted_months']==1
+
+
 def test_new_live_record_is_immutable_and_never_backdates_replay(tmp_path,monkeypatch):
     master,raw,base,now=base_fixture();monkeypatch.setattr(evaluate,'block_interval',lambda *args:[-.1,.1])
     payload,_=evaluate.report(base,raw,[],{'master':'fixture','flow':'fixture'},now=now)
