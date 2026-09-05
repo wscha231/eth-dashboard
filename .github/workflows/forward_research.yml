@@ -76,7 +76,7 @@ jobs:
           cp -a lake/forward/. "$RUNNER_TEMP/forward-ledger/lake/forward/"
           git -C "$RUNNER_TEMP/forward-ledger" add -f lake/forward
           git -C "$RUNNER_TEMP/forward-ledger" commit -m "chore(research): append daily forward evidence"
-          git -C "$RUNNER_TEMP/forward-ledger" push origin HEAD:data/forward-research
+          git -C "$RUNNER_TEMP/forward-ledger" push origin HEAD:refs/heads/data/forward-research
       - name: Publish research panel with the official forecast preserved
         run: |
           git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
@@ -85,7 +85,7 @@ jobs:
           cp forecast_site/public/index.html "$RUNNER_TEMP/forward-site/forecast_site/public/index.html"
           git -C "$RUNNER_TEMP/forward-site" add -f forecast_site/public/forward.json forecast_site/public/index.html
           git -C "$RUNNER_TEMP/forward-site" commit -m "chore(site): publish prospective model comparison"
-          git -C "$RUNNER_TEMP/forward-site" push origin HEAD:data/daily-forecast
+          git -C "$RUNNER_TEMP/forward-site" push origin HEAD:refs/heads/data/daily-forecast
       - name: Verify the deployed research timestamp and panel
         timeout-minutes: 4
         run: |

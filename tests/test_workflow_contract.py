@@ -1,4 +1,6 @@
 from pathlib import Path
+import re
+import subprocess
 
 
 def _read(path: str) -> str:
@@ -64,3 +66,24 @@ def test_watchdog_will_not_dispatch_while_daily_run_is_active() -> None:
     assert "active_runs" in workflow
     assert "recovery dispatch skipped" in workflow
     assert "gh workflow run daily_forecast.yml" in workflow
+
+
+def test_forward_publish_creates_new_branches_from_detached_head(tmp_path) -> None:
+    # Reproduce the first-run deployment case against a local empty remote.
+    workflow = _read('.github/workflows/forward_research.yml')
+    specs = re.findall(r'push origin (HEAD:[^\s]+)', workflow)
+    assert len(specs) == 2
+    remote = tmp_path/'remote.git'
+    working = tmp_path/'working'
+    def git(*args):
+        return subprocess.run(['git', *map(str,args)], check=True, capture_output=True, text=True)
+    git('init', '--bare', remote)
+    git('init', working)
+    git('-C', working, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test',
+        'commit', '--allow-empty', '-m', 'test root')
+    git('-C', working, 'checkout', '--detach')
+    git('-C', working, 'remote', 'add', 'origin', remote)
+    for spec in specs:
+        git('-C', working, 'push', 'origin', spec)
+    for branch in ('data/forward-research', 'data/daily-forecast'):
+        git('--git-dir', remote, 'show-ref', '--verify', f'refs/heads/{branch}')
