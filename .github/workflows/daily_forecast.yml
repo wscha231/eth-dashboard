@@ -10,6 +10,9 @@
 name: Daily ETH forecast
 
 on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/daily_forecast.yml"]
   schedule:
     # Primary daily update and one idempotent retry (KST 09:37 / 11:37).
     - cron: "37 0 * * *"
@@ -383,7 +386,7 @@ jobs:
           fi
           git checkout "$GITHUB_SHA" -- .
           # checkout alone would leave newly added main workflow files staged.
-          git rm -r --ignore-unmatch .github/workflows
+          git rm -rf --ignore-unmatch .github/workflows
           git checkout "origin/$branch" -- .github/workflows 2>/dev/null || true
           cp -rf "$generated_dir"/. ./
 
