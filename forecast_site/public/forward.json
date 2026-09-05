@@ -1,0 +1,352 @@
+{
+  "generated_at": "2026-09-05T09:38:36.078570+00:00",
+  "protocol": {
+    "version": "prospective_daily_v1",
+    "horizons": [
+      7,
+      30
+    ],
+    "candidates": [
+      "ridge_price",
+      "hist_price",
+      "hist_price_flow"
+    ],
+    "train_years": 3,
+    "training_cutoff": "calendar month start",
+    "purge": "training origin + horizon < training cutoff",
+    "matched_training": "all candidates use identical complete flow-history origins",
+    "origin": "latest closed UTC bar end; issue before next UTC day; target = origin + horizon",
+    "refit": "fixed monthly training slice; cheap deterministic fit at issuance",
+    "seed": 42,
+    "ridge_alpha": 100.0,
+    "logistic_C": 0.1,
+    "hgb": {
+      "max_iter": 100,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "learning_rate": 0.05,
+      "l2_regularization": 1.0
+    },
+    "event_threshold": {
+      "7": {
+        "multiplier": 0.4,
+        "floor": 0.008,
+        "cap": 0.045
+      },
+      "30": {
+        "multiplier": 0.65,
+        "floor": 0.055,
+        "cap": 0.16
+      }
+    },
+    "probability": "unconditional DOWN/FLAT/UP; all outcomes scored",
+    "training_min_rows": 500,
+    "training_feature_min_coverage": 0.6,
+    "fit_budget_seconds": 30,
+    "bootstrap_replicates": 1000,
+    "review_min_rows": 90,
+    "review_min_nonoverlapping_blocks": 6,
+    "promotion": "research_only; never automatically changes production",
+    "historical_limit": "Reconstructed training data; historical publication vintages unverified",
+    "flow_columns": [
+      "eth_spot_taker_buy_quote_share",
+      "eth_spot_signed_taker_flow_ratio",
+      "eth_spot_jump_variation_ratio",
+      "eth_spot_last_4h_return",
+      "eth_spot_last_8h_return",
+      "eth_spot_last_12h_return",
+      "eth_spot_last_4h_quote_volume_share",
+      "eth_perp_basis",
+      "eth_spot_perp_flow_divergence",
+      "eth_futures_spot_quote_volume_ratio",
+      "eth_btc_spot_flow_spread",
+      "eth_btc_perp_flow_spread",
+      "eth_btc_basis_spread",
+      "btc_spot_last_4h_return",
+      "eth_perp_taker_buy_quote_share",
+      "eth_perp_basis_delta_7d",
+      "eth_spot_signed_taker_flow_ratio_delta_7d"
+    ]
+  },
+  "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
+  "status": "research_only",
+  "source": {
+    "generated_at": "2026-09-05T09:38:34.087091+00:00",
+    "latest_source_day": "2026-09-04",
+    "expected_source_day": "2026-09-04",
+    "new_days": 35,
+    "stored_days": 3304,
+    "downloaded_archives": 168,
+    "request_tasks": 168,
+    "missing_day_count": 1,
+    "recent_missing_days": [
+      "2017-09-06"
+    ],
+    "errors": [],
+    "error_count": 0,
+    "collection_stopped": false,
+    "ready_for_current_origin": true,
+    "runtime_seconds": 29.326831948000006,
+    "publication_note": "bar end and observed download time are separate; archives can arrive late"
+  },
+  "attempt": {
+    "new_issues": 6,
+    "skips": [],
+    "fit_seconds": 1.9513520489999934,
+    "actual_revisions": 0,
+    "total_seconds": 31.317849049000003
+  },
+  "issued_count": 6,
+  "resolved_count": 0,
+  "pending_count": 6,
+  "latest_origin": "2026-09-05T00:00:00",
+  "latest": [
+    {
+      "candidate": "hist_price",
+      "code_hash": "c0c44a7291dcd95826b85f6dac4a7ffed909b0abbfe3474ddce7bfd0bc10ca00",
+      "event_threshold": 0.041202195165170874,
+      "fit_seconds": 0.3614429520000044,
+      "flow_observed_at": null,
+      "horizon": 7,
+      "issued_at": "2026-09-05T09:38:34.630790+00:00",
+      "last_training_target": "2026-08-31T00:00:00",
+      "origin": "2026-09-05T00:00:00",
+      "predicted_price": 2381.752849926954,
+      "predicted_return": -0.030261771527746544,
+      "probability_down_flat_up": [
+        0.2867670704666269,
+        0.5671329554579754,
+        0.14609997407539765
+      ],
+      "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
+      "reference_price": 2456.078125,
+      "status": "research_only",
+      "target": "2026-09-12T00:00:00",
+      "training_cutoff": "2026-09-01T00:00:00",
+      "training_data_hash": "4b8662bda41829e148191fe4676f0d38b8c73ae8463f695cc329bcb7e80acd1a",
+      "training_prior_down_flat_up": [
+        0.31129476584022037,
+        0.3581267217630854,
+        0.3305785123966942
+      ],
+      "training_rows": 1089,
+      "actual_price": null
+    },
+    {
+      "candidate": "hist_price_flow",
+      "code_hash": "c0c44a7291dcd95826b85f6dac4a7ffed909b0abbfe3474ddce7bfd0bc10ca00",
+      "event_threshold": 0.041202195165170874,
+      "fit_seconds": 0.44032259899999815,
+      "flow_observed_at": "2026-09-05T09:38:34.011643+00:00",
+      "horizon": 7,
+      "issued_at": "2026-09-05T09:38:35.173203+00:00",
+      "last_training_target": "2026-08-31T00:00:00",
+      "origin": "2026-09-05T00:00:00",
+      "predicted_price": 2410.1863644984855,
+      "predicted_return": -0.018684975870429436,
+      "probability_down_flat_up": [
+        0.408904848134325,
+        0.33405791322856665,
+        0.25703723863710837
+      ],
+      "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
+      "reference_price": 2456.078125,
+      "status": "research_only",
+      "target": "2026-09-12T00:00:00",
+      "training_cutoff": "2026-09-01T00:00:00",
+      "training_data_hash": "4b8662bda41829e148191fe4676f0d38b8c73ae8463f695cc329bcb7e80acd1a",
+      "training_prior_down_flat_up": [
+        0.31129476584022037,
+        0.3581267217630854,
+        0.3305785123966942
+      ],
+      "training_rows": 1089,
+      "actual_price": null
+    },
+    {
+      "candidate": "ridge_price",
+      "code_hash": "c0c44a7291dcd95826b85f6dac4a7ffed909b0abbfe3474ddce7bfd0bc10ca00",
+      "event_threshold": 0.041202195165170874,
+      "fit_seconds": 0.014963979000000904,
+      "flow_observed_at": null,
+      "horizon": 7,
+      "issued_at": "2026-09-05T09:38:34.263544+00:00",
+      "last_training_target": "2026-08-31T00:00:00",
+      "origin": "2026-09-05T00:00:00",
+      "predicted_price": 2518.203200287232,
+      "predicted_return": 0.02529442148231009,
+      "probability_down_flat_up": [
+        0.1950047527257129,
+        0.33079128255042567,
+        0.47420396472386145
+      ],
+      "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
+      "reference_price": 2456.078125,
+      "status": "research_only",
+      "target": "2026-09-12T00:00:00",
+      "training_cutoff": "2026-09-01T00:00:00",
+      "training_data_hash": "4b8662bda41829e148191fe4676f0d38b8c73ae8463f695cc329bcb7e80acd1a",
+      "training_prior_down_flat_up": [
+        0.31129476584022037,
+        0.3581267217630854,
+        0.3305785123966942
+      ],
+      "training_rows": 1089,
+      "actual_price": null
+    },
+    {
+      "candidate": "hist_price",
+      "code_hash": "c0c44a7291dcd95826b85f6dac4a7ffed909b0abbfe3474ddce7bfd0bc10ca00",
+      "event_threshold": 0.13860705228233408,
+      "fit_seconds": 0.3376843679999979,
+      "flow_observed_at": null,
+      "horizon": 30,
+      "issued_at": "2026-09-05T09:38:35.618104+00:00",
+      "last_training_target": "2026-08-31T00:00:00",
+      "origin": "2026-09-05T00:00:00",
+      "predicted_price": 2375.0664141732027,
+      "predicted_return": -0.03298417505623818,
+      "probability_down_flat_up": [
+        0.6739561819809734,
+        0.3129671707490632,
+        0.013076647269963531
+      ],
+      "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
+      "reference_price": 2456.078125,
+      "status": "research_only",
+      "target": "2026-10-05T00:00:00",
+      "training_cutoff": "2026-09-01T00:00:00",
+      "training_data_hash": "fd5eb6955f80447de250a7631ad8ed1c277718f611ee72a5b1495e41782980e9",
+      "training_prior_down_flat_up": [
+        0.2326454033771107,
+        0.46904315196998125,
+        0.29831144465290804
+      ],
+      "training_rows": 1066,
+      "actual_price": null
+    },
+    {
+      "candidate": "hist_price_flow",
+      "code_hash": "c0c44a7291dcd95826b85f6dac4a7ffed909b0abbfe3474ddce7bfd0bc10ca00",
+      "event_threshold": 0.13860705228233408,
+      "fit_seconds": 0.44351746600000297,
+      "flow_observed_at": "2026-09-05T09:38:34.011643+00:00",
+      "horizon": 30,
+      "issued_at": "2026-09-05T09:38:36.074862+00:00",
+      "last_training_target": "2026-08-31T00:00:00",
+      "origin": "2026-09-05T00:00:00",
+      "predicted_price": 2386.4091633294097,
+      "predicted_return": -0.02836593875473322,
+      "probability_down_flat_up": [
+        0.45691797573499693,
+        0.5145173766673999,
+        0.028564647597603122
+      ],
+      "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
+      "reference_price": 2456.078125,
+      "status": "research_only",
+      "target": "2026-10-05T00:00:00",
+      "training_cutoff": "2026-09-01T00:00:00",
+      "training_data_hash": "fd5eb6955f80447de250a7631ad8ed1c277718f611ee72a5b1495e41782980e9",
+      "training_prior_down_flat_up": [
+        0.2326454033771107,
+        0.46904315196998125,
+        0.29831144465290804
+      ],
+      "training_rows": 1066,
+      "actual_price": null
+    },
+    {
+      "candidate": "ridge_price",
+      "code_hash": "c0c44a7291dcd95826b85f6dac4a7ffed909b0abbfe3474ddce7bfd0bc10ca00",
+      "event_threshold": 0.13860705228233408,
+      "fit_seconds": 0.013288381999998933,
+      "flow_observed_at": null,
+      "horizon": 30,
+      "issued_at": "2026-09-05T09:38:35.275578+00:00",
+      "last_training_target": "2026-08-31T00:00:00",
+      "origin": "2026-09-05T00:00:00",
+      "predicted_price": 2501.6466638727184,
+      "predicted_return": 0.01855337515891032,
+      "probability_down_flat_up": [
+        0.14281064883780564,
+        0.5630184260904564,
+        0.2941709250717379
+      ],
+      "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
+      "reference_price": 2456.078125,
+      "status": "research_only",
+      "target": "2026-10-05T00:00:00",
+      "training_cutoff": "2026-09-01T00:00:00",
+      "training_data_hash": "fd5eb6955f80447de250a7631ad8ed1c277718f611ee72a5b1495e41782980e9",
+      "training_prior_down_flat_up": [
+        0.2326454033771107,
+        0.46904315196998125,
+        0.29831144465290804
+      ],
+      "training_rows": 1066,
+      "actual_price": null
+    }
+  ],
+  "metrics": [
+    {
+      "horizon": 7,
+      "candidate": "ridge_price",
+      "resolved": 0,
+      "review_eligible": false,
+      "promotion": "research_only"
+    },
+    {
+      "horizon": 7,
+      "candidate": "hist_price",
+      "resolved": 0,
+      "review_eligible": false,
+      "promotion": "research_only"
+    },
+    {
+      "horizon": 7,
+      "candidate": "hist_price_flow",
+      "resolved": 0,
+      "review_eligible": false,
+      "promotion": "research_only"
+    },
+    {
+      "horizon": 30,
+      "candidate": "ridge_price",
+      "resolved": 0,
+      "review_eligible": false,
+      "promotion": "research_only"
+    },
+    {
+      "horizon": 30,
+      "candidate": "hist_price",
+      "resolved": 0,
+      "review_eligible": false,
+      "promotion": "research_only"
+    },
+    {
+      "horizon": 30,
+      "candidate": "hist_price_flow",
+      "resolved": 0,
+      "review_eligible": false,
+      "promotion": "research_only"
+    }
+  ],
+  "source_ablation": [
+    {
+      "horizon": 7,
+      "matched_origins": 0,
+      "excluded_different_input_vintages": 0,
+      "flow_mae_improvement": null,
+      "95ci": null
+    },
+    {
+      "horizon": 30,
+      "matched_origins": 0,
+      "excluded_different_input_vintages": 0,
+      "flow_mae_improvement": null,
+      "95ci": null
+    }
+  ],
+  "comparison_note": "No-change and training-prior benchmarks use identical origins. Source ablation uses paired origins. Research probabilities include FLAT; production conditional probabilities have a different denominator."
+}
