@@ -1,0 +1,122 @@
+name: Retrain ETH champion
+
+on:
+  push:
+    branches: [main]
+    paths: ["eth_price_forecast.py", "forecasting/**", "scripts/train_champion.py", "requirements-runtime.txt", ".github/workflows/retrain_champion.yml"]
+  schedule:
+    - cron: "17 3 * * 2,5"
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: "Rebuild the bundle using issued choices and frozen historical OOF evidence"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: eth-champion-training
+  cancel-in-progress: false
+
+jobs:
+  train:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-runtime.txt
+      - run: python -m pip install -r requirements-runtime.txt
+      - name: Restore closed-bar source and previous trusted bundle
+        id: previous
+        run: |
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+          git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv > lake/gold/eth_master_daily.csv
+          git show origin/data/daily-forecast:forecast_site/predictions.db > forecast_site/predictions.db
+          mkdir -p models
+          if git fetch origin data/model-bundle:refs/remotes/origin/data/model-bundle; then
+            git show origin/data/model-bundle:models/latest.json > models/latest.json
+            python - <<'PY'
+          import json, os
+          manifest = json.load(open("models/latest.json"))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"run_id={int(manifest['workflow_run_id'])}\n")
+          PY
+          fi
+      - name: Download previous trusted artifact for refit
+        if: steps.previous.outputs.run_id != '' && github.event_name != 'push' && inputs.bootstrap != true
+        uses: actions/download-artifact@v4
+        with:
+          name: eth-champion-${{ steps.previous.outputs.run_id }}
+          path: models
+          run-id: ${{ steps.previous.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Refresh data for training
+        run: python eth_data_collector.py
+      - name: Train once or refit selected settings
+        env:
+          BOOTSTRAP: ${{ github.event_name == 'push' || inputs.bootstrap == true }}
+        run: |
+          if [ "$BOOTSTRAP" = "true" ]; then
+            timeout 3000 python scripts/train_champion.py --bootstrap
+          else
+            timeout 1500 python scripts/train_champion.py
+          fi
+          python scripts/predict_latest.py --summary-csv eth_forecast_outputs/bundle_validation.csv
+      - name: Retain validated model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eth-champion-${{ github.run_id }}
+          path: |
+            models/champion.joblib
+            models/champion.json
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload training evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: champion-training-${{ github.run_id }}
+          path: |
+            eth_forecast_outputs/*runtime.json
+            eth_forecast_outputs/bundle_validation.csv
+            models/champion.json
+          retention-days: 30
+      - name: Publish validated trusted bundle
+        run: |
+          git config user.name "eth-forecast-bot"
+          git config user.email "eth-forecast-bot@users.noreply.github.com"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.load(open("models/champion.json"))
+          manifest["workflow_run_id"] = int(os.environ["GITHUB_RUN_ID"])
+          Path(os.environ["RUNNER_TEMP"], "validated-model-manifest.json").write_text(json.dumps(manifest, indent=2))
+          PY
+          rm -f models/champion.joblib models/champion.json
+          rm -f models/latest.json
+          if git show-ref --verify --quiet refs/remotes/origin/data/model-bundle; then
+            git reset --hard "$GITHUB_SHA"
+            git checkout -B data/model-bundle origin/data/model-bundle
+          else
+            git checkout --orphan data/model-bundle
+            git rm -rf .
+          fi
+          mkdir -p models
+          cp "$RUNNER_TEMP/validated-model-manifest.json" models/latest.json
+          git add -f models/latest.json
+          git commit -m "chore(model): validated champion bundle"
+          git push origin HEAD:data/model-bundle

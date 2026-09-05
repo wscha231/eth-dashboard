@@ -2,8 +2,8 @@ name: ETH site freshness watchdog
 
 on:
   schedule:
-    # Check after the daily forecast's usual delayed start + 65-85 minute runtime.
-    - cron: "30 4 * * *"
+    # Check after both daily attempts; dispatch at most one recovery while idle.
+    - cron: "43 4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -54,7 +54,7 @@ jobs:
           gh workflow run daily_forecast.yml \
               --ref main \
               -f fast_mode=false \
-              -f model_phase=phase6_production
+              -f model_phase=phase6_closed_daily
           echo "Deployed forecast was stale; dispatched one recovery run." \
             | tee -a "$GITHUB_STEP_SUMMARY"
 

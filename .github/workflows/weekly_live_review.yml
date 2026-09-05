@@ -1,0 +1,41 @@
+name: Weekly ETH live review
+on:
+  schedule:
+    - cron: "43 3 * * 0"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-runtime.txt
+      - run: python -m pip install -r requirements-runtime.txt
+      - name: Review resolved live evidence
+        run: |
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+          git show origin/data/daily-forecast:forecast_site/predictions.db > "$RUNNER_TEMP/review.db"
+          python scripts/review_live_forecasts.py --db "$RUNNER_TEMP/review.db" --output "$RUNNER_TEMP/live_review.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weekly-live-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/live_review.json
+          retention-days: 60
+      - name: Publish review without rerunning model search
+        run: |
+          git config user.name "eth-forecast-bot"
+          git config user.email "eth-forecast-bot@users.noreply.github.com"
+          git worktree add "$RUNNER_TEMP/review-publish" origin/data/daily-forecast
+          cp "$RUNNER_TEMP/live_review.json" "$RUNNER_TEMP/review-publish/forecast_site/public/live_review.json"
+          git -C "$RUNNER_TEMP/review-publish" add -f forecast_site/public/live_review.json
+          git -C "$RUNNER_TEMP/review-publish" commit -m "chore(eval): review matured live forecasts"
+          git -C "$RUNNER_TEMP/review-publish" push origin HEAD:data/daily-forecast

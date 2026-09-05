@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import hashlib
+import math
 import sqlite3
 import sys
 from pathlib import Path
@@ -32,10 +33,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from forecast_site.db import DEFAULT_DB_PATH, connect  # noqa: E402
+from forecasting.daily_data import TIME_CONTRACT, iso_utc, utc_timestamp
 
 # Columns we pull straight from the CSV into the forecasts table. The CSV has
 # the same column names — this map documents the 1:1 projection.
 FORECAST_CSV_COLUMNS: list[str] = [
+    "time_contract", "classification_event_threshold", "classification_probability_event",
     "regression_model_name",
     "regression_selection_basis",
     "regression_predicted_return",
@@ -142,6 +145,7 @@ def persist_forecast(
     code_source: Path | None = None,
     fast_mode: bool = False,
     notes: str | None = None,
+    required_horizons: tuple[int, ...] | None = None,
 ) -> int:
     """Insert the run + its per-horizon forecasts, return the new run_id.
 
@@ -155,12 +159,35 @@ def persist_forecast(
     df = pd.read_csv(summary_csv)
     if df.empty:
         raise SystemExit(f"Summary CSV is empty: {summary_csv}")
+    horizons = pd.to_numeric(df["horizon_steps"], errors="raise").astype(int)
+    if horizons.duplicated().any() or (required_horizons is not None and set(horizons) != set(required_horizons)):
+        raise SystemExit("Summary must contain exactly one forecast for each required horizon")
+    if required_horizons is not None:
+        for column in ("reference_price", "regression_predicted_close"):
+            values = pd.to_numeric(df[column], errors="coerce") if column in df else []
+            if len(values) != len(df) or not all(pd.notna(v) and math.isfinite(v) and v > 0 for v in values):
+                raise SystemExit(f"Summary requires finite positive {column} for every horizon")
+        if df["reference_price"].nunique() != 1:
+            raise SystemExit("Horizons have different reference prices")
+        for column in ("time_contract", "model_version", "source_bar_date", "data_hash", "training_cutoff_utc"):
+            if column in df and df[column].nunique(dropna=False) != 1:
+                raise SystemExit(f"Horizons have different {column}")
+    for _, item in df.iterrows():
+        if pd.isna(item.get("forecast_target_timestamp")):
+            raise SystemExit("Missing forecast target timestamp")
+        if str(item.get("forecast_input_timestamp")) != str(df.iloc[0].get("forecast_input_timestamp")):
+            raise SystemExit("Horizons have different input timestamps")
+        if item.get("time_contract") == TIME_CONTRACT:
+            origin = utc_timestamp(item["forecast_input_timestamp"])
+            if utc_timestamp(item["forecast_target_timestamp"]) != origin + pd.Timedelta(days=int(item["horizon_steps"])):
+                raise SystemExit("Forecast target violates the UTC bar-end contract")
 
     # Use row 0 to extract shared run metadata (identical across horizons).
     head = df.iloc[0]
     input_ts = str(head.get("forecast_input_timestamp", "") or "")
     if not input_ts:
         raise SystemExit("forecast_input_timestamp missing from summary CSV")
+    input_ts = iso_utc(input_ts)
     ref_price = _nan_to_none(head.get("reference_price"))
     ref_source = _nan_to_none(head.get("reference_price_source"))
     ref_ts = _nan_to_none(head.get("reference_price_timestamp"))
@@ -176,14 +203,21 @@ def persist_forecast(
         # Idempotency check via the UNIQUE (input_timestamp_utc, model_phase) index.
         existing = conn.execute(
             "SELECT run_id FROM forecast_runs "
-            "WHERE input_timestamp_utc = ? AND model_phase = ?",
+            "WHERE julianday(input_timestamp_utc) = julianday(?) AND model_phase = ?",
             (input_ts, model_phase),
         ).fetchone()
         if existing is not None:
+            found = {int(r[0]) for r in conn.execute("SELECT horizon_days FROM forecasts WHERE run_id=?", (existing["run_id"],))}
+            if found != set(horizons):
+                raise SystemExit("Existing run is incomplete; refusing to silently publish it")
+            contracts = {r[0] for r in conn.execute("SELECT time_contract FROM forecasts WHERE run_id=?", (existing["run_id"],))}
+            if contracts != {_nan_to_none(row.get("time_contract")) for _, row in df.iterrows()}:
+                raise SystemExit("Existing run uses a different time contract; use a new model phase")
             print(f"[persist] run already exists: run_id={existing['run_id']} "
                   f"input_ts={input_ts} phase={model_phase} -- skipping")
             return int(existing["run_id"])
 
+        conn.execute("BEGIN IMMEDIATE")
         cur = conn.execute(
             """
             INSERT INTO forecast_runs (
@@ -196,10 +230,12 @@ def persist_forecast(
              model_phase, code_version, code_bytes, int(fast_mode), notes),
         )
         run_id = int(cur.lastrowid)
+        conn.execute("UPDATE forecast_runs SET model_version=?, source_bar_date=?, data_hash=?, training_cutoff_utc=? WHERE run_id=?",
+                     tuple(_nan_to_none(head.get(c)) for c in ("model_version", "source_bar_date", "data_hash", "training_cutoff_utc")) + (run_id,))
 
         for _, row in df.iterrows():
             horizon = int(row["horizon_steps"])
-            target_ts = str(row.get("forecast_target_timestamp", "") or "")
+            target_ts = iso_utc(row.get("forecast_target_timestamp"))
             if not target_ts:
                 raise SystemExit(f"forecast_target_timestamp missing for horizon {horizon}")
 
@@ -225,6 +261,8 @@ def persist_forecast(
               f"phase={model_phase} horizons={len(df)}")
         return run_id
     finally:
+        if conn.in_transaction:
+            conn.rollback()
         conn.close()
 
 
@@ -250,6 +288,7 @@ def main(argv: list[str] | None = None) -> None:
         code_source=args.code_source,
         fast_mode=args.fast_mode,
         notes=args.notes,
+        required_horizons=(7, 30),
     )
 
 

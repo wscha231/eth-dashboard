@@ -1,7 +1,7 @@
 # Daily ETH forecast pipeline.
 #
-# Runs every morning UTC: refreshes the master dataset, runs the full forecast
-# suite, persists the headline summary + hybrid scenarios into SQLite, and
+# Runs every morning UTC: refreshes closed daily bars, loads saved estimators,
+# persists the as-issued summary into SQLite, and
 # backfills any previously unresolved forecasts.
 #
 # Designed for commit-back-to-repo deployment: the DB file is updated in-place
@@ -11,19 +11,23 @@ name: Daily ETH forecast
 
 on:
   schedule:
-    # 00:10 UTC = 09:10 KST. 10-minute offset keeps us clear of the hourly
-    # top-of-hour traffic spike on free data APIs (FRED, Yahoo).
-    - cron: "10 0 * * *"
+    # Primary daily update and one idempotent retry (KST 09:37 / 11:37).
+    - cron: "37 0 * * *"
+    - cron: "37 2 * * *"
+  workflow_run:
+    workflows: ["Retrain ETH champion"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       fast_mode:
-        description: "Run eth_price_forecast in fast-mode (degraded accuracy, shorter runtime)"
+        description: "Legacy compatibility field; saved-model inference always uses its fixed model set"
         type: boolean
         default: false
       model_phase:
         description: "Model phase label written into forecast_runs"
         type: string
-        default: "phase6_production"
+        default: "phase6_closed_daily"
 
 concurrency:
   group: daily-forecast
@@ -31,6 +35,7 @@ concurrency:
 
 permissions:
   contents: write  # required to push the updated DB back to the repo
+  actions: read   # trusted training artifacts from the same repository
 
 jobs:
   model-eval:
@@ -95,12 +100,11 @@ jobs:
           retention-days: 21
 
   forecast:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.model_phase != 'eval_oof_smoke' }}
+    if: ${{ (github.event_name != 'workflow_dispatch' || inputs.model_phase != 'eval_oof_smoke') && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') }}
     # Free-tier runner has 7GB RAM + 2 cores.
-    # Phase 5 full run (CatBoost + MLP + 3-fold CV) takes ~50-70 min on 2 cores.
-    # Allow time for the 65-85 minute model run plus post-deploy freshness polling.
+    # Inference-only budget includes environment preparation and deployment verification.
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 15
 
     env:
       # Secrets — configure under Settings > Secrets and variables > Actions.
@@ -108,9 +112,6 @@ jobs:
       GLASSNODE_API_KEY:    ${{ secrets.GLASSNODE_API_KEY }}
       DERIBIT_CLIENT_ID:    ${{ secrets.DERIBIT_CLIENT_ID }}
       DERIBIT_CLIENT_SECRET: ${{ secrets.DERIBIT_CLIENT_SECRET }}
-      # Optional: Telegram alert. If unset, the notify step no-ops.
-      TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
       # Donation tracker — Etherscan key is required for ERC-20 scanning;
       # the 4 wallet addresses are public but kept as secrets so the workflow
       # file stays clean and the addresses can be rotated without a code push.
@@ -120,7 +121,7 @@ jobs:
       DONATION_SOL_ADDRESS:     ${{ secrets.DONATION_SOL_ADDRESS }}
       DONATION_TRX_ADDRESS:     ${{ secrets.DONATION_TRX_ADDRESS }}
       # Non-secret tuning knobs.
-      MODEL_PHASE:   ${{ inputs.model_phase || 'phase6_production' }}
+      MODEL_PHASE:   ${{ inputs.model_phase || 'phase6_closed_daily' }}
       FAST_MODE_FLAG: ${{ inputs.fast_mode == true && '--fast-mode' || '' }}
       PYTHONUNBUFFERED: "1"
 
@@ -133,24 +134,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"   # match H:/codex local Python
+          python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: requirements-runtime.txt
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          # If a requirements.txt lives at repo root we honour it; otherwise
-          # install the set eth_price_forecast uses at runtime.
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            pip install numpy pandas scikit-learn scipy catboost \
-                        lightgbm xgboost yfinance requests beautifulsoup4 \
-                        python-dateutil
-          fi
+        run: python -m pip install -r requirements-runtime.txt
 
       - name: Restore deployed forecast DB
-        # The deploy branch is force-rebuilt every run, so the live SQLite DB
+        # The live SQLite DB is restored before each new forecast, so its
         # must be copied back before inserting today's forecast. Without this
         # step forecast_runs starts at run_id=1 every day, history.json stays
         # empty, and resolved live accuracy never accumulates.
@@ -176,7 +168,12 @@ jobs:
             rm -f forecast_site/predictions.db
           fi
 
+      - name: Check current daily origin
+        id: daily_origin
+        run: python scripts/check_daily_origin.py --phase "$MODEL_PHASE" --github-output "$GITHUB_OUTPUT"
+
       - name: Restore deployed master data
+        if: steps.daily_origin.outputs.skip != 'true'
         # Main intentionally does not receive a daily generated-data commit.
         # Restore the durable deploy copy before collection so rolling refresh
         # never starts from the older tracked fixture and opens a history gap.
@@ -199,46 +196,57 @@ jobs:
             echo "No deployed master found; using the tracked bootstrap copy."
           fi
 
+      - name: Restore provisional vendor observations
+        if: steps.daily_origin.outputs.skip != 'true'
+        run: |
+          git show origin/data/daily-forecast:lake/gold/eth_provisional_daily.csv > lake/gold/eth_provisional_daily.csv || rm -f lake/gold/eth_provisional_daily.csv
+
       - name: Refresh market data
+        if: steps.daily_origin.outputs.skip != 'true'
         run: |
           python eth_data_collector.py
 
-      - name: Restore prediction feedback history
-        # The model uses matured old forecasts as feedback features and model
-        # selection penalties. Main does not track this generated CSV, so pull
-        # the previous deploy-branch copy before forecasting.
+      - name: Restore trusted model bundle
+        id: model_manifest
+        if: steps.daily_origin.outputs.skip != 'true'
         run: |
-          mkdir -p eth_forecast_outputs
-          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast || true
-          git show origin/data/daily-forecast:eth_forecast_outputs/prediction_history.csv \
-            > eth_forecast_outputs/prediction_history.csv || true
-          if [ -s eth_forecast_outputs/prediction_history.csv ]; then
-            python - <<'PY'
-          import pandas as pd
-          frame = pd.read_csv("eth_forecast_outputs/prediction_history.csv")
-          print(f"Restored prior prediction history rows: {len(frame)}")
+          git fetch origin data/model-bundle:refs/remotes/origin/data/model-bundle
+          mkdir -p models
+          git show origin/data/model-bundle:models/latest.json > models/latest.json
+          python - <<'PY'
+          import json, os
+          manifest = json.load(open("models/latest.json"))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"run_id={int(manifest['workflow_run_id'])}\n")
           PY
-          else
-            echo "No prior prediction history found; starting feedback log."
-          fi
+
+      - name: Download trusted model artifact
+        if: steps.daily_origin.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: eth-champion-${{ steps.model_manifest.outputs.run_id }}
+          path: models
+          run-id: ${{ steps.model_manifest.outputs.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Run forecast suite
+        if: steps.daily_origin.outputs.skip != 'true'
+        # Strict inference only: a missing/incompatible model stops publication.
         run: |
-          python eth_price_forecast.py \
-              --master-data-csv lake/gold/eth_master_daily.csv \
-              --prediction-history-csv eth_forecast_outputs/prediction_history.csv \
-              $FAST_MODE_FLAG
+          python scripts/predict_latest.py \
+              --master-data-csv lake/gold/eth_master_daily.csv
 
       - name: Persist forecast to DB
+        if: steps.daily_origin.outputs.skip != 'true'
         run: |
           python -m forecast_site.persist_forecast \
               --summary-csv eth_forecast_outputs/latest_forecast_summary.csv \
               --model-phase "$MODEL_PHASE" \
               --code-source eth_price_forecast.py \
-              --db forecast_site/predictions.db \
-              ${FAST_MODE_FLAG:+--fast-mode}
+              --db forecast_site/predictions.db
 
       - name: Persist backtest archive to DB
+        if: steps.daily_origin.outputs.skip != 'true'
         # Idempotent: already-ingested (phase, sha1) pairs are skipped, so
         # the full tests/phase0/*_metrics.json glob is safe to rerun daily.
         # New freeze JSONs committed by humans automatically flow into the DB
@@ -249,31 +257,21 @@ jobs:
               --db forecast_site/predictions.db
 
       - name: Refresh model evaluation report
-        # Cheap daily gate: re-score the committed long-run OOF metrics and
-        # publish the same report the frontend reads. This does not rerun the
-        # expensive 36-fold OOF job daily; that remains in eth_model_eval.yml.
-        # This is the last-passing production evidence. The weekly workflow
-        # publishes the newest candidate evidence separately even on FAIL.
+        if: steps.daily_origin.outputs.skip != 'true'
+        # Preserve historical research evidence. Do not reselect thresholds on
+        # the same OOF dates every day or relabel an old result as a new pass.
         run: |
-          python tests/phase0/threshold_sweep.py
-          python scripts/evaluate_eth_candidate.py \
-              --baseline tests/phase0/model_baseline_manifest.json \
-              --candidate tests/phase0/phase6_production_longrun_oof_metrics.json \
-              --threshold-sweep tests/phase0/threshold_sweep_results.json \
-              --profile full
-          cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_report.json
-          cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_last_pass.json
-          if [ ! -s forecast_site/public/model_eval_latest.json ]; then
-            cp tests/phase0/model_eval_report.json forecast_site/public/model_eval_latest.json
-          fi
+          test -s forecast_site/public/model_eval_latest.json
 
       - name: Backfill actuals + refresh accuracy
+        if: steps.daily_origin.outputs.skip != 'true'
         run: |
           python -m forecast_site.backfill_actuals \
               --master-data-csv lake/gold/eth_master_daily.csv \
               --db forecast_site/predictions.db
 
       - name: Export JSON blobs for frontend
+        if: steps.daily_origin.outputs.skip != 'true'
         run: |
           python -m forecast_site.export_json \
               --db forecast_site/predictions.db
@@ -285,6 +283,7 @@ jobs:
           fi
 
       - name: Restore deployed donation wallet payload
+        if: steps.daily_origin.outputs.skip != 'true'
         # donation_tracker is best-effort. If an explorer is down, keep the
         # previous public wallet payload instead of dropping the support card
         # from the rebuilt deploy branch.
@@ -295,6 +294,7 @@ jobs:
             > forecast_site/public/donations.json || true
 
       - name: Refresh donation milestones
+        if: steps.daily_origin.outputs.skip != 'true'
         # Rewrites forecast_site/public/donations.json (milestones_reached
         # + next_milestone; NO dollar amounts) from on-chain scans of the
         # 4 donation wallets. Non-fatal: if an explorer is rate-limited,
@@ -303,19 +303,13 @@ jobs:
         run: |
           python donation_tracker.py --quiet
 
-      - name: Send Telegram notification
-        # Best-effort; the script itself no-ops if tokens are missing and
-        # swallows transient failures.
-        continue-on-error: true
-        run: |
-          python -m forecast_site.notify_telegram
-
       - name: Upload pipeline artifacts (debug)
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.daily_origin.outputs.skip != 'true'
         with:
           name: forecast-outputs-${{ github.run_id }}
           path: |
+            eth_forecast_outputs/*runtime.json
             eth_forecast_outputs/latest_forecast_summary.csv
             eth_forecast_outputs/prediction_history.csv
             eth_forecast_outputs/prediction_feedback_summary.csv
@@ -337,25 +331,19 @@ jobs:
           retention-days: 14
 
       - name: Commit updated DB
-        # -----------------------------------------------------------------
-        # Deploy-branch pattern: data/daily-forecast keeps its own history,
-        # overlays the workflow commit's site code, then layers generated
-        # artifacts (DB + JSON blobs) on top as a single force-pushed commit.
-        #
-        # Why force-push:
-        #   1. Vercel only reads the tip commit -- history on this branch
-        #      has no value.
-        #   2. Starting from the deploy branch avoids GitHub App workflow-file
-        #      push rejection. The workflow files are preserved from the
-        #      previous deploy tip; Vercel does not need them.
-        #   3. Safe: the concurrency group (daily-forecast) guarantees only
-        #      one workflow writes to this branch at a time.
-        #
-        # Every `git add` uses `-f` because most of the paths we deploy
-        # (predictions.db, public/*.json) are listed in main's .gitignore.
-        # -----------------------------------------------------------------
+        if: steps.daily_origin.outputs.skip != 'true'
+        # Extend the current deploy history, overlay tested code, then restore
+        # the deploy branch workflow files (the data writer has no workflow scope).
+        # A concurrent update is rejected by normal fast-forward push.
         run: |
           set -o pipefail
+          python - <<'PY_EXPECTED'
+          import json, os
+          payload = json.load(open("forecast_site/public/latest.json"))
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write(f"EXPECTED_RUN_ID={payload['run']['run_id']}\n")
+              f.write(f"EXPECTED_MODEL_VERSION={payload['run']['model_version']}\n")
+          PY_EXPECTED
           git config user.name  "eth-forecast-bot"
           git config user.email "eth-forecast-bot@users.noreply.github.com"
           branch="data/daily-forecast"
@@ -371,7 +359,8 @@ jobs:
           cp -f eth_forecast_outputs/prediction_feedback_state_winners.csv "$generated_dir/eth_forecast_outputs/" 2>/dev/null || true
           cp -f forecast_site/predictions.db "$generated_dir/forecast_site/" 2>/dev/null || true
           cp -f forecast_site/public/*.json "$generated_dir/forecast_site/public/" 2>/dev/null || true
-          cp -f lake/gold/eth_master_daily.csv "$generated_dir/lake/gold/" 2>/dev/null || true
+          cp -f lake/gold/eth_master_daily.csv "$generated_dir/lake/gold/"
+          cp -f lake/gold/eth_provisional_daily.csv lake/gold/eth_master_daily.availability.json "$generated_dir/lake/gold/"
           cp -f lake/reports/collector_summary.json "$generated_dir/lake/reports/" 2>/dev/null || true
           cp -f lake/reports/collector_data_quality_audit.json "$generated_dir/lake/reports/" 2>/dev/null || true
           cp -f lake/reports/collector_data_quality_audit.csv "$generated_dir/lake/reports/" 2>/dev/null || true
@@ -393,13 +382,15 @@ jobs:
             git rm -rf . || true
           fi
           git checkout "$GITHUB_SHA" -- .
-          git checkout "origin/$branch" -- .github/workflows 2>/dev/null || rm -rf .github/workflows
+          # checkout alone would leave newly added main workflow files staged.
+          git rm -r --ignore-unmatch .github/workflows
+          git checkout "origin/$branch" -- .github/workflows 2>/dev/null || true
           cp -rf "$generated_dir"/. ./
 
           # Force-add generated artifacts. -f bypasses .gitignore which
           # blocks predictions.db / public/*.json on main.
           git add -f forecast_site/predictions.db || true
-          git add -f lake/gold/eth_master_daily.csv || true
+          git add -f lake/gold/eth_master_daily.csv lake/gold/eth_provisional_daily.csv lake/gold/eth_master_daily.availability.json
           git add -f \
               lake/reports/collector_summary.json \
               lake/reports/collector_data_quality_audit.json \
@@ -414,6 +405,7 @@ jobs:
               forecast_site/public/latest.json \
               forecast_site/public/accuracy.json \
               forecast_site/public/history.json \
+              forecast_site/public/issued_history.json \
               forecast_site/public/health.json \
               forecast_site/public/model_eval_report.json \
               forecast_site/public/model_eval_latest.json \
@@ -447,15 +439,17 @@ jobs:
           fi
           git commit -m "chore(forecast): daily run $(date -u +%Y-%m-%d)" \
                      -m "model_phase=$MODEL_PHASE"
-          # Force-push: see header comment. Concurrency group ensures no
-          # concurrent writer can be clobbered.
-          git push --force origin "$branch"
+          # Never overwrite a concurrent writer or rewrite deployment history.
+          git push origin "$branch"
 
       - name: Verify deployed freshness
+        if: steps.daily_origin.outputs.skip != 'true'
         run: |
           python scripts/check_site_freshness.py \
               --url https://etherforecast.live/health.json \
               --max-live-age-hours 27 \
               --max-health-age-hours 30 \
-              --retries 10 \
+              --expected-run-id "$EXPECTED_RUN_ID" \
+              --expected-model-version "$EXPECTED_MODEL_VERSION" \
+              --retries 5 \
               --retry-seconds 60

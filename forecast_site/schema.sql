@@ -1,4 +1,12 @@
 -- ETH price forecast service — SQLite schema
+-- Append-only audit trail for settlement corrections. Forecasts stay immutable.
+CREATE TABLE IF NOT EXISTS actuals_revision (
+    revision_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    forecast_id INTEGER NOT NULL,
+    revised_at_utc TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    previous_actual_json TEXT NOT NULL
+);
 -- One database file holds: every pipeline run, every (run × horizon) forecast,
 -- backfilled actuals once the target date passes, and rolling accuracy
 -- snapshots used by the website.
