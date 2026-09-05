@@ -16,7 +16,9 @@ def test_forecast_display_keeps_issued_values(timezone):
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
 const html = fs.readFileSync('forecast_site/public/index.html', 'utf8');
 const source = html.split('<script>')[1].split('(async function main()')[0];
-const context = vm.createContext({document: {getElementById: () => ({})}, window: {}});
+const elements = {};
+const element = () => ({style:{}, children:[], appendChild(child){this.children.push(child)}, replaceChildren(...children){this.children=children}});
+const context = vm.createContext({document: {getElementById: id => elements[id] ||= element(), createElement:element}, window: {}});
 vm.runInContext(source, context);
 const evaluate = expression => vm.runInContext(expression, context);
 assert.equal(evaluate('fmtDate("2026-09-05 00:00:00")'), '2026-09-05');
@@ -28,5 +30,10 @@ assert.equal(point.raw, 100);
 const range = evaluate('practicalRange(100,{},30,{regression_lower_close_10:80,regression_upper_close_90:130},{})');
 assert.equal(range.lower, 80);
 assert.equal(range.upper, 130);
+evaluate('renderForwardResearch({source:{latest_source_day:"2026-09-04",expected_source_day:"2026-09-04",ready_for_current_origin:true},latest_origin:"2026-09-05",resolved_count:0,pending_count:6,latest:[{candidate:"hist_price_flow",horizon:30,target:"2026-10-05",predicted_price:110,predicted_return:.1,probability_down_flat_up:[.2,.5,.3]}],metrics:[]})');
+const cells = elements['forward-table'].children[0].children[1].children;
+assert.equal(cells[4].textContent, '30.0% / 50.0% / 20.0%');
+assert.equal(cells[6].textContent, 'Awaiting outcomes');
+assert.match(elements['forward-status'].textContent, /0 resolved \/ 6 pending/);
 '''
     subprocess.run(["node", "-e", script], cwd=root, env={**os.environ, "TZ": timezone}, check=True)
