@@ -89,6 +89,7 @@ def _compute_direction_metrics(
     predicted_direction: str | None,
     actual_return: float,
     horizon_days: int,
+    event_threshold: float | None = None,
 ) -> tuple[str, int | None]:
     """Return (direction_actual, direction_correct).
 
@@ -98,7 +99,10 @@ def _compute_direction_metrics(
     rolling accuracy so the model isn't penalised for correctly flagging
     "no edge").
     """
-    direction_actual = efp.infer_direction_from_return_value(actual_return, horizon_days)
+    if event_threshold is not None and math.isfinite(event_threshold) and event_threshold > 0:
+        direction_actual = "UP" if actual_return >= event_threshold else "DOWN" if actual_return <= -event_threshold else "FLAT"
+    else:
+        direction_actual = efp.infer_direction_from_return_value(actual_return, horizon_days)
     if not direction_actual:
         direction_actual = "FLAT"
 
@@ -204,6 +208,7 @@ def resolve_pending_forecasts(
 
         direction_actual, dir_correct = _compute_direction_metrics(
             row["classification_predicted_direction"], actual_return, horizon,
+            row["classification_event_threshold"] if row["time_contract"] == TIME_CONTRACT else None,
         )
         _, active_correct = _compute_direction_metrics(
             row["active_predicted_direction"], actual_return, horizon,
@@ -276,16 +281,19 @@ def refresh_accuracy_snapshots(conn: sqlite3.Connection) -> int:
     ).fetchall()]
     inserted = 0
     for horizon in horizons:
+        # Keep forecasts with different target/event contracts out of one score.
+        has_current = conn.execute("SELECT 1 FROM forecasts f JOIN actuals a ON a.forecast_id=f.forecast_id WHERE f.horizon_days=? AND f.time_contract=? LIMIT 1", (horizon, TIME_CONTRACT)).fetchone()
+        contract = TIME_CONTRACT if has_current else "legacy"
         for window in ACCURACY_WINDOWS:
             window_days = window if window is not None else 9999
             if window is not None:
                 cutoff = (_dt.datetime.now(tz=_dt.timezone.utc)
                           - _dt.timedelta(days=window)).isoformat()
                 filter_clause = "AND COALESCE(a.actual_bar_end_utc, a.resolved_at_utc) >= ?"
-                params: tuple = (horizon, cutoff)
+                params: tuple = (horizon, contract, cutoff)
             else:
                 filter_clause = ""
-                params = (horizon,)
+                params = (horizon, contract)
             row = conn.execute(
                 f"""
                 SELECT
@@ -301,7 +309,7 @@ def refresh_accuracy_snapshots(conn: sqlite3.Connection) -> int:
                     AVG(a.return_absolute_error) AS return_mae
                 FROM actuals a
                 JOIN forecasts f ON f.forecast_id = a.forecast_id
-                WHERE f.horizon_days = ? {filter_clause}
+                WHERE f.horizon_days = ? AND COALESCE(f.time_contract, 'legacy') = ? {filter_clause}
                 """,
                 params,
             ).fetchone()
@@ -312,12 +320,12 @@ def refresh_accuracy_snapshots(conn: sqlite3.Connection) -> int:
                     snapshot_utc, horizon_days, window_days, resolved_count,
                     direction_accuracy, brier_score, price_mape_percent,
                     price_rmse, return_mae, signal_count, correct_count,
-                    abstain_count, brier_count, evaluation_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    abstain_count, brier_count, evaluation_version, time_contract
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (snapshot_utc, horizon, window_days, int(row["n"]),
                  row["dir_acc"], row["brier"], row["mape"], rmse, row["return_mae"],
-                 row["signals"], row["correct"] or 0, row["n"]-row["signals"], row["brier_n"], EVALUATION_VERSION),
+                 row["signals"], row["correct"] or 0, row["n"]-row["signals"], row["brier_n"], EVALUATION_VERSION, contract),
             )
             inserted += 1
     conn.commit()

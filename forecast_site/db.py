@@ -61,7 +61,7 @@ def _ensure_optional_columns(conn: sqlite3.Connection) -> None:
         "forecasts": FORECAST_OPTIONAL_COLUMNS,
         "backtest_predictions": BACKTEST_PREDICTION_OPTIONAL_COLUMNS,
         "actuals": {"evaluation_version": "TEXT", "actual_bar_end_utc": "TEXT", "source_hash": "TEXT"},
-        "accuracy_snapshot": {"signal_count": "INTEGER", "correct_count": "INTEGER", "abstain_count": "INTEGER", "brier_count": "INTEGER", "evaluation_version": "TEXT"},
+        "accuracy_snapshot": {"signal_count": "INTEGER", "correct_count": "INTEGER", "abstain_count": "INTEGER", "brier_count": "INTEGER", "evaluation_version": "TEXT", "time_contract": "TEXT"},
     }
     for table, optional_columns in optional_columns_by_table.items():
         existing = {

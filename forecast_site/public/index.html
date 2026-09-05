@@ -546,7 +546,7 @@ function accuracyMetrics(accuracy, horizon) {
 }
 
 function renderLiveMetricLine(rootId, metrics) {
-  const countNote = (m) => `${m.correct_count ?? "--"}/${m.signal_count ?? "--"} signals; ${m.abstain_count ?? "--"} abstained; ${m.resolved_count ?? 0} total`;
+  const countNote = (m) => `${m.correct_count ?? "--"}/${m.signal_count ?? "--"} signals; ${m.abstain_count ?? "--"} abstained; ${m.resolved_count ?? 0} total. ${m.time_contract === "utc_bar_end_v2" ? "Current forecast method" : "Corrected legacy forecasts"}`;
   const items = [
     ["30d signal hit", fmtPct(metrics.recent.direction_accuracy), countNote(metrics.recent)],
     ["Conditional Brier", metrics.recent.brier_score != null ? Number(metrics.recent.brier_score).toFixed(3) : "--", `${metrics.recent.brier_count ?? 0} large-move outcomes with recorded thresholds`],

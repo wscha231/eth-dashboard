@@ -104,7 +104,7 @@ def export_accuracy(conn) -> dict:
         """
         SELECT horizon_days, window_days, snapshot_utc, resolved_count,
                direction_accuracy, brier_score, price_mape_percent, price_rmse, return_mae,
-               signal_count, correct_count, abstain_count, brier_count, evaluation_version
+               signal_count, correct_count, abstain_count, brier_count, evaluation_version, time_contract
         FROM accuracy_snapshot a
         WHERE snapshot_utc = (
             SELECT MAX(snapshot_utc) FROM accuracy_snapshot

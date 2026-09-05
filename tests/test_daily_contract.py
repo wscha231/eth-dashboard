@@ -72,6 +72,22 @@ def test_early_legacy_actual_is_archived_and_excluded(temp_db):
     assert temp_db.execute("SELECT COUNT(*) FROM actuals_revision").fetchone()[0] == 1
 
 
+def test_current_event_threshold_and_legacy_cohort_are_separate(temp_db):
+    seed(temp_db)
+    temp_db.execute("UPDATE forecast_runs SET model_phase='legacy'")
+    current = seed(temp_db, target="2026-09-04", contract=TIME_CONTRACT)
+    temp_db.execute("UPDATE forecasts SET classification_event_threshold=0.08 WHERE forecast_id=?", (current,))
+    lookup = pd.Series([107.0], index=pd.to_datetime(["2026-09-03"], utc=True))
+    resolve_pending_forecasts(temp_db, lookup, now="2026-09-05T12:00Z")
+    actual = temp_db.execute("SELECT * FROM actuals WHERE forecast_id=?", (current,)).fetchone()
+    assert actual["direction_actual"] == "FLAT"
+    assert actual["direction_correct"] == 0 and actual["brier_contribution"] is None
+    assert temp_db.execute("SELECT COUNT(*) FROM actuals").fetchone()[0] == 2
+    refresh_accuracy_snapshots(temp_db)
+    metric = export_accuracy(temp_db)["horizons"]["30"]["all"]
+    assert metric["resolved_count"] == 1 and metric["time_contract"] == TIME_CONTRACT
+
+
 def test_partial_summary_never_creates_run(tmp_path):
     csv = tmp_path / "partial.csv"
     pd.DataFrame([{"horizon_steps":7, "forecast_input_timestamp":"2026-09-05", "forecast_target_timestamp":"2026-09-12", "reference_price":100}]).to_csv(csv,index=False)
