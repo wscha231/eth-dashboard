@@ -1,0 +1,134 @@
+name: Hybrid ETH full replay
+on:
+  push:
+    branches: [main]
+    paths: ["hybrid_pipeline/**", "scripts/run_hybrid_forecast.py", "scripts/publish_hybrid.sh", "scripts/verify_hybrid_site.py", "requirements-hybrid.txt", ".github/workflows/hybrid_replay.yml"]
+  schedule:
+    - cron: "13 7 * * 0"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: hybrid-full-replay
+  cancel-in-progress: false
+jobs:
+  inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Freeze shared sources and restore durable checkpoints
+        run: |
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast data/forward-research:refs/remotes/origin/data/forward-research
+          mkdir -p lake/gold lake/forward lake/hybrid lake/full_backtest
+          git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv > lake/gold/eth_master_daily.csv
+          git show origin/data/forward-research:lake/forward/flow_daily.csv > lake/forward/flow_daily.csv
+          if git ls-remote --exit-code --heads origin data/hybrid-forecast > /dev/null; then
+            git fetch origin data/hybrid-forecast:refs/remotes/origin/data/hybrid-forecast
+            git archive origin/data/hybrid-forecast lake/hybrid | tar -x
+          fi
+          if git ls-remote --exit-code --heads origin data/full-backtest > /dev/null; then
+            git fetch origin data/full-backtest:refs/remotes/origin/data/full-backtest
+            git show origin/data/full-backtest:lake/full_backtest/full_backtest_predictions.csv.gz > lake/full_backtest/full_backtest_predictions.csv.gz
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-input-${{ github.run_id }}
+          path: |
+            lake/gold/eth_master_daily.csv
+            lake/forward/flow_daily.csv
+            lake/hybrid/
+            lake/full_backtest/full_backtest_predictions.csv.gz
+          retention-days: 14
+  replay:
+    needs: inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        horizon: [7, 30]
+        part: [early, late]
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-hybrid.txt
+      - run: python -m pip install -r requirements-hybrid.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: hybrid-input-${{ github.run_id }}
+          path: lake
+      - name: Replay all eligible months in this segment
+        run: python scripts/run_hybrid_forecast.py --horizon ${{ matrix.horizon }} --part ${{ matrix.part }}
+      - name: Select only this segment's checkpoints for upload
+        if: always()
+        run: |
+          python - <<'PY'
+          import os,pathlib,shutil
+          root=pathlib.Path('lake/hybrid');out=pathlib.Path('hybrid-artifact');out.mkdir(exist_ok=True)
+          h='${{ matrix.horizon }}';part='${{ matrix.part }}'
+          for stem in [f'base_h{h}_{part}.csv.gz',f'runtime_h{h}_{part}.json']:
+              if (root/stem).exists():shutil.copy2(root/stem,out/stem)
+          if part=='late' and (root/f'bundle_h{h}.pt').exists():shutil.copy2(root/f'bundle_h{h}.pt',out/f'bundle_h{h}.pt')
+          (out/'cache').mkdir(exist_ok=True)
+          for p in (root/'cache').glob(f'h{h}_*.json'):
+              if (p.stem.split('_')[1]<'2023-01')==(part=='early'):shutil.copy2(p,out/'cache'/p.name)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hybrid-part-${{ matrix.horizon }}-${{ matrix.part }}-${{ github.run_id }}
+          path: hybrid-artifact/
+          retention-days: 30
+  publish:
+    needs: [inputs, replay]
+    if: ${{ always() && needs.inputs.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: daily-forecast
+      cancel-in-progress: false
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-hybrid.txt
+      - run: python -m pip install -r requirements-hybrid.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: hybrid-input-${{ github.run_id }}
+          path: lake
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hybrid-part-*-${{ github.run_id }}
+          path: lake/hybrid
+          merge-multiple: true
+      - name: Restore the latest immutable ledger before issuance
+        run: |
+          if git ls-remote --exit-code --heads origin data/hybrid-forecast > /dev/null; then
+            git fetch origin data/hybrid-forecast:refs/remotes/origin/data/hybrid-forecast
+            if git cat-file -e origin/data/hybrid-forecast:lake/hybrid/issued.db 2>/dev/null; then
+              git show origin/data/hybrid-forecast:lake/hybrid/issued.db > lake/hybrid/issued.db
+            fi
+          fi
+      - name: Optimize from prior outcomes and reconcile both full histories
+        id: combine
+        if: ${{ needs.replay.result == 'success' }}
+        run: python scripts/run_hybrid_forecast.py --combine
+      - name: Persist checkpoints and publish only complete results
+        if: always()
+        env:
+          HYBRID_PUBLISH_COMPLETE: ${{ needs.replay.result == 'success' && steps.combine.outcome == 'success' }}
+        run: bash scripts/publish_hybrid.sh

@@ -46,18 +46,31 @@ def test_compact_h30_gate_is_focused_and_full_run_is_explicit() -> None:
     assert "github.event.inputs.compact_h30_full" in compact_job
 
 
-def test_daily_workflow_deploys_live_history_and_verifies_site() -> None:
+def test_daily_workflows_refresh_sources_settle_archives_and_verify_new_site() -> None:
     workflow = _read(".github/workflows/daily_forecast.yml")
 
     restore_master = workflow.split(
-        "\n      - name: Restore deployed master data\n", maxsplit=1
-    )[1].split("\n      - name: Refresh market data\n", maxsplit=1)[0]
+        "\n      - name: Restore durable sources and archived issued records\n", maxsplit=1
+    )[1].split("\n      - name: Incremental market collection\n", maxsplit=1)[0]
     assert "origin/data/daily-forecast:lake/gold/eth_master_daily.csv" in restore_master
-
+    master_restore = next(line for line in restore_master.splitlines() if "eth_master_daily.csv" in line)
+    assert "||" not in master_restore  # Missing authoritative prices must fail the run.
+    assert "forecast_site.backfill_actuals" in workflow
+    assert "persist_forecast" not in workflow
     assert "forecast_site/public/history.json" in workflow
-    assert "forecast_site/public/model_eval_latest.json" in workflow
-    assert "Verify deployed freshness" in workflow
-    assert "scripts/check_site_freshness.py" in workflow
+    hybrid = _read(".github/workflows/hybrid_daily.yml")
+    assert '"Daily ETH source refresh"' in hybrid
+    assert '"Hybrid ETH full replay"' in hybrid
+    assert "scripts/run_hybrid_forecast.py --daily" in hybrid
+    assert "bash scripts/publish_hybrid.sh" in hybrid
+    assert "group: daily-forecast" in hybrid
+    publisher = _read("scripts/publish_hybrid.sh")
+    assert "scripts/verify_hybrid_site.py --expected" in publisher
+    assert "HEAD:refs/heads/data/daily-forecast" in publisher
+    for name in ("retrain_champion", "full_history_backtest", "weekly_live_review"):
+        archived = _read(f".github/workflows/{name}.yml")
+        assert "  schedule:" not in archived
+        assert "  push:" not in archived
 
 
 def test_watchdog_will_not_dispatch_while_daily_run_is_active() -> None:

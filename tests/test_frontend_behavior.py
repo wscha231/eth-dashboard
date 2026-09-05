@@ -18,7 +18,7 @@ const html = fs.readFileSync('forecast_site/public/index.html', 'utf8');
 const source = html.split('<script>')[1].split('(async function main()')[0];
 const elements = {};
 const element = () => ({style:{}, children:[], appendChild(child){this.children.push(child)}, replaceChildren(...children){this.children=children}});
-const context = vm.createContext({document: {getElementById: id => elements[id] ||= element(), createElement:element}, window: {}});
+const context = vm.createContext({document: {getElementById: id => elements[id] ||= element(), createElement:element}, window: {}, Chart:function(canvas,config){this.config=config;this.destroy=()=>{}}});
 vm.runInContext(source, context);
 const evaluate = expression => vm.runInContext(expression, context);
 assert.equal(evaluate('fmtDate("2026-09-05 00:00:00")'), '2026-09-05');
@@ -42,5 +42,17 @@ assert.equal(evaluate('fullHistoryRows(historyFixture,7,"extra_trees","recent","
 assert.equal(evaluate('fullHistoryRows(historyFixture,7,"extra_trees","recent","return")[0].raw'),0);
 assert.equal(evaluate('fullHistoryRows(historyFixture,7,"no_change_anchor","all","return")[0].raw'),null);
 assert.equal(evaluate('fullHistoryRows(historyFixture,7,"extra_trees","2025","price").length'),0);
+const metric={model:'optimized_hybrid',rows:1,return_mae:.12,mae_skill_vs_no_change:-.2,up_recall:.1,up_false_positive_rate:.2,up_precision:.3};
+const hybrid={schema_version:1,generated_at:'2026-09-05T12:00:00Z',protocol:{},model_names:{optimized_hybrid:'CatBoost + Transformer',safe_policy:'Safe',equal_hybrid:'Equal',no_change:'Reference'},prospective:{issued:2,resolved:0,recent_issued:[]},horizons:{}};
+for(const h of [7,30])hybrid.horizons[h]={first_origin:'2026-01-01',last_target:'2026-09-05',leaderboard:[metric],recent:[metric],yearly:[{year:2026,...metric}],points:[{origin:'2026-08-01',target:'2026-09-05',reference_price:100,actual_price:120,actual_return:.2,returns:{optimized_hybrid:.1,safe_policy:0,equal_hybrid:.1,no_change:0}}],current:{origin:'2026-09-05',target:'2026-10-05',reference_price:100,predicted_price:110,predicted_return:.1,lower_price:80,upper_price:130,probability_down_flat_up:[.2,.5,.3],choice:{selection_rows:180,choice:{cat:'cat_short',transformer:'transformer_long',cat_weight:.75,amplitude:.5}}}};
+context.hybridFixture=hybrid;evaluate('renderHybrid(hybridFixture)');
+assert.equal(elements['legacy-archive'].open,false);
+assert.equal(elements['model-phase'].textContent,'CatBoost + Transformer');
+assert.match(elements['hybrid-verdict'].textContent,/has not beaten/);
+assert.equal(evaluate('hybridRows(hybridFixture,30,"optimized_hybrid","recent","return")[0].predicted'),.1);
+assert.equal(evaluate('hybridRows(hybridFixture,30,"optimized_hybrid","all","price")[0].raw'),100);
+assert.equal(evaluate('charts["chart-hybrid-30"].config.data.datasets[0].data[0]'),.1);
+assert.match(elements['hybrid-current'].children[1].children[4].textContent,/30.0% \/ 50.0% \/ 20.0%/);
+evaluate('fetchLiveEthPrice=async()=>3000; refreshLivePrice()').then(()=>assert.equal(elements['model-phase'].textContent,'CatBoost + Transformer'));
 '''
     subprocess.run(["node", "-e", script], cwd=root, env={**os.environ, "TZ": timezone}, check=True)
