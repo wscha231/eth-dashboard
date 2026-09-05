@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--root', default='lake/forward')
     parser.add_argument('--bootstrap', default='research/forward/bootstrap_flow.csv.gz')
     parser.add_argument('--skip-collection', action='store_true', help='Offline verification only; use the saved source status')
+    parser.add_argument('--retired', action='store_true', help='Collect sources and settle existing records without issuing retired candidates')
     args = parser.parse_args()
     started = time.monotonic(); root = Path(args.root); root.mkdir(parents=True, exist_ok=True)
     if args.skip_collection:
@@ -33,7 +34,7 @@ def main():
     conn = connect(root/'forward.db')
     revised = settle(conn, master, source_hash=hashes[args.master])
     try:
-        attempt = issue_candidates(conn, master, flow, source, source_hashes=hashes)
+        attempt = {'new_issues':0,'skips':[],'status':'retired_source_collection_only'} if args.retired else issue_candidates(conn, master, flow, source, source_hashes=hashes)
     except ValueError as exc:
         attempt = {'new_issues': 0, 'skips': [], 'error': str(exc)}
     attempt['actual_revisions'] = revised

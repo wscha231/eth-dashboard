@@ -3,7 +3,7 @@ name: ETH site freshness watchdog
 on:
   schedule:
     # Check after both daily attempts; dispatch at most one recovery while idle.
-    - cron: "43 4 * * *"
+    - cron: "43 8 * * *"
   workflow_dispatch:
 
 permissions:
@@ -32,10 +32,7 @@ jobs:
         id: freshness
         continue-on-error: true
         run: |
-          python scripts/check_site_freshness.py \
-              --url https://etherforecast.live/health.json \
-              --max-live-age-hours 27 \
-              --max-health-age-hours 30
+          python scripts/verify_hybrid_site.py --max-age-hours 33
 
       - name: Dispatch one recovery run when idle
         if: ${{ steps.freshness.outcome == 'failure' }}
@@ -51,10 +48,7 @@ jobs:
               | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          gh workflow run daily_forecast.yml \
-              --ref main \
-              -f fast_mode=false \
-              -f model_phase=phase6_closed_daily
+          gh workflow run daily_forecast.yml --ref main
           echo "Deployed forecast was stale; dispatched one recovery run." \
             | tee -a "$GITHUB_STEP_SUMMARY"
 

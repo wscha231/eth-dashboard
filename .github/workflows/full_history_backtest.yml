@@ -1,14 +1,6 @@
 name: Full history ETH backtest
 on:
-  push:
-    branches: [main]
-    paths:
-      - backtest_pipeline/**
-      - scripts/run_full_history_backtest.py
-      - research/full_history/**
-      - .github/workflows/full_history_backtest.yml
-  schedule:
-    - cron: "13 7 * * 0"
+  # Superseded by the CatBoost + Transformer replay; manual archive only.
   workflow_dispatch:
 permissions:
   contents: write

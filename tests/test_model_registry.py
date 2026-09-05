@@ -192,9 +192,11 @@ def test_model_eval_workflows_enable_challengers_but_daily_forecast_does_not() -
 
     assert eval_workflow.count('ETH_ENABLE_CHALLENGER_MODELS: "1"') == 3
     assert '- "tests/**"' in eval_workflow
-    model_eval_job, forecast_job = daily_workflow.split("\n  forecast:\n", maxsplit=1)
-    assert 'ETH_ENABLE_CHALLENGER_MODELS: "1"' in model_eval_job
-    assert "ETH_ENABLE_CHALLENGER_MODELS" not in forecast_job
+    assert "ETH_ENABLE_CHALLENGER_MODELS" not in daily_workflow
+    assert "predict_latest.py" not in daily_workflow
+    assert "persist_forecast" not in daily_workflow
+    hybrid_daily = Path(".github/workflows/hybrid_daily.yml").read_text(encoding="utf-8")
+    assert "scripts/run_hybrid_forecast.py --daily" in hybrid_daily
     assert 'ETH_ENABLE_COMPACT_H30_REGRESSOR: "1"' in eval_workflow
     assert "ETH_ENABLE_COMPACT_H30_REGRESSOR" not in daily_workflow
 

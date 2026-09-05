@@ -1,4 +1,4 @@
-name: Daily ETH forward research
+name: Daily ETH source refresh
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
       - forecast_site/public/index.html
       - .github/workflows/forward_research.yml
   workflow_run:
-    workflows: ["Daily ETH forecast"]
+    workflows: ["Daily ETH market data"]
     types: [completed]
     branches: [main]
   schedule:
@@ -50,9 +50,9 @@ jobs:
             git fetch origin data/forward-research:refs/remotes/origin/data/forward-research
             git archive origin/data/forward-research lake/forward | tar -x
           fi
-      - name: Incremental collection and bounded prospective evaluation
+      - name: Collect flow and settle retired research records
         timeout-minutes: 10
-        run: python scripts/run_forward_research.py
+        run: python scripts/run_forward_research.py --retired
       - uses: actions/upload-artifact@v4
         if: always()
         with:

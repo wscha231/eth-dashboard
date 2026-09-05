@@ -225,8 +225,8 @@
         <p class="eyebrow">Simple signal view</p>
         <h1>ETH forecast, stripped to essentials.</h1>
         <p class="hero-copy">
-          Current 7-day and 30-day forecasts, daily resolved live results, and weekly out-of-sample research are shown separately.
-          A failed candidate stays visible here but is not promoted into the production forecast gate.
+          Independently optimized 7-day and 30-day CatBoost + Transformer forecasts.
+          Compare their complete chronological replay with the no-change reference and follow forecasts saved before their outcomes.
         </p>
       </div>
       <aside class="panel">
@@ -240,6 +240,30 @@
       </aside>
     </section>
 
+    <section id="hybrid-system" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow">CatBoost + patch Transformer</p><h2 id="hybrid-title">7 / 30-day optimized forecasts</h2><p id="hybrid-updated"></p></div>
+        <span class="pill warn">Prospective research</span>
+      </div>
+      <p class="notice" id="hybrid-verdict"></p>
+      <section class="forecast-grid" id="hybrid-current"></section>
+      <div class="section-heading"><div><p class="eyebrow">Complete chronological replay</p><h2 id="hybrid-history">Historical predictions, selected using earlier outcomes</h2><p id="hybrid-span"></p></div></div>
+      <div class="panel" style="margin-bottom:16px">
+        <label>Period <select id="hybrid-period" style="padding:8px;margin:8px"><option value="all">All eligible history</option><option value="recent">Last 365 target days</option></select></label>
+        <label>Chart <select id="hybrid-unit" style="padding:8px;margin:8px"><option value="return">Return (%)</option><option value="price">Target price (USD)</option></select></label>
+        <p class="small">Model settings and blend weights use only outcomes available before each monthly fit. Price inputs are closed daily bars; flow inputs have an extra day of delay. Historical source vintages are reconstructed. Retrospective rankings do not establish live predictive skill.</p>
+        <a href="hybrid_predictions.csv.gz">Download predictions and outcomes (CSV.gz)</a>
+      </div>
+      <section class="backtest">
+        <article class="panel"><h2>7-day optimized replay</h2><label>Model <select id="hybrid-model-7" style="padding:8px;max-width:100%"></select></label><p id="hybrid-metrics-7" class="small"></p><div class="chart-wrap"><canvas id="chart-hybrid-7"></canvas></div><details><summary>Compare candidates</summary><div id="hybrid-table-7" style="overflow-x:auto"></div></details></article>
+        <article class="panel"><h2>30-day optimized replay</h2><label>Model <select id="hybrid-model-30" style="padding:8px;max-width:100%"></select></label><p id="hybrid-metrics-30" class="small"></p><div class="chart-wrap"><canvas id="chart-hybrid-30"></canvas></div><details><summary>Compare candidates</summary><div id="hybrid-table-30" style="overflow-x:auto"></div></details></article>
+      </section>
+      <details class="panel" style="margin-top:18px"><summary>New-model issued record — fixed when published</summary><p class="small" id="hybrid-issued-status"></p><div id="hybrid-issued" style="overflow-x:auto"></div></details>
+    </section>
+
+    <details class="panel" id="legacy-archive" open style="margin-top:22px">
+      <summary>Previous model archive · retired from the active candidate roster</summary>
+      <p class="small">Earlier forecasts and evaluations are retained for comparison. The CatBoost + Transformer panel above is the current model family.</p>
     <section class="forecast-grid" id="forecast-grid">
       <div class="panel">Loading forecast...</div>
     </section>
@@ -349,6 +373,7 @@
       </article>
     </section>
 
+    </details>
     <div class="notice">
       This is statistical research, not investment advice. ETH tail events remain the hard part:
       funding, options, exchange-flow, and on-chain data coverage directly affects whether spike/crash conditions can be detected early.
@@ -899,12 +924,81 @@ function renderForwardResearch(data) {
   $("forward-skips").textContent = reasons.join(" · ");
 }
 
+let hybridPayload = null;
+
+function hybridRows(payload,horizon,model,period="all",unit="return") {
+  const d=payload.horizons[String(horizon)],last=parseUTC(d.last_target).getTime();
+  return d.points.filter(p=>period==="all" || (period==="recent" ? parseUTC(p.target).getTime()>last-365*86400000 : p.target.slice(0,4)===period)).map(p=>({
+    date:p.target,predictionDate:p.origin,targetDate:p.target,chartModel:model,
+    predicted:unit==="return" ? p.returns[model] : p.reference_price*(1+p.returns[model]),
+    raw:model==="no_change" ? null : unit==="return" ? 0 : p.reference_price,
+    actual:unit==="return" ? p.actual_return : p.actual_price,
+  }));
+}
+
+function hybridTable(id,rows) {
+  const table=document.createElement("table");table.style.cssText="width:100%;min-width:520px;border-collapse:collapse;text-align:left";
+  rows.forEach((values,i)=>{const tr=document.createElement("tr");values.forEach(value=>{const td=document.createElement(i?"td":"th");td.textContent=value;td.style.cssText="padding:9px;border-bottom:1px solid var(--line)";tr.appendChild(td)});table.appendChild(tr)});
+  $(id).replaceChildren(table);
+}
+
+function refreshHybridCharts() {
+  if(!hybridPayload)return;
+  const period=$("hybrid-period").value||"all",unit=$("hybrid-unit").value||"return";
+  for(const h of [7,30]){
+    const d=hybridPayload.horizons[String(h)],model=$("hybrid-model-"+h).value||"optimized_hybrid";
+    const scores=period==="all"?d.leaderboard:period==="recent"?d.recent:d.yearly.filter(r=>String(r.year)===period);
+    const metric=scores.find(r=>r.model===model),name=hybridPayload.model_names[model];
+    $("hybrid-metrics-"+h).textContent=metric ? `${metric.rows} origins · Return MAE ${fmtPct(metric.return_mae,2)} · MAE skill ${signedPct(metric.mae_skill_vs_no_change)} · UP recall ${fmtPct(metric.up_recall)} · False UP rate ${fmtPct(metric.up_false_positive_rate)}${metric.coverage80!=null ? " · 80% interval coverage "+fmtPct(metric.coverage80) : ""}` : "No matured targets in this period.";
+    renderChart("chart-hybrid-"+h,hybridRows(hybridPayload,h,model,period,unit),{predicted:name,raw:"No-change reference",unit,originLabel:"Replay origin"});
+    hybridTable("hybrid-table-"+h,[["Candidate / policy","Return MAE","MAE skill","Price RMSE","UP precision"],...[...scores].sort((a,b)=>a.return_mae-b.return_mae).map(r=>[hybridPayload.model_names[r.model],fmtPct(r.return_mae,2),signedPct(r.mae_skill_vs_no_change),fmtUSD(r.price_rmse),fmtPct(r.up_precision)])]);
+  }
+}
+
+function renderHybrid(payload) {
+  if(payload?.schema_version!==1 || !payload.horizons?.["7"]?.current || !payload.horizons?.["30"]?.current)return;
+  hybridPayload=payload;$("hybrid-system").hidden=false;$("legacy-archive").open=false;
+  $("model-phase").textContent="CatBoost + Transformer";$("run-status").textContent="daily saved-model forecast";$("eval-status").textContent="live edge under evaluation";
+  $("ref-price").textContent=fmtUSD(payload.horizons["7"].current.reference_price);
+  $("generated-at").textContent=`Forecast origin ${payload.horizons["7"].current.origin} UTC`;
+  $("hybrid-updated").textContent=`Updated ${payload.generated_at} · Daily inference / weekly replay review`;
+  const negative=[7,30].filter(h=>payload.horizons[h].leaderboard.find(m=>m.model==="optimized_hybrid").mae_skill_vs_no_change<=0);
+  $("hybrid-verdict").textContent=negative.length ? `The optimized ${negative.join(" / ")}-day hybrid has not beaten the no-change reference on full-period MAE. Its forecast is shown for prospective evaluation; improvement is not established. The earlier model family is archived below.` : "The optimized hybrid reduced historical MAE. Untouched prospective evidence is still required before asserting live predictive skill.";
+  $("hybrid-span").textContent=`7-day origins from ${payload.horizons["7"].first_origin}; 30-day origins from ${payload.horizons["30"].first_origin}. Targets resolved through ${payload.horizons["7"].last_target}. Initial training periods are excluded from performance.`;
+  const cards=[];
+  for(const h of [7,30]){
+    const d=payload.horizons[h],c=d.current,choice=c.choice.choice,score=d.leaderboard.find(r=>r.model==="optimized_hybrid");
+    const card=document.createElement("article");card.className="panel";
+    const heading=document.createElement("h2");heading.textContent=`${h}-day forecast · ${c.target}`;card.appendChild(heading);
+    const price=document.createElement("h2");price.textContent=`${fmtUSD(c.predicted_price)} (${signedPct(c.predicted_return)})`;card.appendChild(price);
+    const description=document.createElement("p");description.className="small";
+    description.textContent=`CatBoost ${choice.cat.endsWith("short")?"short":"long"} ${Math.round(choice.cat_weight*100)}% + Transformer ${choice.transformer.endsWith("short")?32:64}d ${Math.round((1-choice.cat_weight)*100)}% · amplitude ${choice.amplitude} · chosen from ${c.choice.selection_rows} earlier resolved origins.`;card.appendChild(description);
+    const range=document.createElement("p");range.textContent=`Empirical 80% range: ${fmtUSD(c.lower_price)} – ${fmtUSD(c.upper_price)}`;card.appendChild(range);
+    const probabilities=document.createElement("p");probabilities.textContent=`UP / FLAT / DOWN: ${[c.probability_down_flat_up[2],c.probability_down_flat_up[1],c.probability_down_flat_up[0]].map(v=>fmtPct(v)).join(" / ")}`;card.appendChild(probabilities);
+    const evidence=document.createElement("p");evidence.className="small";evidence.textContent=`Historical MAE skill ${signedPct(score.mae_skill_vs_no_change)} · Issued ${c.issued_at || payload.generated_at}. Range coverage is empirical, not guaranteed.`;card.appendChild(evidence);cards.push(card);
+    const select=$("hybrid-model-"+h);select.replaceChildren();
+    for(const model of ["optimized_hybrid","safe_policy","equal_hybrid",...Object.keys(payload.model_names).filter(n=>!['optimized_hybrid','safe_policy','equal_hybrid'].includes(n))]){
+      const option=document.createElement("option");option.value=model;option.textContent=payload.model_names[model];select.appendChild(option);
+    }
+    select.value="optimized_hybrid";select.onchange=refreshHybridCharts;
+  }
+  $("hybrid-current").replaceChildren(...cards);
+  for(const year of [...new Set(payload.horizons["7"].yearly.map(r=>r.year))].sort((a,b)=>b-a)){
+    const option=document.createElement("option");option.value=String(year);option.textContent=String(year);$("hybrid-period").appendChild(option);
+  }
+  $("hybrid-period").onchange=refreshHybridCharts;$("hybrid-unit").onchange=refreshHybridCharts;
+  const issued=payload.prospective||{};
+  $("hybrid-issued-status").textContent=`${issued.issued||0} issued · ${issued.resolved||0} resolved. Historical replay points are separate from this record.`;
+  hybridTable("hybrid-issued",[["Origin","Horizon","Target","Forecast","Actual"],...(issued.recent_issued||[]).slice().reverse().map(r=>[r.origin,`${r.horizon}d`,r.target,fmtUSD(r.predicted_price),r.actual_price==null?"Pending":fmtUSD(r.actual_price)])]);
+  refreshHybridCharts();
+}
+
 async function refreshLivePrice() {
   try {
     livePrice = await fetchLiveEthPrice();
     $("live-price").textContent = fmtUSD(livePrice);
     $("live-updated").textContent = `updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-    if (latestPayload) renderForecast(latestPayload, window.__productionReport, window.__health);
+    if (latestPayload && !hybridPayload) renderForecast(latestPayload, window.__productionReport, window.__health);
   } catch (_) {
     $("live-updated").textContent = "spot unavailable";
   }
@@ -912,6 +1006,7 @@ async function refreshLivePrice() {
 
 (async function main() {
   $("footer-time").textContent = new Date().toISOString();
+  const hybridTask=loadJSON("hybrid_forecast.json").catch(()=>null);
   const [latest, latestReport, lastPassReport, candidateLongrun, history, accuracy, health, donations] = await Promise.all([
     loadJSON("latest.json").catch(() => null),
     loadJSONFallback(["model_eval_latest.json", "model_eval_report.json"]),
@@ -961,6 +1056,8 @@ async function refreshLivePrice() {
   renderChart("chart-oof-h7", oofChartRows(candidateLongrun, 7), { predicted: "Selected OOF line", raw: "Raw OOF candidate" });
   renderChart("chart-oof-h30", oofChartRows(candidateLongrun, 30), { predicted: "Selected OOF line", raw: "Raw OOF candidate" });
   loadJSON("full_backtest.json").then(renderFullHistory).catch(() => {});
+  const hybrid=await hybridTask;
+  if(hybrid)renderHybrid(hybrid);
   await refreshLivePrice();
   setInterval(refreshLivePrice, 60 * 1000);
 })();
