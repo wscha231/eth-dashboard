@@ -35,5 +35,12 @@ const cells = elements['forward-table'].children[0].children[1].children;
 assert.equal(cells[4].textContent, '30.0% / 50.0% / 20.0%');
 assert.equal(cells[6].textContent, 'Awaiting outcomes');
 assert.match(elements['forward-status'].textContent, /0 resolved \/ 6 pending/);
+const payload = {horizons:{'7':{last_target:'2026-09-05',points:[{origin:'2026-08-29',target:'2026-09-05',reference_price:100,actual_price:120,actual_return:.2,returns:{extra_trees:.1,no_change_anchor:0}}]}}};
+context.historyFixture=payload;
+assert.equal(evaluate('fullHistoryRows(historyFixture,7,"extra_trees","all","price")[0].predicted'),110.00000000000001);
+assert.equal(evaluate('fullHistoryRows(historyFixture,7,"extra_trees","recent","return")[0].predicted'),.1);
+assert.equal(evaluate('fullHistoryRows(historyFixture,7,"extra_trees","recent","return")[0].raw'),0);
+assert.equal(evaluate('fullHistoryRows(historyFixture,7,"no_change_anchor","all","return")[0].raw'),null);
+assert.equal(evaluate('fullHistoryRows(historyFixture,7,"extra_trees","2025","price").length'),0);
 '''
     subprocess.run(["node", "-e", script], cwd=root, env={**os.environ, "TZ": timezone}, check=True)

@@ -25,6 +25,7 @@
     }
 
     * { box-sizing: border-box; }
+    select { background: #23291c; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; font: inherit; }
     body {
       margin: 0;
       background:
@@ -301,11 +302,19 @@
 
     <div class="section-heading">
       <div>
-        <p class="eyebrow">Weekly research evidence</p>
-        <h2>Latest OOF candidate</h2>
+        <p class="eyebrow">Historical research evidence</p>
+        <h2 id="full-history">Full-history price backtest</h2>
         <p id="oof-summary">evaluation loading</p>
       </div>
       <span class="pill" id="oof-status">loading</span>
+    </div>
+
+    <div class="panel" id="full-controls" hidden style="margin-bottom:16px">
+      <label>Period <select id="full-period" style="margin:8px;padding:8px"><option value="all">All eligible history</option><option value="recent">Last 365 target days</option></select></label>
+      <label>Chart <select id="full-unit" style="margin:8px;padding:8px"><option value="price">Target price (USD)</option><option value="return">Target return (%)</option></select></label>
+      <p class="small">Each monthly fit uses earlier data only. “Best full-period” is selected retrospectively from the eight tested candidates. “Past-only selection” chooses using outcomes already known at each fit. These are reconstructed historical tests; they do not replace the live forecasts above.</p>
+      <p class="small">Historical vendor publication vintages remain unverified. Positive MAE skill means lower error than no change. Direction scores below cover UP / FLAT / DOWN outcomes and are not probability calibration.</p>
+      <a href="full_backtest_predictions.csv.gz">Download all replay predictions (CSV.gz)</a>
     </div>
 
     <section class="backtest">
@@ -318,8 +327,10 @@
           </div>
           <span class="pill">candidate</span>
         </div>
+        <label class="small" id="full-model-label-7" hidden>Model <select id="full-model-7" style="padding:8px;max-width:100%"></select></label>
         <div class="metric-line" id="oof-h7-metrics"></div>
         <div class="chart-wrap"><canvas id="chart-oof-h7"></canvas></div>
+        <details id="full-ranking-7" hidden><summary>Compare all models</summary><div id="full-table-7" style="overflow-x:auto"></div></details>
       </article>
 
       <article class="panel">
@@ -331,8 +342,10 @@
           </div>
           <span class="pill">candidate</span>
         </div>
+        <label class="small" id="full-model-label-30" hidden>Model <select id="full-model-30" style="padding:8px;max-width:100%"></select></label>
         <div class="metric-line" id="oof-h30-metrics"></div>
         <div class="chart-wrap"><canvas id="chart-oof-h30"></canvas></div>
+        <details id="full-ranking-30" hidden><summary>Compare all models</summary><div id="full-table-30" style="overflow-x:auto"></div></details>
       </article>
     </section>
 
@@ -764,19 +777,88 @@ function renderChart(id, rows, labels = {}) {
         legend: { labels: { color: "#f7f0dc" } },
         tooltip: {
           callbacks: {
+            label: (context) => `${context.dataset.label}: ${labels.unit === "return" ? signedPct(context.parsed.y) : fmtUSD(context.parsed.y)}`,
             afterBody: (items) => {
               const row = rows[items?.[0]?.dataIndex];
-              return row ? [`Target date: ${row.targetDate}`, `Forecast made: ${row.predictionDate}`] : [];
+              return row ? [`Target date: ${row.targetDate}`, `${labels.originLabel || "Forecast made"}: ${row.predictionDate}`] : [];
             },
           },
         },
       },
       scales: {
         x: { ticks: { color: "#b8ad91", maxRotation: 0, autoSkipPadding: 24 }, grid: { color: "rgba(247,240,220,0.06)" } },
-        y: { ticks: { color: "#b8ad91", callback: (v) => fmtUSD(v) }, grid: { color: "rgba(247,240,220,0.08)" } },
+        y: { ticks: { color: "#b8ad91", callback: (v) => labels.unit === "return" ? `${(100*v).toFixed(1)}%` : fmtUSD(v) }, grid: { color: "rgba(247,240,220,0.08)" } },
       },
     },
   });
+}
+
+const fullModelNames = {
+  no_change_anchor: "No-change baseline", extra_trees: "ExtraTrees", random_forest: "Random forest",
+  knn_regressor: "KNN", rf_knn_equal: "RF + KNN (equal weight)", ridge_compact: "Ridge · compact",
+  hist_price_compact: "HGB · price", hist_price_flow_compact: "HGB · price + flow", past_only_selector: "Past-only selection",
+};
+let fullHistoryPayload = null;
+
+function fullHistoryRows(payload, horizon, model, period = "all", unit = "price") {
+  const source = payload.horizons[String(horizon)];
+  const last = parseUTC(source.last_target).getTime();
+  return source.points.filter(p => period === "all" || (period === "recent"
+    ? parseUTC(p.target).getTime() > last - 365*86400000 : p.target.slice(0,4) === period)).map(p => ({
+      date:p.target, predictionDate:p.origin, targetDate:p.target,
+      predicted:unit === "return" ? p.returns[model] : p.reference_price*(1+p.returns[model]),
+      raw:model === "no_change_anchor" ? null : unit === "return" ? 0 : p.reference_price,
+      actual:unit === "return" ? p.actual_return : p.actual_price,
+      chartModel:model,
+    }));
+}
+
+function refreshFullHistory() {
+  if (!fullHistoryPayload) return;
+  const period = $("full-period").value || "all", unit = $("full-unit").value || "price";
+  for (const h of [7,30]) {
+    const data = fullHistoryPayload.horizons[String(h)];
+    const choice = $("full-model-"+h).value || "__best";
+    const model = choice === "__best" ? data.best_fixed_model : choice;
+    const candidates = period === "all" ? data.leaderboard : period === "recent" ? data.recent : data.yearly.filter(m => String(m.year) === period);
+    const metric = candidates.find(m => m.model === model);
+    const name = fullModelNames[model] || model;
+    $("oof-h"+h+"-model").textContent = `${name}${choice === "__best" ? " · best full-period MAE (retrospective)" : ""} · ${metric?.rows || 0} matched origins`;
+    $("oof-h"+h+"-metrics").textContent = metric
+      ? `Return MAE ${(100*metric.return_mae).toFixed(2)}% · MAE skill ${signedPct(metric.mae_skill_vs_no_change)} · Price RMSE ${fmtUSD(metric.price_rmse)} · UP/FLAT/DOWN accuracy ${(100*metric.state_accuracy_all_origins).toFixed(1)}%`
+      : "No resolved observations in this period.";
+    renderChart("chart-oof-h"+h, fullHistoryRows(fullHistoryPayload,h,model,period,unit),
+      {predicted:name,raw:"No-change baseline",unit,originLabel:"Replay origin"});
+    const table = document.createElement("table"); table.style.cssText="width:100%;border-collapse:collapse;text-align:left;min-width:450px";
+    const rows = [["Model","Return MAE","MAE skill","Price RMSE"], ...[...candidates].sort((a,b)=>a.return_mae-b.return_mae).map(m => [
+      fullModelNames[m.model] || m.model, `${(100*m.return_mae).toFixed(2)}%`, signedPct(m.mae_skill_vs_no_change),fmtUSD(m.price_rmse)])];
+    rows.forEach((values,i) => {
+      const row=document.createElement("tr");
+      values.forEach(value => {const cell=document.createElement(i ? "td" : "th");cell.style.cssText="padding:8px;border-bottom:1px solid var(--line)";cell.textContent=value;row.appendChild(cell)});
+      table.appendChild(row);
+    });
+    $("full-table-"+h).replaceChildren(table);
+  }
+}
+
+function renderFullHistory(payload) {
+  if (payload?.schema_version !== 1 || !payload.horizons?.["7"]?.points?.length || !payload.horizons?.["30"]?.points?.length) return;
+  fullHistoryPayload=payload;
+  $("full-controls").hidden=false;
+  $("oof-status").textContent="historical replay";
+  $("oof-status").className="pill";
+  $("oof-summary").textContent=`Updated ${fmtDate(payload.generated_at)} · 7d origins from ${payload.horizons["7"].first_origin}, 30d from ${payload.horizons["30"].first_origin} · Resolved targets through ${payload.horizons["7"].last_target} / ${payload.horizons["30"].last_target}. Earlier data form the initial training period.`;
+  const years=[...new Set(payload.horizons["7"].yearly.map(m=>m.year))].sort((a,b)=>b-a);
+  for (const year of years) {const option=document.createElement("option");option.value=String(year);option.textContent=String(year);$("full-period").appendChild(option)}
+  for (const h of [7,30]) {
+    $("full-model-label-"+h).hidden=false;$("full-ranking-"+h).hidden=false;
+    const control=$("full-model-"+h);control.replaceChildren();
+    const models=["__best","past_only_selector",...payload.protocol.candidates];
+    for(const model of models) {const option=document.createElement("option");option.value=model;option.textContent=model === "__best" ? "Best full-period model (retrospective)" : fullModelNames[model] || model;control.appendChild(option)}
+    control.value="__best";control.onchange=refreshFullHistory;
+  }
+  $("full-period").onchange=refreshFullHistory;$("full-unit").onchange=refreshFullHistory;
+  refreshFullHistory();
 }
 
 function renderForwardResearch(data) {
@@ -878,6 +960,7 @@ async function refreshLivePrice() {
   renderMetricLine("oof-h30-metrics", h30);
   renderChart("chart-oof-h7", oofChartRows(candidateLongrun, 7), { predicted: "Selected OOF line", raw: "Raw OOF candidate" });
   renderChart("chart-oof-h30", oofChartRows(candidateLongrun, 30), { predicted: "Selected OOF line", raw: "Raw OOF candidate" });
+  loadJSON("full_backtest.json").then(renderFullHistory).catch(() => {});
   await refreshLivePrice();
   setInterval(refreshLivePrice, 60 * 1000);
 })();

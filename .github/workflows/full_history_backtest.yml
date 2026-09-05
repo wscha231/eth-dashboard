@@ -1,0 +1,159 @@
+name: Full history ETH backtest
+on:
+  push:
+    branches: [main]
+    paths:
+      - backtest_pipeline/**
+      - scripts/run_full_history_backtest.py
+      - research/full_history/**
+      - .github/workflows/full_history_backtest.yml
+  schedule:
+    - cron: "13 7 * * 0"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: full-history-backtest
+  cancel-in-progress: false
+jobs:
+  inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Freeze one shared input snapshot and restore monthly checkpoints
+        run: |
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast data/forward-research:refs/remotes/origin/data/forward-research
+          mkdir -p lake/gold lake/forward lake/full_backtest
+          git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv > lake/gold/eth_master_daily.csv
+          git show origin/data/forward-research:lake/forward/flow_daily.csv > lake/forward/flow_daily.csv
+          if git ls-remote --exit-code --heads origin data/full-backtest > /dev/null; then
+            git fetch origin data/full-backtest:refs/remotes/origin/data/full-backtest
+            git archive origin/data/full-backtest lake/full_backtest | tar -x
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-replay-input-${{ github.run_id }}
+          path: |
+            lake/gold/eth_master_daily.csv
+            lake/forward/flow_daily.csv
+            lake/full_backtest/
+          retention-days: 14
+  replay:
+    needs: inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        horizon: [7, 30]
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-runtime.txt
+      - run: python -m pip install -r requirements-runtime.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: full-replay-input-${{ github.run_id }}
+          path: lake
+      - name: Replay one complete horizon with a fixed budget
+        run: python scripts/run_full_history_backtest.py --horizon ${{ matrix.horizon }} --budget-seconds 1500
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-replay-h${{ matrix.horizon }}-${{ github.run_id }}
+          path: |
+            lake/full_backtest/predictions_h${{ matrix.horizon }}.csv.gz
+            lake/full_backtest/runtime_h${{ matrix.horizon }}.json
+            lake/full_backtest/cache/h${{ matrix.horizon }}_*.json
+          retention-days: 30
+  publish:
+    needs: [inputs, replay]
+    if: ${{ always() && needs.inputs.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: daily-forecast
+      cancel-in-progress: false
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-runtime.txt
+      - run: python -m pip install -r requirements-runtime.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: full-replay-input-${{ github.run_id }}
+          path: lake
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: full-replay-h*-${{ github.run_id }}
+          path: lake/full_backtest
+          merge-multiple: true
+      - name: Reconcile cohorts and build full-history chart and metrics
+        if: ${{ needs.replay.result == 'success' }}
+        run: python scripts/run_full_history_backtest.py --combine
+      - name: Persist resumable research checkpoints
+        run: |
+          git config user.name "eth-forecast-bot"
+          git config user.email "eth-forecast-bot@users.noreply.github.com"
+          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+          if git ls-remote --exit-code --heads origin data/full-backtest > /dev/null; then
+            git fetch origin data/full-backtest:refs/remotes/origin/data/full-backtest
+            replay_base=origin/data/full-backtest
+          else
+            replay_base=origin/data/daily-forecast
+          fi
+          git worktree add --detach "$RUNNER_TEMP/replay-data" "$replay_base"
+          mkdir -p "$RUNNER_TEMP/replay-data/lake/full_backtest"
+          cp -a lake/full_backtest/. "$RUNNER_TEMP/replay-data/lake/full_backtest/"
+          git -C "$RUNNER_TEMP/replay-data" add -f lake/full_backtest
+          if ! git -C "$RUNNER_TEMP/replay-data" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/replay-data" commit -m "chore(backtest): retain monthly replay and evaluation"
+            git -C "$RUNNER_TEMP/replay-data" push origin HEAD:refs/heads/data/full-backtest
+          fi
+      - name: Publish only the completed historical chart
+        if: ${{ needs.replay.result == 'success' }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/replay-site" origin/data/daily-forecast
+          cp lake/full_backtest/full_backtest.json "$RUNNER_TEMP/replay-site/forecast_site/public/full_backtest.json"
+          cp lake/full_backtest/full_backtest_predictions.csv.gz "$RUNNER_TEMP/replay-site/forecast_site/public/full_backtest_predictions.csv.gz"
+          cp forecast_site/public/index.html "$RUNNER_TEMP/replay-site/forecast_site/public/index.html"
+          git -C "$RUNNER_TEMP/replay-site" add -f forecast_site/public/full_backtest.json forecast_site/public/full_backtest_predictions.csv.gz forecast_site/public/index.html
+          git -C "$RUNNER_TEMP/replay-site" commit -m "chore(site): update full-history 7/30-day charts"
+          git -C "$RUNNER_TEMP/replay-site" push origin HEAD:refs/heads/data/daily-forecast
+      - name: Verify live chart metadata
+        if: ${{ needs.replay.result == 'success' }}
+        timeout-minutes: 4
+        run: |
+          python - <<'PY'
+          import json,time
+          from urllib.request import urlopen
+          expected=json.load(open('lake/full_backtest/full_backtest.json'))
+          for attempt in range(18):
+              try:
+                  with urlopen('https://etherforecast.live/full_backtest.json',timeout=10) as response:
+                      actual=json.load(response)
+                  with urlopen('https://etherforecast.live/',timeout=10) as response:
+                      html=response.read().decode()
+                  if actual.get('generated_at')==expected['generated_at'] and 'id="full-history"' in html:
+                      print('full-history deployment verified:', actual['generated_at'], {h:d['matched_origins'] for h,d in actual['horizons'].items()})
+                      break
+              except Exception as exc:
+                  print('deployment pending:',type(exc).__name__)
+              time.sleep(8)
+          else:
+              raise SystemExit('Full-history chart deployment is not current')
+          PY
