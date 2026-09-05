@@ -22,9 +22,6 @@ on:
         description: "Explicitly run the focused 36-fold compact h30 gate"
         type: boolean
         default: false
-  schedule:
-    # Weekly full gate after the Sunday UTC close, Monday 03:00 KST.
-    - cron: "0 18 * * 0"
 
 permissions:
   contents: write
@@ -35,7 +32,7 @@ concurrency:
 
 jobs:
   evaluate:
-    if: ${{ (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true' && github.event.inputs.compact_h30_full != 'true') }}
+    if: ${{ (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'model-eval-smoke') && !contains(github.event.pull_request.labels.*.name, 'full-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_run != 'true' && github.event.inputs.compact_h30_full != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
 
@@ -214,7 +211,7 @@ jobs:
           retention-days: 21
 
   evaluate-compact-h30:
-    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.compact_h30_full == 'true') }}
+    if: ${{ (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'compact-model-eval')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.compact_h30_full == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
 

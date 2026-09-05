@@ -247,6 +247,12 @@
       <div class="stat"><span>Pipeline status</span><b>Loading</b></div>
     </section>
 
+    <details class="panel" style="margin-top:20px">
+      <summary>Recent forecast issues — includes targets still awaiting outcomes</summary>
+      <p class="small">Forecasts stay fixed after issue. A 30-day forecast needs 30 days before its outcome can be scored.</p>
+      <div id="issued-history" style="overflow-x:auto"></div>
+    </details>
+
     <div class="section-heading">
       <div>
         <p class="eyebrow">Daily live evidence</p>
@@ -344,22 +350,27 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const fmtUSD = (value) => {
+  if (value == null || value === "") return "--";
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "--";
 };
 const fmtPct = (value, digits = 1) => {
+  if (value == null || value === "") return "--";
   const n = Number(value);
   return Number.isFinite(n) ? `${(n * 100).toFixed(digits)}%` : "--";
 };
 const fmtRawPct = (value, digits = 1) => {
+  if (value == null || value === "") return "--";
   const n = Number(value);
   return Number.isFinite(n) ? `${n.toFixed(digits)}%` : "--";
 };
 const fmtSignedRawPct = (value, digits = 1) => {
+  if (value == null || value === "") return "--";
   const n = Number(value);
   return Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixed(digits)}%` : "--";
 };
 const signedPct = (value, digits = 2) => {
+  if (value == null || value === "") return "--";
   const n = Number(value);
   if (!Number.isFinite(n)) return "--";
   return `${n >= 0 ? "+" : ""}${(n * 100).toFixed(digits)}%`;
@@ -367,8 +378,13 @@ const signedPct = (value, digits = 2) => {
 const clamp = (value, lower, upper) => Math.min(Math.max(value, lower), upper);
 const fmtDate = (value) => {
   if (!value) return "--";
-  const d = new Date(value);
+  const d = parseUTC(value);
   return Number.isNaN(d.getTime()) ? String(value).slice(0, 10) : d.toISOString().slice(0, 10);
+};
+const parseUTC = (value) => {
+  const text = String(value || "");
+  return new Date(/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2})?$/.test(text)
+    ? text.replace(" ", "T") + (text.length === 10 ? "T00:00:00Z" : "Z") : text);
 };
 const directionClass = (value) => {
   const d = String(value || "FLAT").toUpperCase();
@@ -388,6 +404,11 @@ async function loadJSONFallback(paths) {
     } catch (_) {}
   }
   return null;
+}
+
+function renderIssuedHistory(rows) {
+  if (!Array.isArray(rows)) return;
+  $("issued-history").innerHTML = `<table style="width:100%;text-align:left;border-spacing:12px"><thead><tr><th>Issued (UTC)</th><th>Horizon</th><th>Target (UTC)</th><th>Reference</th><th>Forecast</th><th>Return</th><th>Direction</th><th>Outcome</th></tr></thead><tbody>${rows.map(r => `<tr><td>${fmtDate(r.input_timestamp_utc)}</td><td>${r.horizon_days}d</td><td>${fmtDate(r.forecast_target_timestamp_utc)}</td><td>${fmtUSD(r.reference_price)}</td><td>${fmtUSD(r.regression_predicted_close)}</td><td>${signedPct(r.regression_predicted_return)}</td><td>${escapeHtml(r.classification_predicted_direction || "FLAT")}</td><td>${r.actual_close == null ? "Pending" : fmtUSD(r.actual_close)}</td></tr>`).join("")}</tbody></table>`;
 }
 const statusClass = (status) => {
   const value = String(status || "unknown").toLowerCase();
@@ -431,10 +452,7 @@ async function fetchLiveEthPrice() {
 }
 
 function rollingTarget(frozenClose, refPrice) {
-  const frozen = Number(frozenClose);
-  const ref = Number(refPrice);
-  if (!Number.isFinite(frozen) || !Number.isFinite(ref) || ref === 0 || !Number.isFinite(livePrice)) return frozen;
-  return livePrice * (1 + ((frozen - ref) / ref));
+  return frozenClose == null ? NaN : Number(frozenClose);
 }
 
 function gateMetrics(report, horizon) {
@@ -502,24 +520,11 @@ function forecastHealth(metrics, horizon, forecast, confidence) {
 }
 
 function practicalRange(centerPrice, metrics, horizon, forecast, health) {
-  const h = Number(horizon);
-  const mae = Number(metrics.returnMae);
-  const volScale = Number(forecast.hybrid_volatility_scale);
-  let spread = Number.isFinite(mae) ? mae * 1.10 : (h <= 7 ? 0.07 : 0.16);
-  if (Number.isFinite(volScale)) {
-    spread += clamp((volScale - 1.0) * (h <= 7 ? 0.018 : 0.028), -0.01, 0.04);
-  }
-  const floor = h <= 7 ? 0.035 : 0.08;
-  const cap = health.label === "HIGH SIGNAL"
-    ? (h <= 7 ? 0.14 : 0.28)
-    : health.label === "SELECTIVE"
-      ? (h <= 7 ? 0.12 : 0.22)
-      : (h <= 7 ? 0.10 : 0.18);
-  spread = clamp(spread, floor, cap);
+  const lower = forecast.regression_lower_close_10 == null ? NaN : Number(forecast.regression_lower_close_10);
+  const upper = forecast.regression_upper_close_90 == null ? NaN : Number(forecast.regression_upper_close_90);
   return {
-    lower: centerPrice * (1 - spread),
-    upper: centerPrice * (1 + spread),
-    spread,
+    lower, upper,
+    spread: (upper - lower) / (2 * centerPrice),
   };
 }
 
@@ -541,11 +546,12 @@ function accuracyMetrics(accuracy, horizon) {
 }
 
 function renderLiveMetricLine(rootId, metrics) {
+  const countNote = (m) => `${m.correct_count ?? "--"}/${m.signal_count ?? "--"} signals; ${m.abstain_count ?? "--"} abstained; ${m.resolved_count ?? 0} total. ${m.time_contract === "utc_bar_end_v2" ? "Current forecast method" : "Corrected legacy forecasts"}`;
   const items = [
-    ["30d dir acc", fmtPct(metrics.recent.direction_accuracy), `${metrics.recent.resolved_count ?? 0} resolved rows`],
-    ["30d Brier", Number.isFinite(Number(metrics.recent.brier_score)) ? Number(metrics.recent.brier_score).toFixed(3) : "--", "lower is better"],
-    ["All dir acc", fmtPct(metrics.all.direction_accuracy), `${metrics.all.resolved_count ?? 0} resolved rows`],
-    ["All return MAE", fmtPct(metrics.all.return_mae), "live deployed output"],
+    ["30d signal hit", fmtPct(metrics.recent.direction_accuracy), countNote(metrics.recent)],
+    ["Conditional Brier", metrics.recent.brier_score != null ? Number(metrics.recent.brier_score).toFixed(3) : "--", `${metrics.recent.brier_count ?? 0} large-move outcomes with recorded thresholds`],
+    ["All signal hit", fmtPct(metrics.all.direction_accuracy), countNote(metrics.all)],
+    ["All return MAE", fmtPct(metrics.all.return_mae), "as-issued regression; corrected closes"],
   ];
   $(rootId).innerHTML = items.map(([label, value, note]) => `
     <div class="stat"><span>${label}</span><b>${value}</b><div class="small">${note}</div></div>
@@ -609,7 +615,7 @@ function renderRun(latest, health) {
   const run = latest.run;
   $("model-phase").textContent = run.model_phase || "model";
   const healthStatus = health?.components?.live_forecast?.status;
-  const runDate = new Date(run.input_timestamp_utc || run.run_timestamp_utc || latest.generated_at);
+  const runDate = parseUTC(run.input_timestamp_utc || run.run_timestamp_utc || latest.generated_at);
   const ageHours = (Date.now() - runDate.getTime()) / 36e5;
   const status = healthStatus || (ageHours < 27 ? "ok" : ageHours < 48 ? "aging" : "stale");
   $("run-status").textContent = `live ${status}`;
@@ -630,19 +636,15 @@ function renderForecast(latest, report, health) {
     const f = latest.horizons[horizon] || {};
     const metrics = gateMetrics(report, horizon);
     const confidence = f.active_confidence ?? f.hybrid_confidence ?? f.classification_confidence;
-    const health = forecastHealth(metrics, horizon, f, confidence);
-    const base = health.useActive
-      ? (f.active_predicted_close ?? f.regression_predicted_close)
-      : (f.regression_predicted_close ?? f.active_predicted_close);
+    const health = {useActive: false, label: f.regression_model === "no_change_anchor" ? "NO-CHANGE BASELINE" : "MODEL ESTIMATE", note: "forecast fixed at issue time; point edge unverified", direction: f.classification_predicted_direction || "FLAT"};
+    const base = f.regression_predicted_close;
     const price = rollingTarget(base, refPrice);
     const direction = health.direction || f.hybrid_predicted_direction || f.classification_predicted_direction || "FLAT";
     const ret = Number.isFinite(Number(base)) && Number.isFinite(refPrice) && refPrice !== 0
       ? (Number(base) - refPrice) / refPrice
       : (f.active_predicted_return ?? f.regression_predicted_return);
     const range = practicalRange(price, metrics, horizon, f, health);
-    const moveLine = health.useActive
-      ? `${signedPct(ret)} expected move`
-      : `No reliable point edge; ${fmtPct(range.spread)} practical band`;
+    const moveLine = `${signedPct(ret)} from the forecast reference; ${f.regression_model === "no_change_anchor" ? "baseline, no verified directional price edge" : "as-issued model estimate"}`;
     return `
       <article class="panel forecast-card">
         <div class="card-top">
@@ -650,14 +652,14 @@ function renderForecast(latest, report, health) {
             <p class="eyebrow">${horizon}-day forecast</p>
             <h2>Target ${fmtDate(f.forecast_target_timestamp_utc)}</h2>
           </div>
-          <span class="pill ${directionClass(direction)}">${String(direction).toUpperCase()}</span>
+          <span class="pill ${directionClass(direction)}">Signal ${String(direction).toUpperCase()}</span>
         </div>
         <div class="price">${fmtUSD(price)}</div>
         <div class="return ${health.useActive ? (Number(ret) >= 0 ? "up" : Number(ret) < 0 ? "down" : "flat") : "flat"}">${moveLine}</div>
         <div class="stats">
-          <div class="stat"><span>Past gated hit</span><b>${fmtRawPct(metrics.strictHit)}</b><div class="small">floor ${fmtRawPct(metrics.strictLower)}; ${metrics.signalDays ?? "--"}% signal days</div></div>
-          <div class="stat"><span>Model trust</span><b>${health.label}</b><div class="small">${health.note}; AUC ${fmtPct(metrics.rocAuc, 1)}</div></div>
-          <div class="stat"><span>Practical range</span><b>${fmtUSD(range.lower)}</b><div class="small">${fmtUSD(price)} / ${fmtUSD(range.upper)}</div></div>
+          <div class="stat"><span>Conditional up probability</span><b>${fmtPct(f.classification_probability_up)}</b><div class="small">Given a large move. The direction signal uses a separate ranking score: ${fmtPct(f.classification_direction_score_up)}.</div></div>
+          <div class="stat"><span>Price model</span><b>${health.label}</b><div class="small">${health.note}</div></div>
+          <div class="stat"><span>Stored model range</span><b>${fmtUSD(range.lower)}</b><div class="small">to ${fmtUSD(range.upper)}; coverage unverified</div></div>
           <div class="stat"><span>Market</span><b>${f.macro_risk_regime || "n/a"}</b><div class="small">${f.macro_directional_bias || "FLAT"} bias</div></div>
         </div>
       </article>
@@ -675,20 +677,15 @@ function liveHistoryRows(history, horizon) {
   return history
     .filter((row) => Number(row.horizon_days) === Number(horizon) && row.actual_close != null)
     .map((row) => {
-      const reliability = row.forecast_point_price_reliable;
-      const explicitlyUnreliable = reliability === 0 || reliability === false || reliability === "0";
-      const rangeOnly = String(row.forecast_actionability || "").toLowerCase() === "range_only"
-        || explicitlyUnreliable;
-      const raw = Number(row.active_predicted_close ?? row.regression_predicted_close);
-      const selected = Number(rangeOnly ? row.reference_price : (row.active_predicted_close ?? row.regression_predicted_close));
+      const selected = row.regression_predicted_close == null ? NaN : Number(row.regression_predicted_close);
       return {
         date: fmtDate(row.forecast_target_timestamp_utc),
         predictionDate: fmtDate(row.input_timestamp_utc || row.run_timestamp_utc),
         targetDate: fmtDate(row.forecast_target_timestamp_utc),
         predicted: selected,
-        raw: rangeOnly && Number.isFinite(raw) && raw !== selected ? raw : null,
+        raw: row.reference_price != null ? Number(row.reference_price) : null,
         actual: Number(row.actual_close),
-        chartModel: rangeOnly ? "no_change_anchor" : (row.regression_model || "live_forecast"),
+        chartModel: row.regression_model || "live_forecast",
       };
     })
     .filter((row) => Number.isFinite(row.predicted) && Number.isFinite(row.actual))
@@ -801,6 +798,7 @@ async function refreshLivePrice() {
   renderForecast(latest, lastPassReport, health);
   renderFreshness(latest, health, latestReport, lastPassReport);
   renderDonations(donations);
+  loadJSON("issued_history.json").then(renderIssuedHistory).catch(() => {});
 
   const liveH7 = liveHistoryRows(history, 7);
   const liveH30 = liveHistoryRows(history, 30);
@@ -812,8 +810,8 @@ async function refreshLivePrice() {
     : "No resolved 30-day forecasts yet";
   renderLiveMetricLine("live-h7-metrics", accuracyMetrics(accuracy, 7));
   renderLiveMetricLine("live-h30-metrics", accuracyMetrics(accuracy, 30));
-  renderChart("chart-live-h7", liveH7, { predicted: "Selected live output", raw: "Raw point output (range-only)" });
-  renderChart("chart-live-h30", liveH30, { predicted: "Selected live output", raw: "Raw point output (range-only)" });
+  renderChart("chart-live-h7", liveH7, { predicted: "As-issued regression", raw: "No-change reference" });
+  renderChart("chart-live-h30", liveH30, { predicted: "As-issued regression", raw: "No-change reference" });
 
   const latestStatus = evaluationStatus(latestReport);
   const lastPassDate = evaluationThrough(lastPassReport, 7) || evaluationThrough(lastPassReport, 30);

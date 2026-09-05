@@ -1,0 +1,46 @@
+{
+  "version": "matched_daily_screen_v1",
+  "seed": 42,
+  "test_start": "2025-07-01",
+  "last_target_end": "2026-07-31",
+  "train_years": 3,
+  "refit": "monthly",
+  "purge": "label_end < first_test_origin",
+  "horizons": [
+    7,
+    30
+  ],
+  "candidates": [
+    "ridge_price",
+    "hist_price",
+    "hist_price_flow"
+  ],
+  "hgb": {
+    "max_iter": 100,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 30,
+    "learning_rate": 0.05,
+    "l2_regularization": 1.0
+  },
+  "ridge_alpha": 100.0,
+  "classification": "UP/FLAT/DOWN on every test origin",
+  "event_threshold": {
+    "formula": "clip(std(return_1d,30)*sqrt(horizon)*multiplier,floor,cap)",
+    "7": {
+      "multiplier": 0.65,
+      "floor": 0.055,
+      "cap": 0.16
+    },
+    "30": {
+      "multiplier": 0.7,
+      "floor": 0.08,
+      "cap": 0.24
+    }
+  },
+  "bootstrap": {
+    "replicates": 1000,
+    "block_rows": "max(horizon,30)"
+  },
+  "promotion": "screen only; independent future shadow evidence required",
+  "data_limit": "historical reconstructed bars; no historical macro/DeFi publication vintages"
+}

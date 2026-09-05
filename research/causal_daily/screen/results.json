@@ -1,0 +1,213 @@
+{
+  "protocol": {
+    "version": "matched_daily_screen_v1",
+    "seed": 42,
+    "test_start": "2025-07-01",
+    "last_target_end": "2026-07-31",
+    "train_years": 3,
+    "refit": "monthly",
+    "purge": "label_end < first_test_origin",
+    "horizons": [
+      7,
+      30
+    ],
+    "candidates": [
+      "ridge_price",
+      "hist_price",
+      "hist_price_flow"
+    ],
+    "hgb": {
+      "max_iter": 100,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 30,
+      "learning_rate": 0.05,
+      "l2_regularization": 1.0
+    },
+    "ridge_alpha": 100.0,
+    "classification": "UP/FLAT/DOWN on every test origin",
+    "event_threshold": {
+      "formula": "clip(std(return_1d,30)*sqrt(horizon)*multiplier,floor,cap)",
+      "7": {
+        "multiplier": 0.65,
+        "floor": 0.055,
+        "cap": 0.16
+      },
+      "30": {
+        "multiplier": 0.7,
+        "floor": 0.08,
+        "cap": 0.24
+      }
+    },
+    "bootstrap": {
+      "replicates": 1000,
+      "block_rows": "max(horizon,30)"
+    },
+    "promotion": "screen only; independent future shadow evidence required",
+    "data_limit": "historical reconstructed bars; no historical macro/DeFi publication vintages"
+  },
+  "runtime_seconds": 23.672547595997457,
+  "results": [
+    {
+      "horizon": 7,
+      "candidate": "hist_price",
+      "rows": 389,
+      "return_mae": 0.08165670001053846,
+      "return_rmse": 0.10349420502258144,
+      "mae_skill_vs_no_change": -0.2148497378953067,
+      "rmse_skill_vs_no_change": -0.16146912134085567,
+      "mean_mae_improvement_95ci": [
+        -0.021640372491652644,
+        -0.006440693358652703
+      ],
+      "multiclass_brier": 0.7172066564194511,
+      "brier_skill_vs_train_prior": -0.19009259374240317,
+      "all_origin_accuracy": 0.442159383033419,
+      "actual_class_counts": {
+        "1": 214,
+        "0": 90,
+        "2": 85
+      },
+      "screen_price_pass": false,
+      "promotion": "not_authorized_by_screen"
+    },
+    {
+      "horizon": 7,
+      "candidate": "hist_price_flow",
+      "rows": 389,
+      "return_mae": 0.08277420851624792,
+      "return_rmse": 0.10581849014266752,
+      "mae_skill_vs_no_change": -0.2314755005710174,
+      "rmse_skill_vs_no_change": -0.18755353249781836,
+      "mean_mae_improvement_95ci": [
+        -0.02448639809643523,
+        -0.006705238827443568
+      ],
+      "multiclass_brier": 0.7001167195264272,
+      "brier_skill_vs_train_prior": -0.16173450874434914,
+      "all_origin_accuracy": 0.4781491002570694,
+      "actual_class_counts": {
+        "1": 214,
+        "0": 90,
+        "2": 85
+      },
+      "screen_price_pass": false,
+      "promotion": "not_authorized_by_screen"
+    },
+    {
+      "horizon": 7,
+      "candidate": "ridge_price",
+      "rows": 389,
+      "return_mae": 0.07361783130842922,
+      "return_rmse": 0.0966106195517547,
+      "mae_skill_vs_no_change": -0.09525125382147315,
+      "rmse_skill_vs_no_change": -0.08421772386665549,
+      "mean_mae_improvement_95ci": [
+        -0.009545315338795973,
+        -0.0033385192754262476
+      ],
+      "multiclass_brier": 0.6327290683981664,
+      "brier_skill_vs_train_prior": -0.049915211196534415,
+      "all_origin_accuracy": 0.5115681233933161,
+      "actual_class_counts": {
+        "1": 214,
+        "0": 90,
+        "2": 85
+      },
+      "screen_price_pass": false,
+      "promotion": "not_authorized_by_screen"
+    },
+    {
+      "horizon": 30,
+      "candidate": "hist_price",
+      "rows": 366,
+      "return_mae": 0.19304879996934246,
+      "return_rmse": 0.24959314998620113,
+      "mae_skill_vs_no_change": -0.2984887776200913,
+      "rmse_skill_vs_no_change": -0.30811609707036336,
+      "mean_mae_improvement_95ci": [
+        -0.0738548407625478,
+        -0.014633375592769306
+      ],
+      "multiclass_brier": 0.7923585636907846,
+      "brier_skill_vs_train_prior": -0.2864777167196879,
+      "all_origin_accuracy": 0.42896174863387976,
+      "actual_class_counts": {
+        "1": 203,
+        "0": 105,
+        "2": 58
+      },
+      "screen_price_pass": false,
+      "promotion": "not_authorized_by_screen"
+    },
+    {
+      "horizon": 30,
+      "candidate": "hist_price_flow",
+      "rows": 366,
+      "return_mae": 0.17936653875323522,
+      "return_rmse": 0.23049647837677847,
+      "mae_skill_vs_no_change": -0.20645887303429067,
+      "rmse_skill_vs_no_change": -0.20803056373688245,
+      "mean_mae_improvement_95ci": [
+        -0.0518457797157009,
+        -0.007907877936792693
+      ],
+      "multiclass_brier": 0.7441205563067059,
+      "brier_skill_vs_train_prior": -0.2081582229421277,
+      "all_origin_accuracy": 0.4808743169398907,
+      "actual_class_counts": {
+        "1": 203,
+        "0": 105,
+        "2": 58
+      },
+      "screen_price_pass": false,
+      "promotion": "not_authorized_by_screen"
+    },
+    {
+      "horizon": 30,
+      "candidate": "ridge_price",
+      "rows": 366,
+      "return_mae": 0.18802585841532102,
+      "return_rmse": 0.2320620779401592,
+      "mae_skill_vs_no_change": -0.2647033656435638,
+      "rmse_skill_vs_no_change": -0.21623586099979986,
+      "mean_mae_improvement_95ci": [
+        -0.05442504256382687,
+        -0.025735561124192775
+      ],
+      "multiclass_brier": 0.6128769144217245,
+      "brier_skill_vs_train_prior": 0.004929674990981958,
+      "all_origin_accuracy": 0.5437158469945356,
+      "actual_class_counts": {
+        "1": 203,
+        "0": 105,
+        "2": 58
+      },
+      "screen_price_pass": false,
+      "promotion": "not_authorized_by_screen"
+    }
+  ],
+  "source_ablation": [
+    {
+      "horizon": 7,
+      "matched_origins": 389,
+      "flow_mae_improvement": -0.001117508505709443,
+      "95ci": [
+        -0.005337452292948989,
+        0.002956503057476054
+      ]
+    },
+    {
+      "horizon": 30,
+      "matched_origins": 366,
+      "flow_mae_improvement": 0.01368226121610729,
+      "95ci": [
+        0.0028116959343811943,
+        0.025071015925497844
+      ]
+    }
+  ],
+  "source_hashes": {
+    "eth_master_daily.csv": "f94084cb601f69e15dacf9bd2078f05b6ffb16caa6f0e4a26e8aa966c99d6e80",
+    "lead_signal_daily.csv.gz": "a598bbd3fedfb6717017a56ea6a168e91e3a35215d5aba132b4080a05f679128"
+  }
+}

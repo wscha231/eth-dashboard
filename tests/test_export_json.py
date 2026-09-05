@@ -57,6 +57,7 @@ def _seed_forecast(conn, *, input_ts: str = "2026-05-20 00:00:00") -> int:
             "UP",
         ),
     )
+    conn.execute("INSERT INTO forecasts (run_id,horizon_days,forecast_target_timestamp_utc) VALUES (?,30,'2026-06-19T00:00:00Z')", (run_id,))
     conn.commit()
     return int(run_id)
 
@@ -74,7 +75,7 @@ def test_export_health_reports_bootstrap_when_live_history_is_empty(temp_db) -> 
     assert health["components"]["live_forecast"]["status"] == "ok"
     assert health["components"]["resolved_history"]["status"] == "bootstrap"
     assert health["db_counts"]["forecast_runs"] == 1
-    assert health["db_counts"]["forecasts"] == 1
+    assert health["db_counts"]["forecasts"] == 2
     assert health["db_counts"]["actuals"] == 0
     assert "7" in health["latest_forecasts_by_horizon"]
 
@@ -112,7 +113,7 @@ def test_export_health_reports_resolved_history(temp_db) -> None:
 
     assert health["db_counts"]["actuals"] == 1
     assert health["latest_resolved_by_horizon"]["7"]["resolved_count"] == 1
-    assert health["latest_resolved_by_horizon"]["7"]["latest_resolved_target_utc"] == "2026-05-27 00:00:00"
+    assert health["latest_resolved_by_horizon"]["7"]["latest_resolved_target_utc"] == "2026-05-27T00:00:00Z"
 
 
 def test_export_history_carries_live_chart_selection_fields(temp_db) -> None:
