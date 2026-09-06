@@ -60,8 +60,9 @@ def test_daily_workflows_refresh_sources_settle_archives_and_verify_new_site() -
     assert "forecast_site/public/history.json" in workflow
     hybrid = _read(".github/workflows/hybrid_daily.yml")
     assert '"Daily ETH source refresh"' in hybrid
-    assert '"Hybrid ETH full replay"' in hybrid
-    assert "scripts/run_hybrid_forecast.py --daily" in hybrid
+    assert "scripts/settle_retired_hybrid.py" in hybrid
+    assert "scripts/run_hybrid_forecast.py --daily" not in hybrid
+    assert "  schedule:" not in _read(".github/workflows/hybrid_replay.yml")
     assert "bash scripts/publish_hybrid.sh" in hybrid
     assert "group: daily-forecast" in hybrid
     publisher = _read("scripts/publish_hybrid.sh")

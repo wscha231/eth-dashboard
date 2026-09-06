@@ -168,6 +168,8 @@ def test_new_live_record_is_immutable_and_never_backdates_replay(tmp_path,monkey
     again=publish_issued(changed,master,tmp_path/'issued.db',now=now)
     assert first['prospective']['issued']==2 and again['prospective']['new_issues']==0
     assert first['horizons']['30']['current']==again['horizons']['30']['current']
+    retired=publish_issued(copy.deepcopy(payload),master,tmp_path/'issued.db',now=now+pd.Timedelta(days=1),issue_new=False)
+    assert retired['prospective']['issued']==2 and retired['prospective']['new_issues']==0
     with pytest.raises(ValueError,match='backdate'):publish_issued(copy.deepcopy(payload),master,tmp_path/'late.db',now=now+pd.Timedelta(days=1))
     conn=sqlite3.connect(tmp_path/'issued.db')
     with pytest.raises(sqlite3.IntegrityError):conn.execute('DELETE FROM issued')

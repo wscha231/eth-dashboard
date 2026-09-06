@@ -257,6 +257,8 @@
       <details class="panel" style="margin-top:16px"><summary>실제로 발행한 예측과 결과</summary><p class="small" id="event-prospective-status"></p><div id="event-ledger" style="overflow-x:auto"></div></details>
     </section>
 
+    <details id="hybrid-archive" class="panel" style="margin-top:22px">
+    <summary>이전 7·30일 가격 모델 · 비교 보관</summary>
     <section id="hybrid-system" hidden>
       <div class="section-heading">
         <div><p class="eyebrow">CatBoost + patch Transformer</p><h2 id="hybrid-title">7 / 30-day optimized forecasts</h2><p id="hybrid-updated"></p></div>
@@ -278,6 +280,7 @@
       <details class="panel" style="margin-top:18px"><summary>New-model issued record — fixed when published</summary><p class="small" id="hybrid-issued-status"></p><div id="hybrid-issued" style="overflow-x:auto"></div></details>
     </section>
 
+    </details>
     <details class="panel" id="legacy-archive" open style="margin-top:22px">
       <summary>Previous model archive · retired from the active candidate roster</summary>
       <p class="small">Earlier forecasts and evaluations are retained for comparison. The CatBoost + Transformer panel above is the current model family.</p>
@@ -976,6 +979,7 @@ function refreshHybridCharts() {
 function renderHybrid(payload) {
   if(payload?.schema_version!==1 || !payload.horizons?.["7"]?.current || !payload.horizons?.["30"]?.current)return;
   hybridPayload=payload;$("hybrid-system").hidden=false;$("legacy-archive").open=false;
+  $("hybrid-archive").ontoggle=()=>Object.values(charts).forEach(c=>c.resize?.());
   $("model-phase").textContent="CatBoost + Transformer";$("run-status").textContent="daily saved-model forecast";$("eval-status").textContent="live edge under evaluation";
   $("ref-price").textContent=fmtUSD(payload.horizons["7"].current.reference_price);
   $("generated-at").textContent=`Forecast origin ${payload.horizons["7"].current.origin} UTC`;

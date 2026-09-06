@@ -127,7 +127,8 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
 
 
 def forecast_record(features, slot, h, bundle):
-    pred = predict_models(bundle["model"], features.loc[[slot]])[bundle["choice"]]
+    candidates=predict_models(bundle["model"], features.loc[[slot]])
+    pred = candidates[bundle["choice"]]
     ref = float(features.loc[slot, "reference_price"])
     barrier = float(max(np.log1p(HORIZONS[h]), features.loc[slot,"sigma"]*np.sqrt(h)))
     return {"slot": slot.isoformat(), "input_cutoff": slot.isoformat(), "available_at": features.loc[slot,"available_at"].isoformat(),
@@ -139,6 +140,13 @@ def forecast_record(features, slot, h, bundle):
             "alert_thresholds": bundle["alert_thresholds"], "model_version": bundle["model_version"],
             "training_target_end": bundle["training_target_end"], "validation_target_end": bundle["validation_target_end"],
             "source_snapshot": bundle["source_snapshot"], "runtime_hash": bundle["runtime_hash"]}
+
+
+def baseline_record(features,slot,bundle):
+    baseline=bundle['model']['baseline'];ref=float(features.loc[slot,'reference_price'])
+    return {'terminal_down_flat_up':baseline['terminal'].tolist(), 'hit_up':float(baseline['path'][0]),
+            'hit_down':float(baseline['path'][1]), 'price_quantiles':(ref*np.exp(baseline['quantiles'])).tolist(),
+            'alert_thresholds':bundle['alert_thresholds_by_model']['climatology']}
 
 
 def daily(root, *, horizons=DEFAULT_HORIZONS, now=None):
@@ -155,6 +163,7 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None):
             cutoff = slot.replace(day=1, hour=0)
             bundle, _ = obtain_bundle(root, bars, features, None, cutoff, h, allow_fit=False)
             record = forecast_record(features, slot, h, bundle)
+            record['baseline']=baseline_record(features,slot,bundle)
             # Link every individual inference to the actual complete source snapshot.
             record["input_snapshot"] = source_hash(bars, slot+pd.Timedelta(hours=1))
             current_records.append(issue(root, record, now=current))

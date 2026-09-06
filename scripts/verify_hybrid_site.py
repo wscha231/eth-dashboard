@@ -19,7 +19,7 @@ def main():
             if expected and actual.get('generated_at')!=expected['generated_at']:raise ValueError('Deployment timestamp mismatch')
             if expected and actual.get('runtime_hash')!=expected['runtime_hash']:raise ValueError('Deployment code fingerprint mismatch')
             if 'id="hybrid-system"' not in html:raise ValueError('Replacement chart not deployed')
-            for h in ('7','30'):
+            for h in (() if actual.get('retired_from_issuance') else ('7','30')):
                 origin=datetime.fromisoformat(actual['horizons'][h]['current']['origin']).replace(tzinfo=timezone.utc)
                 if (datetime.now(timezone.utc)-origin).total_seconds()>3600*args.max_age_hours:raise ValueError('Stale hybrid origin')
             print('hybrid deployment verified:',actual['generated_at'],{h:d['matched_origins'] for h,d in actual['horizons'].items()})

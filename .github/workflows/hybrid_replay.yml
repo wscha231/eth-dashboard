@@ -1,10 +1,6 @@
 name: Hybrid ETH full replay
 on:
-  push:
-    branches: [main]
-    paths: ["hybrid_pipeline/**", "scripts/run_hybrid_forecast.py", "scripts/publish_hybrid.sh", "scripts/verify_hybrid_site.py", "requirements-hybrid.txt", ".github/workflows/hybrid_replay.yml"]
-  schedule:
-    - cron: "13 7 * * 0"
+  # Retained only for an explicitly requested historical comparison.
   workflow_dispatch:
 permissions:
   contents: write

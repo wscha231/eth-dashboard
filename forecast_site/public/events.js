@@ -64,7 +64,7 @@
     const ret=key=>points.map(p=>Math.expm1(p[key])*100);
     chart('event-price-chart',dates,[{label:'실현 수익률',data:ret('return'),borderColor:'#eef5e7',pointRadius:0,borderWidth:1.5},{label:'예측 중앙값',data:ret('q50'),borderColor:'#baff70',pointRadius:0,borderWidth:1.5},{label:'하단 10%',data:ret('q10'),borderColor:'#677e55',pointRadius:0,borderWidth:1},{label:'상단 90%',data:ret('q90'),borderColor:'#677e55',backgroundColor:'rgba(150,200,110,.08)',fill:'-1',pointRadius:0,borderWidth:1}],'기준 가격 대비 수익률 (%)');
     const forward=payload.prospective?.[selectedHorizon] || {};
-    el('event-prospective-status').textContent=`실제 발행 ${forward.issued||0}건 · 정산 ${forward.resolved||0}건 · 대기 ${forward.pending||0}건. 겹치는 시간대의 예측은 독립적인 성공 사례가 아닙니다.`;
+    el('event-prospective-status').textContent=`직전 공개분까지 발행 ${forward.issued||0}건 · 정산 ${forward.resolved||0}건 · 대기 ${forward.pending||0}건 · 겹치지 않는 정산 구간 ${forward.nonoverlap_resolved||0}개. ${forward.performance_watch==='review_required'?'기준 모델보다 성능이 낮아 검토가 필요합니다.':'실전 성능 검증 중입니다.'}`;
   }
   function renderLedger() {
     const rows=(payload.recent_issued || []).slice().reverse();

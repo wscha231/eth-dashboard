@@ -1,9 +1,7 @@
 name: ETH site freshness watchdog
 
 on:
-  schedule:
-    # Check after both daily attempts; dispatch at most one recovery while idle.
-    - cron: "43 8 * * *"
+  # Replaced by event_watchdog.yml; available for explicit archive diagnostics.
   workflow_dispatch:
 
 permissions:

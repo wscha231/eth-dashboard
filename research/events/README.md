@@ -107,6 +107,8 @@ python -m pytest tests -q
 
 This public beta deliberately contains only research forecasts. No paid claim,
 subscription charge, private API key or personal subscriber data is published.
+The earlier daily CatBoost + patch Transformer is retired from automated issuance.
+Its daily settlement continues; its full replay is manual-only and charts are archived.
 The following require further evidence or provider configuration, and must not be
 represented as deployed production features:
 

@@ -6,12 +6,12 @@ from research_pipeline.forward import connect, save_issue, settle, nonoverlap_co
 from hybrid_pipeline.protocol import PROTOCOL_HASH
 
 
-def publish_issued(payload, master, path, *, now=None):
+def publish_issued(payload, master, path, *, now=None, issue_new=True):
     import json
     current=utc_timestamp(now);conn=connect(path)
     revised=settle(conn,master,source_hash=payload['source_hashes']['master'],now=current)
     saved=0
-    for h,d in payload['horizons'].items():
+    for h,d in (payload['horizons'].items() if issue_new else []):
         origin=utc_timestamp(d['current']['origin'])
         if origin != current.floor('D'):
             raise ValueError('Do not backdate a historical replay as a live forecast')

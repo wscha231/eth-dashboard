@@ -75,6 +75,7 @@ def report_replay(rows, horizon):
             independent.append(row);previous_end=pd.Timestamp(row['target_end'])
     return {"horizon_hours": horizon, "status": "retrospective_research", "models": models,
             "first_origin": min(common), "last_origin": max(common), "common_origins": len(common),
+            "eligible_calendar_coverage":len(common)/((pd.Timestamp(max(common))-pd.Timestamp(min(common))).days+1),
             "yearly_selected": years,
             "nonoverlapping_selected": metrics(independent),
             "paired_event_brier": paired_block_interval(selected.to_dict("records"), baseline.to_dict("records"), horizon),
@@ -89,16 +90,31 @@ def prospective_report(records):
     report = {}
     for horizon in sorted({r["horizon_seconds"]//3600 for r in records}):
         issued = [r for r in records if r["horizon_seconds"] == horizon*3600]
-        rows = []
+        rows = []; paired_selected=[];baseline_rows=[]; independent_end=None;independent_count=0
         for r in issued:
             if r["outcome"] is None:
                 continue
             q = np.log(np.asarray(r["price_quantiles"])/r["reference_price"])
-            rows.append({**r["outcome"], "p_down": r["terminal_down_flat_up"][0],
+            row={**r["outcome"], "slot":r['slot'],"target_end":r['target_end'],"p_down": r["terminal_down_flat_up"][0],
                          "p_flat": r["terminal_down_flat_up"][1], "p_up": r["terminal_down_flat_up"][2],
                          "hit_up": r["hit_up"], "hit_down": r["hit_down"],
                          "threshold_up": r["alert_thresholds"]["up"], "threshold_down": r["alert_thresholds"]["down"],
-                         "q10": q[0], "q50": q[1], "q90": q[2]})
+                         "q10": q[0], "q50": q[1], "q90": q[2]}
+            rows.append(row)
+            if r.get('baseline'):
+                b=r['baseline'];bq=np.log(np.asarray(b['price_quantiles'])/r['reference_price'])
+                baseline_rows.append({**row,'p_down':b['terminal_down_flat_up'][0],'p_flat':b['terminal_down_flat_up'][1],
+                                      'p_up':b['terminal_down_flat_up'][2],'hit_up':b['hit_up'],'hit_down':b['hit_down'],
+                                      'threshold_up':b.get('alert_thresholds',{}).get('up',1.),'threshold_down':b.get('alert_thresholds',{}).get('down',1.),
+                                      'q10':bq[0],'q50':bq[1],'q90':bq[2]})
+                paired_selected.append(row)
+                if independent_end is None or pd.Timestamp(r['slot'])>=independent_end:
+                    independent_count+=1;independent_end=pd.Timestamp(r['target_end'])
+        chosen_metrics=metrics(paired_selected);reference_metrics=metrics(baseline_rows)
+        degraded=bool(independent_count>=20 and chosen_metrics.get('event_brier',0)>1.1*reference_metrics.get('event_brier',float('inf')))
         report[str(horizon)] = {"issued": len(issued), "resolved": len(rows), "pending": len(issued)-len(rows),
-                                "metrics": metrics(rows), "promotion": "research_only"}
+                                "metrics": metrics(rows), "baseline": reference_metrics,
+                                "paired_selected":chosen_metrics,"nonoverlap_resolved":independent_count,
+                                "performance_watch":'review_required' if degraded else 'insufficient_evidence' if independent_count<20 else 'within_watch_threshold',
+                                "promotion": "research_only"}
     return report
