@@ -25,7 +25,7 @@
       const stale=Date.now()-new Date(f.input_cutoff).getTime()>100*60*1000;
       text(card,'p',`${horizonName(f.horizon_seconds/3600)} 전망 · ${stale?'갱신 지연':'실제 발행 기록'}`,'eyebrow');
       text(card,'h2',`${money(f.price_quantiles[1])}`);
-      text(card,'p',`만기 가격 80% 범위 ${money(f.price_quantiles[0])} – ${money(f.price_quantiles[2])}`);
+      text(card,'p',`만기 가격 명목 80% 범위 ${money(f.price_quantiles[0])} – ${money(f.price_quantiles[2])}`);
       const bands=document.createElement('div');bands.className='event-probabilities';
       text(bands,'span',`상승 도달 ${pct(f.hit_up)}`,'event-up');
       text(bands,'span',`하락 도달 ${pct(f.hit_down)}`,'event-down');card.appendChild(bands);
@@ -33,6 +33,13 @@
       text(card,'p',`만기 상승 ${pct(f.terminal_down_flat_up[2])} · 중립 ${pct(f.terminal_down_flat_up[1])} · 하락 ${pct(f.terminal_down_flat_up[0])}`,'small');
       text(card,'p',`기준 ${money(f.reference_price)} · ${local(f.input_cutoff)}\n관측 시작 ${local(f.window_start)} → 만기 ${local(f.target_end)}`,'small');
       text(card,'p',`${names[f.selected_model] || f.selected_model} · 발행 ${local(f.issued_at)}`,'small');
+      const research=replay?.horizons?.[String(f.horizon_seconds/3600)];
+      const chosen=research?.models?.find(m=>m.model==='selected');
+      const baseline=research?.models?.find(m=>m.model==='climatology');
+      if(chosen && baseline?.event_brier) {
+        const skill=1-chosen.event_brier/baseline.event_brier;
+        text(card,'p',skill>0?`과거 사건 확률 오차 ${pct(skill)} 개선 · 실전 검증 중`:'과거 사건 확률 오차가 기준보다 큽니다 · 연구용 참고치',skill>0?'small':'notice');
+      }
       el('event-current').appendChild(card);
     });
     if(!current.length)text(el('event-current'),'p','새 예측을 발행할 완전한 데이터 또는 검증된 월별 모델을 기다리고 있습니다. 과거 발행 기록은 아래에서 확인할 수 있습니다.','notice');
@@ -55,7 +62,7 @@
     const edge=base?.event_brier ? 1-sel.event_brier/base.event_brier : null;
     const confidence=result.paired_event_brier;
     el('event-replay-status').textContent=`${result.first_origin.slice(0,10)} – ${result.last_origin.slice(0,10)} · 공통 ${result.common_origins.toLocaleString()}개 기점 · 사건 확률 오차 개선 ${pct(edge)} · ${confidence?.upper95<0?'과거 구간의 개선 신호가 있습니다.':'기준 빈도 대비 일관된 개선이 확인되지 않았습니다.'} 실제 발행 성과는 별도로 축적합니다.`;
-    table('event-model-comparison',['모델','사건 Brier ↓','상승 재현율','상승 오경보율','하락 재현율','가격 오차 개선','80% 범위 포함률'],result.models.map(m=>[names[m.model]||m.model,m.event_brier.toFixed(4),pct(m.up.recall),pct(m.up.false_positive_rate),pct(m.down.recall),pct(m.mae_skill),pct(m.coverage80)]));
+    table('event-model-comparison',['모델','사건 Brier ↓','상승 재현율','상승 오경보율','하락 재현율','하락 오경보율','가격 오차 개선','80% 범위 포함률'],result.models.map(m=>[names[m.model]||m.model,m.event_brier.toFixed(4),pct(m.up.recall),pct(m.up.false_positive_rate),pct(m.down.recall),pct(m.down.false_positive_rate),pct(m.mae_skill),pct(m.coverage80)]));
     const all=result.points || [],last=all.length ? new Date(all.at(-1).slot).getTime() : 0;
     const points=all.filter(p=>selectedPeriod==='all'||new Date(p.slot).getTime()>=last-365*86400000);
     const dates=points.map(p=>p.slot.slice(0,10));
@@ -88,7 +95,7 @@
       if(state)el('event-regime').textContent=`현재 상태: ${{up:'상승 움직임',down:'하락 움직임',range:'뚜렷한 방향 없음'}[state.state]} · 최근 24시간 ${pct(state.trailing_24h_return)} · 변동성 ${state.volatility_ratio_24h_30d.toFixed(1)}배 (최근 30일 대비). 이미 관측한 움직임을 요약한 값입니다.`;
       if(payload.current?.length){el('ref-price').textContent=money(payload.current[0].reference_price);el('generated-at').textContent=`ETH-USD 기준 ${local(payload.current[0].input_cutoff)}`;}
       if(!replay || replay.generated_at!==payload.replay_generated_at){const r=await fetch('signals_replay.json');if(r.ok)replay=await r.json();}
-      renderResearch();
+      renderCards();renderResearch();
     } catch (_) {
       el('event-status').textContent='새 예측 자료 확인 중';
       el('event-updated').textContent='새 시간별 데이터의 발행을 확인할 수 없습니다. 아래의 이전 기록은 그대로 유지됩니다.';

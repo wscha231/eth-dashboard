@@ -170,6 +170,16 @@ def test_new_live_record_is_immutable_and_never_backdates_replay(tmp_path,monkey
     assert first['horizons']['30']['current']==again['horizons']['30']['current']
     retired=publish_issued(copy.deepcopy(payload),master,tmp_path/'issued.db',now=now+pd.Timedelta(days=1),issue_new=False)
     assert retired['prospective']['issued']==2 and retired['prospective']['new_issues']==0
+    # A later settlement uses the newly received truth, while retaining issue-time provenance.
+    updated_master=master.copy()
+    target_day=pd.Timestamp(first['horizons']['7']['current']['target']).tz_localize(None)-pd.Timedelta(days=1)
+    updated_master.loc[target_day,'eth_close']=123.45
+    settled=publish_issued(copy.deepcopy(payload),updated_master,tmp_path/'issued.db',
+                          now=now+pd.Timedelta(days=8),issue_new=False,settlement_source_hash='new-truth')
+    assert settled['prospective']['resolved']==1
+    with sqlite3.connect(tmp_path/'issued.db') as audit:
+        assert audit.execute('SELECT price,source_hash FROM actual_revisions').fetchone()==(123.45,'new-truth')
+        assert json.loads(audit.execute('SELECT payload FROM issued LIMIT 1').fetchone()[0])['source_hashes']['master']=='fixture'
     with pytest.raises(ValueError,match='backdate'):publish_issued(copy.deepcopy(payload),master,tmp_path/'late.db',now=now+pd.Timedelta(days=1))
     conn=sqlite3.connect(tmp_path/'issued.db')
     with pytest.raises(sqlite3.IntegrityError):conn.execute('DELETE FROM issued')

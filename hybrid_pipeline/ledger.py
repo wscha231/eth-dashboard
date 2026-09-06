@@ -6,10 +6,10 @@ from research_pipeline.forward import connect, save_issue, settle, nonoverlap_co
 from hybrid_pipeline.protocol import PROTOCOL_HASH
 
 
-def publish_issued(payload, master, path, *, now=None, issue_new=True):
+def publish_issued(payload, master, path, *, now=None, issue_new=True, settlement_source_hash=None):
     import json
     current=utc_timestamp(now);conn=connect(path)
-    revised=settle(conn,master,source_hash=payload['source_hashes']['master'],now=current)
+    revised=settle(conn,master,source_hash=settlement_source_hash or payload['source_hashes']['master'],now=current)
     saved=0
     for h,d in (payload['horizons'].items() if issue_new else []):
         origin=utc_timestamp(d['current']['origin'])
