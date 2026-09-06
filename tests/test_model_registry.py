@@ -196,7 +196,8 @@ def test_model_eval_workflows_enable_challengers_but_daily_forecast_does_not() -
     assert "predict_latest.py" not in daily_workflow
     assert "persist_forecast" not in daily_workflow
     hybrid_daily = Path(".github/workflows/hybrid_daily.yml").read_text(encoding="utf-8")
-    assert "scripts/run_hybrid_forecast.py --daily" in hybrid_daily
+    assert "scripts/settle_retired_hybrid.py" in hybrid_daily
+    assert "scripts/run_hybrid_forecast.py --daily" not in hybrid_daily
     assert 'ETH_ENABLE_COMPACT_H30_REGRESSOR: "1"' in eval_workflow
     assert "ETH_ENABLE_COMPACT_H30_REGRESSOR" not in daily_workflow
 

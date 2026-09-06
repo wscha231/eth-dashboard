@@ -1,0 +1,141 @@
+name: ETH hourly event research
+on:
+  pull_request:
+    branches: [main]
+    paths: ["signal_pipeline/**", "scripts/run_event_forecast.py", "requirements-events.txt", "research/events/**", "requirements-foundations.txt", ".github/workflows/event_research.yml"]
+  push:
+    branches: [main]
+    paths: ["signal_pipeline/**", "scripts/run_event_forecast.py", "requirements-events.txt", "research/events/**", "requirements-foundations.txt", ".github/workflows/event_research.yml"]
+  schedule:
+    - cron: "13 7 * * 0"
+    - cron: "23 0 1 * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: event-research-${{ github.event.pull_request.number || 'main' }}
+  cancel-in-progress: false
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      run_foundations: ${{ steps.changed.outputs.foundations }}
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Avoid repeating unchanged foundation diagnostics
+        id: changed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let needed=context.eventName==='workflow_dispatch';
+            if(context.eventName==='pull_request') {
+              needed=true;
+              if(context.payload.before) {
+                const {data}=await github.rest.repos.compareCommits({...context.repo,base:context.payload.before,head:context.payload.pull_request.head.sha});
+                needed=(data.files||[]).some(f=>/^(research\/events\/foundation_candidates\.py|requirements-foundations\.txt|signal_pipeline\/(data|models)\.py)$/.test(f.filename));
+              }
+              if(!needed)for(const name of ['event-foundation-chronos2','event-foundation-tirex2']) {
+                const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name,per_page:20});
+                if(!data.artifacts.some(a=>!a.expired && ['main',context.payload.pull_request.head.ref].includes(a.workflow_run?.head_branch)))needed=true;
+              }
+            }
+            core.setOutput('foundations',String(needed));
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-events.txt
+      - run: python -m pip install -r requirements-events.txt pytest
+      - run: python -m pytest tests/test_event_pipeline.py -q
+      - name: Find previous successful research state
+        id: previous
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-research-state',per_page:100});
+            const allowed=['main',context.payload.pull_request?.head?.ref].filter(Boolean);
+            if(context.eventName==='push') {
+              const {data:prs}=await github.rest.repos.listPullRequestsAssociatedWithCommit({...context.repo,commit_sha:context.sha});
+              for(const pr of prs)if(pr.merged_at && pr.merge_commit_sha===context.sha && pr.head.repo?.full_name===`${context.repo.owner}/${context.repo.repo}`)allowed.push(pr.head.ref);
+            }
+            const artifact=data.artifacts.find(a=>!a.expired && allowed.includes(a.workflow_run?.head_branch));
+            if(artifact)core.setOutput('run',artifact.workflow_run.id);
+      - uses: actions/download-artifact@v4
+        if: steps.previous.outputs.run != ''
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.previous.outputs.run }}
+          name: event-research-state
+          path: lake/signals
+      - name: Collect USD hourly history and replay all six horizons
+        run: python scripts/run_event_forecast.py --backfill --replay --horizons 6 24 72 168 336 720 --budget-seconds 1500
+      - name: Checkpoint databases consistently
+        if: always()
+        run: |
+          python - <<'PY'
+          import pathlib,sqlite3
+          for p in pathlib.Path('lake/signals').glob('*.db'):
+              with sqlite3.connect(p) as c:c.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event-research-state
+          path: lake/signals/
+          compression-level: 9
+          retention-days: 30
+      - name: Write measured research result
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path('lake/signals/replay.json')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              if p.exists():
+                  d=json.loads(p.read_text());f.write('Hourly event research (retrospective, not live evidence)\n\n')
+                  for h,v in d['horizons'].items():
+                      f.write(f"- {h}h: {v.get('common_origins',0)} common origins\n")
+                      print(json.dumps({'horizon':h,'common_origins':v.get('common_origins',0),'models':v['models'],'paired_event_brier':v.get('paired_event_brier')}),flush=True)
+                  f.write('\n'+json.dumps(d['runtime']))
+              else:f.write('No complete replay published. Inspect source status and retained checkpoints.\n')
+          PY
+  foundations:
+    needs: replay
+    if: ${{ needs.replay.outputs.run_foundations == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate: [chronos2, tirex2]
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-foundations.txt
+      - run: python -m pip install -r requirements-foundations.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: event-research-state
+          path: lake/signals
+      - name: Measure fixed official checkpoint on predeclared diagnostic origins
+        run: timeout 780 python research/events/foundation_candidates.py --candidate ${{ matrix.candidate }} --max-origins 100 --budget-seconds 600
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event-foundation-${{ matrix.candidate }}
+          path: lake/signals/foundation_${{ matrix.candidate }}.json
+          retention-days: 30
