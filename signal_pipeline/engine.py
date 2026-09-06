@@ -12,7 +12,7 @@ from .data import build_features, feature_columns, read_bars, utc
 from .evaluate import prospective_report, report_replay
 from .ledger import history, issue, settle
 from .models import labels, predict_models, train_bundle
-from .protocol import DEFAULT_HORIZONS, HORIZONS, PROTOCOL_HASH, SPEC, digest, runtime_hash
+from .protocol import DEFAULT_HORIZONS, HORIZONS, PROTOCOL_HASH, SPEC, digest, runtime_hash, training_hash
 
 
 def atomic_json(path, payload):
@@ -30,7 +30,21 @@ def source_hash(bars, cutoff):
 
 def obtain_bundle(root, bars, features, outcomes, cutoff, horizon, *, allow_fit):
     root = Path(root); (root/"models").mkdir(parents=True, exist_ok=True)
-    code = runtime_hash(); source = source_hash(bars, cutoff)
+    if not allow_fit:
+        manifest_path=root/"active.json"
+        if not manifest_path.exists():raise ValueError("active research release unavailable")
+        manifest=json.loads(manifest_path.read_text()).get(str(horizon),{})
+        name=manifest.get("file","")
+        if not name or Path(name).name!=name:raise ValueError("invalid checkpoint manifest")
+        path=root/"models"/name
+        if not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest()!=manifest.get("sha256"):
+            raise ValueError("checkpoint integrity failure")
+        bundle=joblib.load(path)
+        if (bundle["protocol_hash"]!=PROTOCOL_HASH or bundle["training_hash"]!=training_hash()
+                or bundle["fit_cutoff"]!=cutoff.isoformat()):
+            raise ValueError("current monthly checkpoint unavailable; replay required")
+        return bundle,False
+    code = training_hash(); source = source_hash(bars, cutoff)
     key = digest({"protocol": PROTOCOL_HASH, "code": code, "source": source, "cutoff": str(cutoff), "h": horizon})
     path = root/"models"/f"h{horizon}_{cutoff.strftime('%Y-%m')}_{key[:16]}.joblib"
     if path.exists():
@@ -38,7 +52,7 @@ def obtain_bundle(root, bars, features, outcomes, cutoff, horizon, *, allow_fit)
     if not allow_fit:
         raise ValueError("current monthly checkpoint unavailable; replay/retrain required")
     bundle = train_bundle(features, outcomes, cutoff, horizon)
-    bundle.update(model_version=key, runtime_hash=code, protocol_hash=PROTOCOL_HASH, source_snapshot=source)
+    bundle.update(model_version=key, runtime_hash=runtime_hash(), training_hash=code, protocol_hash=PROTOCOL_HASH, source_snapshot=source)
     temporary = path.with_suffix(".tmp"); joblib.dump(bundle, temporary, compress=3); temporary.replace(path)
     return bundle, True
 
@@ -53,7 +67,7 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
     if start: months = months[months >= utc(start)]
     if end: months = months[months <= utc(end)]
     (root/"replay").mkdir(exist_ok=True)
-    reports = {}; fits = 0; cached = 0; failures = []
+    reports = {}; fits = 0; cached = 0; used_checkpoints=set()
     for h in horizons:
         outcomes = labels(bars, features, h); all_rows = []
         for cutoff in months:
@@ -75,12 +89,14 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                     continue
                 raise
             fits += fitted; cached += not fitted
+            used_checkpoints.add(f"h{h}_{cutoff.strftime('%Y-%m')}_{bundle['model_version'][:16]}.joblib")
             if not len(targets):
                 continue
             predictions = predict_models(bundle["model"], features.loc[targets])
             predictions["selected"] = predictions[bundle["choice"]]
             rows = []
             for name, pred in predictions.items():
+                thresholds=bundle["alert_thresholds_by_model"][bundle["choice"] if name=="selected" else name]
                 for j, slot in enumerate(targets):
                     y = outcomes.loc[slot]
                     rows.append({"slot": slot.isoformat(), "target_end": y.target_end.isoformat(), "horizon_hours": h,
@@ -92,7 +108,7 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                         "p_flat": float(pred["terminal"][j,1]), "p_up": float(pred["terminal"][j,2]),
                         "hit_up": float(pred["path"][j,0]), "hit_down": float(pred["path"][j,1]),
                         "q10": float(pred["quantiles"][j,0]), "q50": float(pred["quantiles"][j,1]), "q90": float(pred["quantiles"][j,2]),
-                        "threshold_up": bundle["alert_thresholds"]["up"], "threshold_down": bundle["alert_thresholds"]["down"]})
+                        "threshold_up": thresholds["up"], "threshold_down": thresholds["down"]})
             all_rows.extend(rows)
             print(f"replay h={h} month={cutoff:%Y-%m} origins={len(targets)} fit={fitted}", flush=True)
         reports[str(h)] = report_replay(all_rows, h)
@@ -102,6 +118,11 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                "runtime": {"seconds": time.monotonic()-started, "new_monthly_fits": fits, "cached_months": cached},
                "claims": "Exploratory historical reconstruction. No prospective superiority established."}
     atomic_json(root/"replay.json", payload)
+    # Prior protocol artifacts remain in the previous immutable research release.
+    # Don't upload obsolete code families on every weekly refresh.
+    for h in horizons:
+        for p in (root/"models").glob(f"h{h}_*.joblib"):
+            if p.name not in used_checkpoints:p.unlink()
     return payload
 
 
@@ -140,12 +161,22 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None):
         except ValueError as exc:
             errors.append({"horizon": h, "reason": str(exc)})
     records = history(root)
+    regime=None
+    if ready:
+        f=features.loc[slot]
+        strength=float(f.eth_ret_24/max(f.eth_vol_720*np.sqrt(24),1e-8))
+        regime={"trailing_24h_return":float(np.expm1(f.eth_ret_24)),
+                "volatility_ratio_24h_30d":float(f.eth_vol_24/max(f.eth_vol_720,1e-8)),
+                "trend_strength":strength,"state":"up" if strength>1 else "down" if strength< -1 else "range",
+                "meaning":"past-only current-state detection, not a prediction of an unseen turning point"}
     replay_payload = json.loads((root/"replay.json").read_text()) if (root/"replay.json").exists() else None
     source = json.loads((root/"source_status.json").read_text()) if (root/"source_status.json").exists() else None
     payload = {"schema_version": 1, "product": "ETH event research beta", "generated_at": utc().isoformat(),
                "protocol_hash": PROTOCOL_HASH, "runtime_hash": runtime_hash(), "status": "ready" if len(current_records) == len(horizons) else "delayed",
                "expected_slot": slot.isoformat(), "current": current_records, "errors": errors, "source": source,
-               "recent_issued": records[-300:], "prospective": prospective_report(records), "replay": replay_payload,
+               "current_regime":regime,
+               "recent_issued": [r for r in records if r.get("published_at")][-96:], "prospective": prospective_report(records),
+               "replay_generated_at": replay_payload["generated_at"] if replay_payload else None,
                "runtime_seconds": time.monotonic()-started, "next_expected_update": (slot+pd.Timedelta(hours=1,minutes=8)).isoformat(),
                "service_status": "public_research_beta; paid service and predictive edge not established"}
     payload["release_id"] = digest(payload)

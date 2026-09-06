@@ -20,7 +20,8 @@ SPEC = {
     "terminal": "down/flat/up at window_end using log-symmetric barrier",
     "path": "independent high/low barrier hits; both can occur; no first-hit order",
     "training_stride_hours": 6, "replay_stride_hours": 24,
-    "train_days": 730, "validation_days": 90, "embargo_hours": 1,
+    "train_days_short_long": [730,1095], "validation_days_short_long": [90,365], "embargo_hours": 1,
+    "minimum_training_rows": 700, "minimum_validation_rows": 120,
     "selection": "inner purged Brier; CatBoost/climatology blends 0,.5,1",
     "refit": "monthly; hourly inference never fits",
     "historical_status": "reconstructed research; not actual issued vintages",
@@ -40,3 +41,9 @@ def runtime_hash():
     root = Path(__file__).parent
     return hashlib.sha256(b"".join(p.name.encode() + p.read_bytes()
                                     for p in sorted(root.glob("*.py")))).hexdigest()
+
+
+def training_hash():
+    root=Path(__file__).parent
+    return hashlib.sha256(b"".join((root/name).read_bytes() for name in
+                                  ("data.py","models.py","protocol.py"))).hexdigest()

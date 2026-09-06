@@ -24,6 +24,10 @@ git worktree add --detach "$RUNNER_TEMP/hybrid-site" origin/data/daily-forecast
 cp lake/hybrid/hybrid_forecast.json "$RUNNER_TEMP/hybrid-site/forecast_site/public/hybrid_forecast.json"
 cp lake/hybrid/hybrid_predictions.csv.gz "$RUNNER_TEMP/hybrid-site/forecast_site/public/hybrid_predictions.csv.gz"
 cp forecast_site/public/index.html "$RUNNER_TEMP/hybrid-site/forecast_site/public/index.html"
+if [ -f forecast_site/public/events.js ]; then
+  cp forecast_site/public/events.js "$RUNNER_TEMP/hybrid-site/forecast_site/public/events.js"
+  git -C "$RUNNER_TEMP/hybrid-site" add forecast_site/public/events.js
+fi
 git -C "$RUNNER_TEMP/hybrid-site" add -f forecast_site/public/hybrid_forecast.json forecast_site/public/hybrid_predictions.csv.gz forecast_site/public/index.html
 if ! git -C "$RUNNER_TEMP/hybrid-site" diff --cached --quiet; then
   git -C "$RUNNER_TEMP/hybrid-site" commit -m "chore(site): publish optimized CatBoost + Transformer forecasts"

@@ -1,0 +1,36 @@
+name: ETH hourly event watchdog
+on:
+  schedule:
+    - cron: "38 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: event-watchdog
+  cancel-in-progress: false
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Independently check public timestamps and delayed status
+        id: health
+        continue-on-error: true
+        run: python scripts/verify_event_site.py --require-ready
+      - name: Request one recovery only when the existing workers are idle
+        if: steps.health.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let active=false;
+            for(const workflow_id of ['event_hourly.yml','event_research.yml']) {
+              for(const status of ['queued','in_progress']) {
+                const {data}=await github.rest.actions.listWorkflowRuns({...context.repo,workflow_id,status,branch:'main',per_page:5});
+                if(data.total_count)active=true;
+              }
+            }
+            if(active)core.notice('Recovery skipped: hourly or research worker is already active.');
+            else await github.rest.actions.createWorkflowDispatch({...context.repo,workflow_id:'event_hourly.yml',ref:'main'});
+            core.setFailed('Hourly site is delayed or stale; inspect source status and recovery run.');

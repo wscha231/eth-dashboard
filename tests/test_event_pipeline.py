@@ -8,6 +8,8 @@ import pytest
 
 from signal_pipeline.data import build_features, connect, ingest, parse_candles, read_bars, utc
 from signal_pipeline.ledger import backup, history, issue, settle
+from signal_pipeline.ledger import mark_verified
+from signal_pipeline.evaluate import prospective_report
 from signal_pipeline.models import labels, train_bundle, predict_models
 from signal_pipeline.protocol import digest
 
@@ -123,3 +125,34 @@ def test_purged_month_selection_is_unchanged_by_future_outcomes():
     pa=predict_models(a["model"],x);pb=predict_models(b["model"],x)
     for name in pa:
         for output in pa[name]: np.testing.assert_array_equal(pa[name][output],pb[name][output])
+
+
+def test_late_or_failed_publication_is_not_claimed_as_prospective(tmp_path):
+    r=record(); issue(tmp_path,r,now="2020-04-01T12:05Z")
+    assert prospective_report(history(tmp_path))=={}
+    a=history(tmp_path)[0]
+    mark_verified(tmp_path,[a["forecast_id"]],"release")  # actually verified now, years after fixture
+    assert history(tmp_path)[0]["published_at"] is not None
+    assert prospective_report(history(tmp_path))=={}
+
+
+def test_research_restore_never_replaces_actual_issued_ledger(tmp_path):
+    from scripts.event_state import merge_research
+    research=tmp_path/'research';live=tmp_path/'live';research.mkdir()
+    raw=json.dumps([[1577836800,90,110,100,105,3]]).encode()
+    with connect(research) as con:ingest(con,research,'ETH-USD',raw,'2020-01-01','2020-01-02','2020-01-01T01:05Z')
+    (research/'replay.json').write_text('{}');(research/'source_status.json').write_text('{}')
+    (research/'models').mkdir();(research/'issued.db').write_text('must never be loaded')
+    issued=issue(live,record(),now='2020-04-01T12:05Z')
+    merge_research(research,live);merge_research(research,live)
+    assert history(live)[0]['forecast_id']==issued['forecast_id']
+    assert len(read_bars(live))==1
+
+
+def test_external_release_checks_stale_delayed_or_mismatched_outputs():
+    from scripts.verify_event_site import verify
+    d={'schema_version':1,'release_id':'one','generated_at':'2020-04-01T12:08:00+00:00','status':'ready','current':[]}
+    assert verify(d,d,utc('2020-04-01T12:10Z'))
+    with pytest.raises(ValueError):verify(d,{**d,'release_id':'two'},utc('2020-04-01T12:10Z'))
+    with pytest.raises(ValueError):verify(d,d,utc('2020-04-01T14:00Z'))
+    with pytest.raises(ValueError):verify({**d,'status':'delayed'},now=utc('2020-04-01T12:10Z'),require_ready=True)

@@ -2,10 +2,10 @@ name: ETH hourly event research
 on:
   pull_request:
     branches: [main]
-    paths: ["signal_pipeline/**", "scripts/run_event_forecast.py", "requirements-events.txt", ".github/workflows/event_research.yml"]
+    paths: ["signal_pipeline/**", "scripts/run_event_forecast.py", "requirements-events.txt", "research/events/**", "requirements-foundations.txt", ".github/workflows/event_research.yml"]
   push:
     branches: [main]
-    paths: ["signal_pipeline/**", "scripts/run_event_forecast.py", "requirements-events.txt", ".github/workflows/event_research.yml"]
+    paths: ["signal_pipeline/**", "scripts/run_event_forecast.py", "requirements-events.txt", "research/events/**", "requirements-foundations.txt", ".github/workflows/event_research.yml"]
   schedule:
     - cron: "13 7 * * 0"
     - cron: "23 0 1 * *"
@@ -39,7 +39,12 @@ jobs:
         with:
           script: |
             const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-research-state',per_page:100});
-            const artifact=data.artifacts.find(a=>!a.expired && a.workflow_run?.head_branch==='main');
+            const allowed=['main',context.payload.pull_request?.head?.ref].filter(Boolean);
+            if(context.eventName==='push') {
+              const {data:prs}=await github.rest.repos.listPullRequestsAssociatedWithCommit({...context.repo,commit_sha:context.sha});
+              for(const pr of prs)if(pr.merged_at && pr.merge_commit_sha===context.sha && pr.head.repo?.full_name===`${context.repo.owner}/${context.repo.repo}`)allowed.push(pr.head.ref);
+            }
+            const artifact=data.artifacts.find(a=>!a.expired && allowed.includes(a.workflow_run?.head_branch));
             if(artifact)core.setOutput('run',artifact.workflow_run.id);
       - uses: actions/download-artifact@v4
         if: steps.previous.outputs.run != ''
@@ -64,7 +69,7 @@ jobs:
           name: event-research-state
           path: lake/signals/
           compression-level: 9
-          retention-days: 90
+          retention-days: 30
       - name: Write measured research result
         if: always()
         run: |
@@ -74,7 +79,43 @@ jobs:
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
               if p.exists():
                   d=json.loads(p.read_text());f.write('Hourly event research (retrospective, not live evidence)\n\n')
-                  for h,v in d['horizons'].items():f.write(f"- {h}h: {v.get('common_origins',0)} common origins\n")
+                  for h,v in d['horizons'].items():
+                      f.write(f"- {h}h: {v.get('common_origins',0)} common origins\n")
+                      print(json.dumps({'horizon':h,'common_origins':v.get('common_origins',0),'models':v['models'],'paired_event_brier':v.get('paired_event_brier')}),flush=True)
                   f.write('\n'+json.dumps(d['runtime']))
               else:f.write('No complete replay published. Inspect source status and retained checkpoints.\n')
           PY
+  foundations:
+    needs: replay
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate: [chronos2, tirex2]
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-foundations.txt
+      - run: python -m pip install -r requirements-foundations.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: event-research-state
+          path: lake/signals
+      - name: Measure fixed official checkpoint on predeclared diagnostic origins
+        run: timeout 780 python research/events/foundation_candidates.py --candidate ${{ matrix.candidate }} --max-origins 100 --budget-seconds 600
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event-foundation-${{ matrix.candidate }}
+          path: lake/signals/foundation_${{ matrix.candidate }}.json
+          retention-days: 30

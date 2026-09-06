@@ -69,14 +69,23 @@ def report_replay(rows, horizon):
     selected = f[f.model.eq("selected")].sort_values("slot")
     baseline = f[f.model.eq("climatology")].sort_values("slot")
     years = [{"year": int(year), **metrics(g.to_dict("records"))} for year, g in selected.groupby(pd.to_datetime(selected.slot, utc=True).dt.year)]
+    independent=[];previous_end=None
+    for row in selected.to_dict('records'):
+        if previous_end is None or pd.Timestamp(row['slot'])>=previous_end:
+            independent.append(row);previous_end=pd.Timestamp(row['target_end'])
     return {"horizon_hours": horizon, "status": "retrospective_research", "models": models,
             "first_origin": min(common), "last_origin": max(common), "common_origins": len(common),
             "yearly_selected": years,
+            "nonoverlapping_selected": metrics(independent),
             "paired_event_brier": paired_block_interval(selected.to_dict("records"), baseline.to_dict("records"), horizon),
             "points": selected.to_dict("records")}
 
 
 def prospective_report(records):
+    # Failed/delayed publication is not a timely live forecast. Keep it in the ledger,
+    # but don't invent an earlier public release time to make a retrospective hit.
+    records=[r for r in records if r.get("published_at") and
+             pd.Timestamp(r["published_at"]) < pd.Timestamp(r["window_start"])]
     report = {}
     for horizon in sorted({r["horizon_seconds"]//3600 for r in records}):
         issued = [r for r in records if r["horizon_seconds"] == horizon*3600]

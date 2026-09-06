@@ -108,10 +108,13 @@ def settle(root, bars, *, now=None):
 
 def history(root):
     with connect(root) as con:
-        rows = con.execute("""SELECT f.payload,o.payload,o.revision FROM forecasts f LEFT JOIN outcomes o
+        rows = con.execute("""SELECT f.payload,o.payload,o.revision,
+            (SELECT MIN(verified_at) FROM deliveries WHERE forecast_id=f.forecast_id)
+            FROM forecasts f LEFT JOIN outcomes o
             ON f.forecast_id=o.forecast_id AND o.revision=(SELECT MAX(revision) FROM outcomes WHERE forecast_id=f.forecast_id)
             ORDER BY f.issued_at,f.horizon_seconds""").fetchall()
-    return [{**json.loads(f), "outcome": json.loads(o) if o else None, "truth_revision": revision} for f,o,revision in rows]
+    return [{**json.loads(f), "outcome": json.loads(o) if o else None, "truth_revision": revision,
+             "published_at": published} for f,o,revision,published in rows]
 
 
 def mark_verified(root, forecast_ids, release_id):

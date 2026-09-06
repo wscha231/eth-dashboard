@@ -115,13 +115,16 @@ def train_bundle(features, outcomes, cutoff, horizon):
                            (outcomes.target_end < cutoff-pd.Timedelta(hours=1))]
     fitted = fit_models(features, outcomes, outer)
     # Alert thresholds fixed from prior validation negatives, never the replay/test month.
-    selected = predictions[choice]
-    thresholds = {}
-    for j, event in enumerate(("up", "down")):
-        negatives = selected["path"][outcomes.loc[val, event].eq(0).to_numpy(), j]
-        thresholds[event] = float(np.quantile(negatives, .95, method="higher")) if len(negatives) >= 40 else 1.
+    all_thresholds = {}
+    for name,prediction in predictions.items():
+        thresholds = {}
+        for j, event in enumerate(("up", "down")):
+            negatives = prediction["path"][outcomes.loc[val, event].eq(0).to_numpy(), j]
+            thresholds[event] = float(np.quantile(negatives, .95, method="higher")) if len(negatives) >= 40 else 1.
+        all_thresholds[name]=thresholds
     return {"model": fitted, "choice": choice, "validation_scores": scores,
             "validation_rows": len(val), "training_rows": len(outer),
             "training_target_end": outcomes.loc[outer, "target_end"].max().isoformat(),
             "validation_target_end": outcomes.loc[val, "target_end"].max().isoformat(),
-            "fit_cutoff": cutoff.isoformat(), "alert_thresholds": thresholds}
+            "fit_cutoff": cutoff.isoformat(), "alert_thresholds": all_thresholds[choice],
+            "alert_thresholds_by_model": all_thresholds}
