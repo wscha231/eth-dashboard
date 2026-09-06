@@ -40,9 +40,9 @@ jobs:
             for (const [name,key,workflow] of [['event-research-state','research','event_research.yml'],['event-hourly-state','hourly','event_hourly.yml']]) {
               const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name,per_page:100});
               for(const a of data.artifacts) {
-                if(a.expired || a.workflow_run?.head_branch!=='main')continue;
+                if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
                 const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
-                if(!run.path.endsWith('/'+workflow))continue;
+                if(!run.path.endsWith('/'+workflow) || run.event==='pull_request')continue;
                 if(key==='research' && run.conclusion!=='success')continue;
                 core.setOutput(key,a.workflow_run.id);break;
               }
