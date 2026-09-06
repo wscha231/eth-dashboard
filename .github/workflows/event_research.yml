@@ -64,7 +64,7 @@ jobs:
               const {data:prs}=await github.rest.repos.listPullRequestsAssociatedWithCommit({...context.repo,commit_sha:context.sha});
               for(const pr of prs)if(pr.merged_at && pr.merge_commit_sha===context.sha && pr.head.repo?.full_name===`${context.repo.owner}/${context.repo.repo}`)allowed.push(pr.head.ref);
             }
-            const artifact=data.artifacts.find(a=>!a.expired && allowed.includes(a.workflow_run?.head_branch));
+            const artifact=data.artifacts.find(a=>!a.expired && a.workflow_run?.head_repository_id===context.payload.repository.id && allowed.includes(a.workflow_run?.head_branch));
             if(artifact)core.setOutput('run',artifact.workflow_run.id);
       - uses: actions/download-artifact@v4
         if: steps.previous.outputs.run != ''
