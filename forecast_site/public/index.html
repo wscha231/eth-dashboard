@@ -207,6 +207,11 @@
       .metric-line, .donation-grid, .freshness-grid { grid-template-columns: 1fr; }
       .section-heading { align-items: flex-start; flex-direction: column; }
     }
+    .event-probabilities { display:flex; flex-wrap:wrap; gap:12px; font-size:1.15rem; font-weight:600; }
+    .event-up { color:#baff70; } .event-down { color:#fc8c87; }
+    #event-system select { padding:10px; margin:6px; font:inherit; }
+    #event-system table { width:100%; white-space:nowrap; }
+    #event-system td, #event-system th { padding:10px; text-align:left; }
   </style>
 </head>
 <body>
@@ -223,10 +228,10 @@
     <section class="hero">
       <div class="panel">
         <p class="eyebrow">Simple signal view</p>
-        <h1>ETH forecast, stripped to essentials.</h1>
+        <h1>이더리움, 가격과 추세의 변화를 함께.</h1>
         <p class="hero-copy">
-          Independently optimized 7-day and 30-day CatBoost + Transformer forecasts.
-          Compare their complete chronological replay with the no-change reference and follow forecasts saved before their outcomes.
+          시간별 자료로 상승·하락 가능성과 가격 범위를 확인하세요.
+          과거 백테스트와 실제 발행 후 성과를 나란히 공개하는 연구 베타입니다.
         </p>
       </div>
       <aside class="panel">
@@ -240,6 +245,20 @@
       </aside>
     </section>
 
+    <section id="event-system">
+      <div class="section-heading"><div><p class="eyebrow">ETH-USD · 시간별 데이터</p><h2>앞으로의 움직임</h2><p id="event-updated" class="small">새 예측 자료를 불러오는 중입니다.</p></div><span id="event-status" class="pill">연구 베타</span></div>
+      <p class="notice">기간 중 상승과 하락 기준에 모두 도달할 수 있어 두 확률의 합은 100%가 아닙니다. 관측은 발행 후 다음 정시부터 시작합니다. 모델의 예측 우위는 아직 검증 중입니다.</p>
+      <div class="forecast-grid" id="event-current"></div>
+      <p class="small" id="event-regime"></p>
+      <div class="section-heading"><div><h2>예측은 얼마나 맞았을까?</h2><p class="small">그때까지 확인할 수 있었던 결과로 매월 모델을 선택했습니다. 과거 자료의 수신 시각을 완전히 재현한 실전 성과는 아닙니다.</p></div></div>
+      <div class="panel" style="margin-bottom:16px"><label for="event-horizon">예측 기간 </label><select id="event-horizon"><option value="6">6시간</option><option value="24" selected>24시간</option><option value="72">3일</option><option value="168">7일</option><option value="336">14일</option><option value="720">30일</option></select> <label for="event-period">표시 구간 </label><select id="event-period"><option value="recent">최근 1년</option><option value="all">검증 전구간</option></select><p id="event-replay-status" class="small">백테스트 자료 확인 중</p></div>
+      <div class="backtest"><article class="panel"><h2>급등·급락 도달 확률</h2><div class="chart-wrap"><canvas id="event-path-chart" aria-label="상승 하락 사건 예측 확률과 실제 도달"></canvas></div></article><article class="panel"><h2>예측 범위와 실현 수익률</h2><div class="chart-wrap"><canvas id="event-price-chart" aria-label="예측 가격 범위와 실현 수익률"></canvas></div></article></div>
+      <details class="panel" style="margin-top:16px"><summary>기준 모델과 성능 비교</summary><p class="small">Brier는 확률의 오차로 낮을수록 좋습니다. 경보 기준은 과거 검증의 오경보율 5%를 목표로 정하며, 실제 이후 오경보율은 달라질 수 있습니다.</p><div id="event-model-comparison" style="overflow-x:auto"></div></details>
+      <details class="panel" style="margin-top:16px"><summary>실제로 발행한 예측과 결과</summary><p class="small" id="event-prospective-status"></p><div id="event-ledger" style="overflow-x:auto"></div></details>
+    </section>
+
+    <details id="hybrid-archive" class="panel" style="margin-top:22px">
+    <summary>이전 7·30일 가격 모델 · 비교 보관</summary>
     <section id="hybrid-system" hidden>
       <div class="section-heading">
         <div><p class="eyebrow">CatBoost + patch Transformer</p><h2 id="hybrid-title">7 / 30-day optimized forecasts</h2><p id="hybrid-updated"></p></div>
@@ -261,6 +280,7 @@
       <details class="panel" style="margin-top:18px"><summary>New-model issued record — fixed when published</summary><p class="small" id="hybrid-issued-status"></p><div id="hybrid-issued" style="overflow-x:auto"></div></details>
     </section>
 
+    </details>
     <details class="panel" id="legacy-archive" open style="margin-top:22px">
       <summary>Previous model archive · retired from the active candidate roster</summary>
       <p class="small">Earlier forecasts and evaluations are retained for comparison. The CatBoost + Transformer panel above is the current model family.</p>
@@ -394,6 +414,7 @@
     <footer>Last page refresh: <span id="footer-time">--</span></footer>
   </div>
 
+<script src="events.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const fmtUSD = (value) => {
@@ -958,6 +979,7 @@ function refreshHybridCharts() {
 function renderHybrid(payload) {
   if(payload?.schema_version!==1 || !payload.horizons?.["7"]?.current || !payload.horizons?.["30"]?.current)return;
   hybridPayload=payload;$("hybrid-system").hidden=false;$("legacy-archive").open=false;
+  $("hybrid-archive").ontoggle=()=>Object.values(charts).forEach(c=>c.resize?.());
   $("model-phase").textContent="CatBoost + Transformer";$("run-status").textContent="daily saved-model forecast";$("eval-status").textContent="live edge under evaluation";
   $("ref-price").textContent=fmtUSD(payload.horizons["7"].current.reference_price);
   $("generated-at").textContent=`Forecast origin ${payload.horizons["7"].current.origin} UTC`;
@@ -1058,6 +1080,7 @@ async function refreshLivePrice() {
   loadJSON("full_backtest.json").then(renderFullHistory).catch(() => {});
   const hybrid=await hybridTask;
   if(hybrid)renderHybrid(hybrid);
+  await window.loadEventForecasts?.();
   await refreshLivePrice();
   setInterval(refreshLivePrice, 60 * 1000);
 })();
