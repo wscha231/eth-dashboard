@@ -1,6 +1,8 @@
 -r requirements-events.txt
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.8.0+cpu
+# Match the compiler version declared by the official torch 2.8.0 distribution.
+triton==3.4.0; platform_system == "Linux" and platform_machine == "x86_64"
 chronos-forecasting==2.3.1
 tirex-2==0.2.1
 transformers==5.16.1

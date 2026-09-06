@@ -139,7 +139,8 @@ def forecast_record(features, slot, h, bundle):
             "price_quantiles": (ref*np.exp(pred["quantiles"][0])).tolist(), "selected_model": bundle["choice"],
             "alert_thresholds": bundle["alert_thresholds"], "model_version": bundle["model_version"],
             "training_target_end": bundle["training_target_end"], "validation_target_end": bundle["validation_target_end"],
-            "source_snapshot": bundle["source_snapshot"], "runtime_hash": bundle["runtime_hash"]}
+            "source_snapshot": bundle["source_snapshot"], "runtime_hash": runtime_hash(),
+            "training_runtime_hash":bundle["runtime_hash"]}
 
 
 def baseline_record(features,slot,bundle):

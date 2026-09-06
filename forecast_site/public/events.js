@@ -72,8 +72,10 @@
   }
   window.loadEventForecasts=async()=>{
     try {
-      const response=await fetch('signals.json',{cache:'no-store'});if(!response.ok)throw new Error('unavailable');
-      payload=await response.json();if(payload.schema_version!==1)throw new Error('schema');
+      const response=await fetch('signals.json',{cache:'no-store',signal:globalThis.AbortSignal?.timeout?.(15000)});if(!response.ok)throw new Error('unavailable');
+      const next=await response.json();if(next.schema_version!==1)throw new Error('schema');
+      if(payload && new Date(next.generated_at)<new Date(payload.generated_at))return;
+      payload=next;
       el('event-system').hidden=false;
       const stale=Date.now()-new Date(payload.expected_slot).getTime()>100*60*1000;
       el('event-status').textContent=stale||payload.status!=='ready'?'데이터·예측 갱신 지연':'시간별 연구 예측';
@@ -93,6 +95,8 @@
     }
   };
   document.addEventListener('DOMContentLoaded',()=>{
+    // New forecasts load independently of slow or unavailable archived JSON.
+    window.loadEventForecasts();
     el('event-horizon').onchange=e=>{selectedHorizon=e.target.value;renderResearch();};
     el('event-period').onchange=e=>{selectedPeriod=e.target.value;renderResearch();};
     setInterval(window.loadEventForecasts, 60000);

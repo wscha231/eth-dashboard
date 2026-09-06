@@ -40,6 +40,10 @@ jobs:
                 const {data}=await github.rest.repos.compareCommits({...context.repo,base:context.payload.before,head:context.payload.pull_request.head.sha});
                 needed=(data.files||[]).some(f=>/^(research\/events\/foundation_candidates\.py|requirements-foundations\.txt|signal_pipeline\/(data|models)\.py)$/.test(f.filename));
               }
+              if(!needed)for(const name of ['event-foundation-chronos2','event-foundation-tirex2']) {
+                const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name,per_page:20});
+                if(!data.artifacts.some(a=>!a.expired && ['main',context.payload.pull_request.head.ref].includes(a.workflow_run?.head_branch)))needed=true;
+              }
             }
             core.setOutput('foundations',String(needed));
       - uses: actions/setup-python@v5

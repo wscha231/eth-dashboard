@@ -61,6 +61,43 @@ def predict_quantiles(model,name,context,horizon):
     return np.sort(values)-context.eth.iloc[-1]
 
 
+def price_ensemble_report(rows,root):
+    """Convex endpoint-quantile blends; weights use earlier matured paired outcomes.
+
+    These are price-only diagnostic ensembles. They do not turn marginal price
+    quantiles into joint up/down barrier-hit probabilities.
+    """
+    reports={}
+    for h in sorted({r['horizon_hours'] for r in rows}):
+        path=Path(root)/'replay'/f'h{h}.csv.gz'
+        if not path.exists():continue
+        prior=pd.read_csv(path);prior=prior[prior.model.eq('selected')].set_index('slot')
+        common=sorted([r for r in rows if r['horizon_hours']==h and r['slot'] in prior.index],key=lambda r:r['slot'])
+        history=[];evaluated=[]
+        for r in common:
+            base=prior.loc[r['slot']];b=base[['q10','q50','q90']].to_numpy(float)
+            neural=np.array([r['q10'],r['q50'],r['q90']])
+            known=[x for x in history if pd.Timestamp(x['target_end'])<pd.Timestamp(r['slot'])]
+            weight=0.
+            if len(known)>=20:
+                weight=min((0.,.5,1.),key=lambda w:np.mean([abs(np.expm1((1-w)*x['base'][1]+w*x['neural'][1])-np.expm1(x['actual'])) for x in known]))
+            evaluated.append({'base':b,'foundation':neural,'fixed_half':.5*(b+neural),
+                              'past_selected_blend':(1-weight)*b+weight*neural,
+                              'actual':r['return'],'neural_weight':weight})
+            history.append({'target_end':base.target_end,'base':b,'neural':neural,'actual':r['return']})
+        if not evaluated:continue
+        y=np.array([r['actual'] for r in evaluated]);naive=float(np.abs(np.expm1(y)).mean())
+        scores={}
+        for model in ('base','foundation','fixed_half','past_selected_blend'):
+            q=np.stack([r[model] for r in evaluated]);mae=float(np.abs(np.expm1(q[:,1])-np.expm1(y)).mean())
+            scores[model]={'return_mae':mae,'mae_skill_vs_no_change':1-mae/naive,
+                           'coverage80':float(((y>=q[:,0])&(y<=q[:,2])).mean())}
+        reports[str(h)]={'common_origins':len(evaluated),'models':scores,'no_change_mae':naive,
+                         'selected_neural_weights':{str(w):sum(r['neural_weight']==w for r in evaluated) for w in (0.,.5,1.)},
+                         'status':'diagnostic; unknown foundation pretraining overlap; not a deployed winner'}
+    return reports
+
+
 def run(name,root,*,horizons=(24,72,168),max_origins=100,budget_seconds=600):
     started=time.monotonic();root=Path(root);torch.set_num_threads(2)
     bars=read_bars(root);features=build_features(bars)
@@ -97,6 +134,7 @@ def run(name,root,*,horizons=(24,72,168),max_origins=100,budget_seconds=600):
         output['runtime_seconds']=time.monotonic()-started
         output['peak_rss_mb']=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
         output['metrics']={}
+        output['price_ensembles']=price_ensemble_report(output['rows'],root)
         for h in horizons:
             f=pd.DataFrame([r for r in output['rows'] if r['horizon_hours']==h])
             if f.empty:continue
