@@ -160,6 +160,8 @@
     const period=periods.find(p=>p.id===selectedPeriod);
     const summary=segments ? segments.results[selectedPeriod+'|'+selectedRegime] : result;
     renderScorecards(summary);
+    if(segments?.as_of)el('event-sample-status').textContent+=` Data as of ${local(segments.as_of)}.`;
+    if(replayFailed)el('event-verdict-note').textContent+=' The newest historical results could not load; the previous dated results are shown.';
     const confidence=summary?.paired_event_brier;
     const interval=confidence ? `Exploratory 95% range for the probability-error difference: ${num(confidence.lower95)} to ${num(confidence.upper95)} (negative favors the model).` : 'Too few calendar blocks for an uncertainty range.';
     el('event-replay-status').textContent=`${segments?'Data as of '+local(segments.as_of):'All available results'} · ${period.label} · ${(summary?.common_origins||0).toLocaleString()} matched observations · ${summary?.nonoverlapping_selected?.rows||0} non-overlapping windows · Probability-error improvement: ${pct(skill(summary))}. ${interval} These overlapping slices are exploratory comparisons, not a model-promotion test.${replayFailed?' The newest test file could not be loaded; this is the previous available test.':''}`;
