@@ -64,3 +64,51 @@ vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context
 })().catch(e=>{console.error(e);process.exit(1)});
 '''
     subprocess.run(['node','-e',script],cwd=Path(__file__).resolve().parents[1],check=True)
+
+
+def test_period_and_state_controls_update_matched_tables_and_target_dated_price_charts():
+    script=r'''
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const nodes={},drawn={};
+const element=()=>({children:[],appendChild(x){this.children.push(x)},append(...x){this.children.push(...x)},replaceChildren(...x){this.children=x}});
+const summary=(n,brier=.1)=>({common_origins:n,nonoverlapping_selected:{rows:n},models:n?['selected','climatology'].map(model=>({model,event_brier:model==='selected'?brier:.25,
+ up:{recall:.4,false_positive_rate:.1},down:{recall:.3,false_positive_rate:.1},terminal_balanced_accuracy:.4,mae_skill:.1,coverage80:.8})):[]});
+const periods=[{id:'all',label:'전구간',start:'2025-01-01',end:'2027-01-01'},
+ {id:'recent_365',label:'최근 365일',start:'2025-09-08',end:'2026-09-08'},
+ {id:'year_2025',label:'2025년',start:'2025-01-01',end:'2026-01-01'},
+ {id:'recent_30',label:'최근 30일',start:'2026-08-09',end:'2026-09-08'}];
+const results={};for(const p of periods){results[p.id+'|all']=summary(p.id==='recent_30'?0:p.id==='year_2025'?1:3,p.id==='year_2025'?.3:.1);
+ results[p.id+'|trend_up']=summary(p.id==='recent_30'?0:p.id==='year_2025'?1:2);}
+const points=['2025-11-01','2026-06-01','2026-08-01'].map((date,i)=>({slot:date+'T00:00:00Z',target_end:new Date(Date.parse(date)+25*3600000).toISOString(),
+ reference_price:100,return:Math.log(1.2),q10:Math.log(.9),q50:Math.log(1.1),q90:Math.log(1.3),hit_up:.8,hit_down:.2,up:1,down:0,
+ trend_state:i===1?'down':'up',volatility_state:'normal'}));
+const replay={generated_at:'r1',horizons:{'24':{...summary(3),points,segments:{as_of:'2026-09-07T12:00:00Z',periods,
+ regimes:[{id:'all',label:'모든 상태'},{id:'trend_up',label:'상승'}],results}}}};
+const payload={schema_version:1,status:'delayed',expected_slot:'2026-09-07T12:00:00Z',generated_at:'2026-09-07T12:08:00Z',current:[],recent_issued:[],replay_generated_at:'r1'};
+const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id] ||= {...element(),id},createElement:element,addEventListener:(_,fn)=>fn()},
+ fetch:async url=>({ok:true,json:async()=>url==='signals.json'?payload:replay}),Date,Intl,setInterval(){},
+ Chart:class {constructor(node,config){this.config=config;drawn[node.id]=this}destroy(){this.destroyed=true}}});
+vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
+(async()=>{
+ await context.window.loadEventForecasts();assert.equal(drawn['event-price-chart'].config.data.labels.length,3);
+ nodes['event-period'].onchange({target:{value:'year_2025'}});
+ assert.match(nodes['event-replay-status'].textContent,/공통 1개/);assert.match(nodes['event-replay-status'].textContent,/-20.0%/);
+ assert.equal(drawn['event-price-chart'].config.data.labels[0],'2025-11-02');
+ assert.ok(Math.abs(drawn['event-price-chart'].config.data.datasets[1].data[0]-110)<1e-10);
+ const body=nodes['event-model-comparison'].children[0].children[1];assert.equal(body.children[0].children[1].textContent,'0.3000');
+ nodes['event-period'].onchange({target:{value:'all'}});nodes['event-market-filter'].onchange({target:{value:'trend_up'}});
+ assert.match(nodes['event-replay-status'].textContent,/공통 2개/);assert.equal(drawn['event-path-chart'].config.data.labels.length,2);
+ nodes['event-price-unit'].onchange({target:{value:'return'}});
+ assert.ok(Math.abs(drawn['event-price-chart'].config.data.datasets[1].data[0]-10)<1e-10);
+ nodes['event-period'].onchange({target:{value:'recent_30'}});
+ assert.match(nodes['event-replay-status'].textContent,/평가 표본이 없습니다/);assert.equal(drawn['event-price-chart'].destroyed,true);
+ assert.equal(nodes['event-model-comparison'].children[0].children[1].children.length,0);
+ nodes['event-period'].onchange({target:{value:'all'}});
+ nodes['event-horizon'].onchange({target:{value:'720'}});
+ assert.match(nodes['event-replay-status'].textContent,/아직 준비되지 않았습니다/);
+ assert.equal(drawn['event-price-chart'].destroyed,true);
+ assert.equal(nodes['event-period-comparison'].children.length,0);
+ assert.equal(nodes['event-segment-download'].hidden,true);
+})().catch(e=>{console.error(e);process.exit(1)});
+'''
+    subprocess.run(['node','-e',script],cwd=Path(__file__).resolve().parents[1],check=True)

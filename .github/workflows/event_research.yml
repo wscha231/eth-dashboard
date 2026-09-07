@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 concurrency:
   group: event-research-${{ github.event.pull_request.number || 'main' }}
   cancel-in-progress: false
@@ -35,15 +36,8 @@ jobs:
           script: |
             let needed=context.eventName==='workflow_dispatch';
             if(context.eventName==='pull_request') {
-              needed=true;
-              if(context.payload.before) {
-                const {data}=await github.rest.repos.compareCommits({...context.repo,base:context.payload.before,head:context.payload.pull_request.head.sha});
-                needed=(data.files||[]).some(f=>/^(research\/events\/foundation_candidates\.py|requirements-foundations\.txt|signal_pipeline\/(data|models)\.py)$/.test(f.filename));
-              }
-              if(!needed)for(const name of ['event-foundation-chronos2','event-foundation-tirex2']) {
-                const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name,per_page:20});
-                if(!data.artifacts.some(a=>!a.expired && ['main',context.payload.pull_request.head.ref].includes(a.workflow_run?.head_branch)))needed=true;
-              }
+              const files=await github.paginate(github.rest.pulls.listFiles,{...context.repo,pull_number:context.payload.pull_request.number,per_page:100});
+              needed=files.some(f=>/^(research\/events\/foundation_candidates\.py|requirements-foundations\.txt|signal_pipeline\/(data|models|protocol)\.py)$/.test(f.filename));
             }
             core.setOutput('foundations',String(needed));
       - uses: actions/setup-python@v5
@@ -52,7 +46,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-events.txt
       - run: python -m pip install -r requirements-events.txt pytest
-      - run: python -m pytest tests/test_event_pipeline.py -q
+      - run: python -m pytest tests/test_event_pipeline.py tests/test_event_segments.py -q
       - name: Find previous successful research state
         id: previous
         uses: actions/github-script@v7
@@ -103,6 +97,7 @@ jobs:
                       f.write(f"- {h}h: {v.get('common_origins',0)} common origins\n")
                       print(json.dumps({'horizon':h,'common_origins':v.get('common_origins',0),'models':v['models'],'paired_event_brier':v.get('paired_event_brier')}),flush=True)
                   f.write('\n'+json.dumps(d['runtime']))
+                  f.write('\n\nCutoff audit: '+d.get('cutoff_audit',{}).get('status','not available'))
               else:f.write('No complete replay published. Inspect source status and retained checkpoints.\n')
           PY
   foundations:

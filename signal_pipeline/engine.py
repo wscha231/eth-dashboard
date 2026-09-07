@@ -13,6 +13,7 @@ from .evaluate import prospective_report, report_replay
 from .ledger import history, issue, settle
 from .models import labels, predict_models, train_bundle
 from .protocol import DEFAULT_HORIZONS, HORIZONS, PROTOCOL_HASH, SPEC, digest, runtime_hash, training_hash
+from .segments import origin_market_states
 
 
 def atomic_json(path, payload):
@@ -57,17 +58,28 @@ def obtain_bundle(root, bars, features, outcomes, cutoff, horizon, *, allow_fit)
     return bundle, True
 
 
+def check_replay_cutoff(bundle, cutoff):
+    if utc(bundle["fit_cutoff"]) != cutoff:
+        raise ValueError("replay checkpoint month mismatch")
+    for key in ("training_target_end", "validation_target_end"):
+        target_end = utc(bundle[key])
+        if pd.isna(target_end) or target_end >= cutoff-pd.Timedelta(hours=1):
+            raise ValueError("replay target crosses the purged cutoff")
+
+
 def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, end=None):
     started = time.monotonic(); root = Path(root)
     bars = read_bars(root); features = build_features(bars)
     if features.empty:
         raise ValueError("both ETH-USD and BTC-USD history required")
+    as_of = bars.groupby("product").close_time.max().min()
+    states = origin_market_states(features)
     valid = features[feature_columns(features)].notna().all(axis=1)
     months = pd.date_range(features.index.min().floor("D").replace(day=1), features.index.max(), freq="MS")
     if start: months = months[months >= utc(start)]
     if end: months = months[months <= utc(end)]
     (root/"replay").mkdir(exist_ok=True)
-    reports = {}; fits = 0; cached = 0; used_checkpoints=set()
+    reports = {}; fits = 0; cached = 0; used_checkpoints=set(); audits=[]
     for h in horizons:
         outcomes = labels(bars, features, h); all_rows = []
         for cutoff in months:
@@ -77,7 +89,7 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                 continue
             next_month = cutoff+pd.offsets.MonthBegin(1)
             targets = features.index[valid & (features.index >= cutoff) & (features.index < next_month) &
-                                      (features.index.hour == 0) & outcomes["return"].notna()]
+                                      (features.index.hour == 0) & outcomes["return"].notna() & (outcomes.target_end <= as_of)]
             # Fit this month's checkpoint even when no current target has matured yet.
             latest_month = cutoff == months[-1]
             if not len(targets) and not latest_month:
@@ -88,6 +100,10 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                 if "insufficient purged" in str(exc):
                     continue
                 raise
+            check_replay_cutoff(bundle, cutoff)
+            audits.append({"horizon_hours": h, "fit_cutoff": cutoff.isoformat(),
+                           "training_target_end": bundle["training_target_end"],
+                           "validation_target_end": bundle["validation_target_end"], "model_version": bundle["model_version"]})
             fits += fitted; cached += not fitted
             used_checkpoints.add(f"h{h}_{cutoff.strftime('%Y-%m')}_{bundle['model_version'][:16]}.joblib")
             if not len(targets):
@@ -101,6 +117,9 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                     y = outcomes.loc[slot]
                     rows.append({"slot": slot.isoformat(), "target_end": y.target_end.isoformat(), "horizon_hours": h,
                         "model": name, "selected_model": bundle["choice"], "model_version": bundle["model_version"],
+                        "fit_cutoff": cutoff.isoformat(), "training_target_end": bundle["training_target_end"],
+                        "validation_target_end": bundle["validation_target_end"],
+                        **states.loc[slot].to_dict(),
                         "reference_price": float(features.loc[slot, "reference_price"]),
                         "actual_price": float(features.loc[slot, "reference_price"]*np.exp(y["return"])),
                         "return": float(y["return"]), "up": int(y.up), "down": int(y.down), "terminal": int(y.terminal),
@@ -111,10 +130,14 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                         "threshold_up": thresholds["up"], "threshold_down": thresholds["down"]})
             all_rows.extend(rows)
             print(f"replay h={h} month={cutoff:%Y-%m} origins={len(targets)} fit={fitted}", flush=True)
-        reports[str(h)] = report_replay(all_rows, h)
+        reports[str(h)] = report_replay(all_rows, h, as_of=as_of)
         pd.DataFrame(all_rows).to_csv(root/"replay"/f"h{h}.csv.gz", index=False, compression={"method":"gzip", "mtime":0})
     payload = {"schema_version": 1, "protocol": SPEC, "protocol_hash": PROTOCOL_HASH, "runtime_hash": runtime_hash(),
                "generated_at": utc().isoformat(), "horizons": reports,
+               "data_as_of": as_of.isoformat(),
+               "cutoff_audit": {"status": "passed", "monthly_checkpoints": audits,
+                                "check": "every training/validation target ends strictly before monthly cutoff minus one hour",
+                                "limit": "historical source receipt vintages cannot be reconstructed; this is retrospective development"},
                "runtime": {"seconds": time.monotonic()-started, "new_monthly_fits": fits, "cached_months": cached},
                "claims": "Exploratory historical reconstruction. No prospective superiority established."}
     atomic_json(root/"replay.json", payload)

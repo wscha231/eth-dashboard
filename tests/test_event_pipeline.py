@@ -49,11 +49,14 @@ def test_source_boundaries_units_revisions_and_original_receipt(tmp_path):
 
 
 def test_features_are_causal_and_missing_bars_cannot_be_filled():
+    from signal_pipeline.segments import origin_market_states
     bars = fixture_bars(); original = build_features(bars)
     cutoff = original.index[1200]
     changed = bars.copy(); future = changed.close_time > cutoff
     changed.loc[future,["open","high","low","close"]] *= 5
     pd.testing.assert_frame_equal(original.loc[:cutoff],build_features(changed).loc[:cutoff])
+    pd.testing.assert_frame_equal(origin_market_states(original).loc[:cutoff],
+                                  origin_market_states(build_features(changed)).loc[:cutoff])
     missing = bars.drop(bars[(bars["product"]=="BTC-USD") & (bars.close_time==cutoff)].index)
     assert pd.isna(build_features(missing).loc[cutoff+pd.Timedelta(hours=100),"eth_ret_24"])
 

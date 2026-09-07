@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score
 
+from .segments import REGIMES, SEGMENT_VERSION, periods, segment_mask
+
 
 def event_metrics(truth, probability, threshold):
     truth = np.asarray(truth, int); probability = np.asarray(probability)
@@ -28,7 +30,13 @@ def metrics(rows):
     down = event_metrics(f.down, f.hit_down, f.threshold_down)
     mae = float(np.mean(np.abs(np.expm1(ret)-np.expm1(f.q50))))
     baseline_mae = float(np.mean(np.abs(np.expm1(ret))))
+    terminal = f.terminal.to_numpy(int)
+    predicted = p.argmax(axis=1)
+    supports = np.bincount(terminal, minlength=3)
+    balanced = float(np.mean([(predicted[terminal == c] == c).mean() for c in range(3)])) if supports.min() else None
     return {"rows": len(f), "terminal_brier": float(((p-y)**2).sum(axis=1).mean()),
+            "terminal_accuracy": float((predicted == terminal).mean()),
+            "terminal_balanced_accuracy": balanced,
             "terminal_logloss": float(-np.log(np.clip(p[np.arange(len(f)), f.terminal.astype(int)], 1e-8, 1)).mean()),
             "event_brier": (up["brier"]+down["brier"])/2,
             "up": up, "down": down, "return_mae": mae, "no_change_mae": baseline_mae,
@@ -59,27 +67,70 @@ def paired_block_interval(selected, baseline, horizon, samples=500):
             "interpretation": "negative favors selected; exploratory interval, not a promotion certificate"}
 
 
-def report_replay(rows, horizon):
-    if not rows:
-        return {"horizon_hours": horizon, "status": "insufficient_history", "models": []}
-    f = pd.DataFrame(rows)
-    common = set.intersection(*(set(g.slot) for _, g in f.groupby("model")))
-    f = f[f.slot.isin(common)]
+def comparison(f, horizon):
+    if f.empty:
+        return {"common_origins": 0, "models": [], "nonoverlapping_selected": {"rows": 0},
+                "nonoverlapping_baseline": {"rows": 0}, "paired_event_brier": None, "selected_model_counts": {}}
     models = [{"model": name, **metrics(group.to_dict("records"))} for name, group in f.groupby("model")]
     selected = f[f.model.eq("selected")].sort_values("slot")
     baseline = f[f.model.eq("climatology")].sort_values("slot")
-    years = [{"year": int(year), **metrics(g.to_dict("records"))} for year, g in selected.groupby(pd.to_datetime(selected.slot, utc=True).dt.year)]
     independent=[];previous_end=None
     for row in selected.to_dict('records'):
         if previous_end is None or pd.Timestamp(row['slot'])>=previous_end:
             independent.append(row);previous_end=pd.Timestamp(row['target_end'])
-    return {"horizon_hours": horizon, "status": "retrospective_research", "models": models,
-            "first_origin": min(common), "last_origin": max(common), "common_origins": len(common),
+    slots = {r['slot'] for r in independent}
+    return {"models": models, "common_origins": len(selected),
+            "first_origin": selected.slot.min(), "last_origin": selected.slot.max(),
+            "nonoverlapping_selected": metrics(independent),
+            "nonoverlapping_baseline": metrics(baseline[baseline.slot.isin(slots)].to_dict("records")),
+            "paired_event_brier": paired_block_interval(selected.to_dict("records"), baseline.to_dict("records"), horizon),
+            "selected_model_counts": {str(k): int(v) for k, v in selected.selected_model.value_counts().items()}}
+
+
+def report_replay(rows, horizon, *, as_of=None):
+    if not rows:
+        return {"horizon_hours": horizon, "status": "insufficient_history", "models": []}
+    f = pd.DataFrame(rows)
+    if f.duplicated(["model", "slot"]).any():raise ValueError("duplicate model/origin in replay")
+    if not {"selected", "climatology"}.issubset(set(f.model)):
+        raise ValueError("paired selected and baseline predictions required")
+    expected_models = set(f.model)
+    as_of = pd.Timestamp(as_of) if as_of is not None else pd.to_datetime(f.target_end, utc=True).max()
+    f = f[pd.to_datetime(f.target_end, utc=True) <= as_of]
+    common = set.intersection(*(set(f.loc[f.model.eq(name), "slot"]) for name in expected_models))
+    if not common:
+        return {"horizon_hours": horizon, "status": "insufficient_history", "models": []}
+    f = f[f.slot.isin(common)]
+    truth_columns = [c for c in ("target_end", "return", "up", "down", "terminal", "trend_state", "volatility_state") if c in f]
+    if (f.groupby("slot")[truth_columns].nunique() > 1).any().any():
+        raise ValueError("paired origins have inconsistent truth or market state")
+    overall = comparison(f, horizon)
+    selected = f[f.model.eq("selected")].sort_values("slot")
+    years = [{"year": int(year), **metrics(g.to_dict("records"))} for year, g in selected.groupby(pd.to_datetime(selected.slot, utc=True).dt.year)]
+    slices = None
+    if {"trend_state", "volatility_state"}.issubset(f.columns):
+        definitions = periods(min(common), as_of)
+        results = {}
+        for period in definitions:
+            for regime in REGIMES:
+                key = period["id"] + "|" + regime["id"]
+                results[key] = overall if key == "all|all" else comparison(f[segment_mask(f, period, regime["id"])], horizon)
+        slices = {"version": SEGMENT_VERSION, "as_of": as_of.isoformat(),
+                  "periods": definitions, "regimes": REGIMES, "results": results,
+                  "definitions": {"trend": "prior 24h log return / (prior 720h hourly volatility * sqrt(24)); up > 1, down < -1, otherwise range",
+                                  "volatility": "prior 24h / prior 720h hourly volatility; high >= 1.5",
+                                  "membership": "state at prediction origin; never future realized return",
+                                  "recent_windows": "calendar origin dates ending on the shared data as-of day; immature outcomes excluded",
+                                  "inference": "exploratory overlapping slices; no model selection or promotion on these results"}}
+    # The audit CSV retains model/source provenance. Send only plot fields to browsers.
+    point_columns = [c for c in ("slot", "target_end", "reference_price", "actual_price", "return", "up", "down",
+                                "hit_up", "hit_down", "q10", "q50", "q90", "trend_state", "volatility_state") if c in selected]
+    return {"horizon_hours": horizon, "status": "retrospective_research",
+            **overall,
             "eligible_calendar_coverage":len(common)/((pd.Timestamp(max(common))-pd.Timestamp(min(common))).days+1),
             "yearly_selected": years,
-            "nonoverlapping_selected": metrics(independent),
-            "paired_event_brier": paired_block_interval(selected.to_dict("records"), baseline.to_dict("records"), horizon),
-            "points": selected.to_dict("records")}
+            "segments": slices,
+            "points": selected[point_columns].to_dict("records")}
 
 
 def prospective_report(records):
