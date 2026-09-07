@@ -113,6 +113,11 @@ datasets or a new production data contract.
 The 14 focused tests passed locally, including truncated responses, cached
 receipt-time preservation, corruption detection, access denial, daily funding
 aggregation, future perturbations, missing bars, volume units, and DVOL paging.
+The full CI run also exposed a pre-existing nondeterministic archive fixture:
+separately generated checksum/body responses could contain different ZIP
+timestamps. This was reproduced by moving the test clock by four seconds.
+The fixture now uses a fixed timestamp, with a regression check. Production
+archive checksum validation remains strict.
 
 Sources checked on 2026-09-07:
 
