@@ -151,7 +151,8 @@ def test_research_restore_never_replaces_actual_issued_ledger(tmp_path):
 
 def test_external_release_checks_stale_delayed_or_mismatched_outputs():
     from scripts.verify_event_site import verify
-    d={'schema_version':1,'release_id':'one','generated_at':'2020-04-01T12:08:00+00:00','status':'ready','current':[]}
+    d={'schema_version':1,'release_id':'one','generated_at':'2020-04-01T12:08:00+00:00',
+       'expected_slot':'2020-04-01T12:00:00+00:00','status':'delayed','current':[]}
     assert verify(d,d,utc('2020-04-01T12:10Z'))
     with pytest.raises(ValueError):verify(d,{**d,'release_id':'two'},utc('2020-04-01T12:10Z'))
     with pytest.raises(ValueError):verify(d,d,utc('2020-04-01T14:00Z'))
