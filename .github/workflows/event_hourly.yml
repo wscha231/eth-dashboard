@@ -1,5 +1,15 @@
 name: Hourly ETH event forecast
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/event_hourly.yml
+      - .github/workflows/event_watchdog.yml
+      - scripts/event_recovery.cjs
+      - scripts/verify_event_site.py
+      - scripts/publish_events.sh
+      - forecast_site/public/events.js
+      - forecast_site/vercel.json
   workflow_run:
     workflows: ["ETH hourly event research"]
     types: [completed]

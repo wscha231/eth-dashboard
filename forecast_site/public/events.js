@@ -1,6 +1,8 @@
 /* Hourly research forecasts. Prices and timestamps stay fixed after issuance. */
 (() => {
   let payload, replay, selectedHorizon = '24', selectedPeriod = 'recent';
+  let fetchFailed = false, lastDelayed;
+  const expectedHorizons = [6,24,72,168,336,720];
   const charts = {};
   const el = id => document.getElementById(id);
   const money = value => Number.isFinite(value) ? new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:0}).format(value) : '—';
@@ -17,12 +19,33 @@
     rows.forEach(values=>{const tr=document.createElement('tr');values.forEach(v=>text(tr,'td',v));body.appendChild(tr);});
     node.append(thead,body);el(target).replaceChildren(node);
   }
+  function delayed() {
+    if(!payload || payload.status!=='ready')return true;
+    const now=Date.now(),slot=Date.parse(payload.expected_slot),generated=Date.parse(payload.generated_at);
+    const dueSlot=Math.floor((now-15*60000)/3600000)*3600000;
+    const horizons=(payload.current || []).map(f=>f.horizon_seconds/3600);
+    return !Number.isFinite(slot)||!Number.isFinite(generated)||slot<dueSlot||slot>now+120000||
+      generated>now+120000||now-generated>100*60000||horizons.length!==6||expectedHorizons.some(h=>!horizons.includes(h))||
+      payload.current.some(f=>Date.parse(f.input_cutoff)!==slot);
+  }
+  function renderStatus() {
+    const stale=delayed();
+    el('event-system').hidden=false;
+    el('event-status').textContent=stale?'데이터·예측 갱신 지연':fetchFailed?'새 예측 연결 확인 중':'시간별 연구 예측';
+    el('event-status').className=`pill ${stale||fetchFailed?'warn':''}`;
+    el('event-updated').textContent=payload?
+      `${fetchFailed?'연결 실패 · 마지막 수신 자료 표시 중. ':''}자료 ${local(payload.expected_slot)} · 발행 자료 생성 ${local(payload.generated_at)} · 다음 갱신 예정 ${local(payload.next_expected_update)}`:
+      '새 시간별 데이터의 발행을 확인할 수 없습니다. 연결 상태를 다시 확인합니다.';
+    el('run-status').textContent=el('event-status').textContent;
+    if(payload && lastDelayed!==stale)renderCards();
+    lastDelayed=stale;
+  }
   function renderCards() {
     el('event-current').replaceChildren();
     const current=payload.current || [];
     current.forEach(f=>{
       const card=document.createElement('article');card.className='panel';
-      const stale=Date.now()-new Date(f.input_cutoff).getTime()>100*60*1000;
+      const stale=delayed()||!Number.isFinite(Date.parse(f.input_cutoff))||Date.now()-Date.parse(f.input_cutoff)>100*60*1000;
       text(card,'p',`${horizonName(f.horizon_seconds/3600)} 전망 · ${stale?'갱신 지연':'실제 발행 기록'}`,'eyebrow');
       text(card,'h2',`${money(f.price_quantiles[1])}`);
       text(card,'p',`만기 가격 명목 80% 범위 ${money(f.price_quantiles[0])} – ${money(f.price_quantiles[2])}`);
@@ -81,14 +104,10 @@
     try {
       const response=await fetch('signals.json',{cache:'no-store',signal:globalThis.AbortSignal?.timeout?.(15000)});if(!response.ok)throw new Error('unavailable');
       const next=await response.json();if(next.schema_version!==1)throw new Error('schema');
-      if(payload && new Date(next.generated_at)<new Date(payload.generated_at))return;
-      payload=next;
-      el('event-system').hidden=false;
-      const stale=Date.now()-new Date(payload.expected_slot).getTime()>100*60*1000;
-      el('event-status').textContent=stale||payload.status!=='ready'?'데이터·예측 갱신 지연':'시간별 연구 예측';
-      el('event-status').className=`pill ${stale||payload.status!=='ready'?'warn':''}`;
-      el('event-updated').textContent=`자료 ${local(payload.expected_slot)} · 화면 갱신 ${local(payload.generated_at)} · 다음 갱신 예정 ${local(payload.next_expected_update)}`;
-      el('model-phase').textContent='ETH 사건 예측 · 연구 베타';el('run-status').textContent=el('event-status').textContent;
+      fetchFailed=false;
+      if(payload && new Date(next.generated_at)<new Date(payload.generated_at)){renderStatus();return;}
+      payload=next;renderStatus();
+      el('model-phase').textContent='ETH 사건 예측 · 연구 베타';
       el('eval-status').textContent='실제 성과 축적 중';
       renderCards();renderLedger();
       const state=payload.current_regime;
@@ -97,8 +116,7 @@
       if(!replay || replay.generated_at!==payload.replay_generated_at){const r=await fetch('signals_replay.json');if(r.ok)replay=await r.json();}
       renderCards();renderResearch();
     } catch (_) {
-      el('event-status').textContent='새 예측 자료 확인 중';
-      el('event-updated').textContent='새 시간별 데이터의 발행을 확인할 수 없습니다. 아래의 이전 기록은 그대로 유지됩니다.';
+      fetchFailed=true;renderStatus();
     }
   };
   document.addEventListener('DOMContentLoaded',()=>{
@@ -107,5 +125,7 @@
     el('event-horizon').onchange=e=>{selectedHorizon=e.target.value;renderResearch();};
     el('event-period').onchange=e=>{selectedPeriod=e.target.value;renderResearch();};
     setInterval(window.loadEventForecasts, 60000);
+    // A frozen/failed HTTP feed must not leave previously loaded cards marked fresh.
+    setInterval(renderStatus, 30000);
   });
 })();
