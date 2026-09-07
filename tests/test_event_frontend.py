@@ -15,9 +15,11 @@ const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id]
 vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
 context.window.loadEventForecasts().then(()=>{
  assert.equal(nodes['ref-price'].textContent,'$2,000');
- const card=nodes['event-current'].children[0];assert.equal(card.children[1].textContent,'$2,100');
- assert.match(card.children[3].children[0].textContent,/80.0%/);assert.match(card.children[3].children[1].textContent,/60.0%/);
- assert.match(nodes['model-phase'].textContent,/연구 베타/);
+ const flatten=node=>[node.textContent||'',...node.children.map(flatten)].join(' ');
+ const card=flatten(nodes['event-current']);assert.match(card,/\$2,100/);
+ assert.match(card,/Touch \$2,200 or higher: 80.0%/);assert.match(card,/Touch \$1,800 or lower: 60.0%/);
+ assert.match(card,/more than 100%/);assert.match(card,/not a record of accuracy/);
+ assert.doesNotMatch(card,/[가-힣]/);
 });
 '''
     subprocess.run(['node','-e',script],cwd=Path(__file__).resolve().parents[1],check=True)
@@ -50,17 +52,18 @@ const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id]
  Date:Clock,Intl,setInterval:(fn,ms)=>timers.push({fn,ms})});
 vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
 (async()=>{
- await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'시간별 연구 예측');
- fail=true;await context.window.loadEventForecasts();assert.match(nodes['event-status'].textContent,/연결 확인/);
- assert.match(nodes['event-updated'].textContent,/마지막 수신/);
+ await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Up to date');
+ fail=true;await context.window.loadEventForecasts();assert.match(nodes['event-status'].textContent,/Connection interrupted/);
+ assert.match(nodes['event-updated'].textContent,/last received/);
  clock=Date.parse('2026-09-07T07:15:00Z');timers.find(t=>t.ms===30000).fn();
- assert.match(nodes['event-status'].textContent,/갱신 지연/);assert.match(nodes['event-status'].className,/warn/);
- assert.match(nodes['event-current'].children[0].children[0].textContent,/갱신 지연/);
- assert.equal(nodes['event-current'].children[0].children[1].textContent,'$2,100');
+ assert.match(nodes['event-status'].textContent,/Update delayed/);assert.match(nodes['event-status'].className,/warn/);
+ assert.match(nodes['event-current'].children[0].children[0].textContent,/Update delayed/);
+ assert.equal(nodes['event-current'].children[0].children[1].children[0].textContent,'$2,100');
  fixture.expected_slot='2026-09-07T07:00:00Z';fixture.generated_at='2026-09-07T07:12:00Z';
  fixture.current.forEach(f=>{f.input_cutoff=fixture.expected_slot;});
- fail=false;await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'시간별 연구 예측');
+ fail=false;await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Up to date');
  assert.doesNotMatch(nodes['event-status'].className,/warn/);
+ fixture.current.pop();await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Update delayed');
 })().catch(e=>{console.error(e);process.exit(1)});
 '''
     subprocess.run(['node','-e',script],cwd=Path(__file__).resolve().parents[1],check=True)
@@ -84,31 +87,49 @@ const points=['2025-11-01','2026-06-01','2026-08-01'].map((date,i)=>({slot:date+
  trend_state:i===1?'down':'up',volatility_state:'normal'}));
 const replay={generated_at:'r1',horizons:{'24':{...summary(3),points,segments:{as_of:'2026-09-07T12:00:00Z',periods,
  regimes:[{id:'all',label:'모든 상태'},{id:'trend_up',label:'상승'}],results}}}};
-const payload={schema_version:1,status:'delayed',expected_slot:'2026-09-07T12:00:00Z',generated_at:'2026-09-07T12:08:00Z',current:[],recent_issued:[],replay_generated_at:'r1'};
+const payload={schema_version:1,status:'delayed',expected_slot:'2026-09-07T12:00:00Z',generated_at:'2026-09-07T12:08:00Z',current:[],recent_issued:[],replay_generated_at:'r1',
+ prospective:{'24':{issued:25,resolved:10,pending:15,nonoverlap_resolved:2,paired_selected:{event_brier:.15},baseline:{event_brier:.25}},'720':{issued:4,resolved:0,pending:4}}};
 const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id] ||= {...element(),id},createElement:element,addEventListener:(_,fn)=>fn()},
  fetch:async url=>({ok:true,json:async()=>url==='signals.json'?payload:replay}),Date,Intl,setInterval(){},
  Chart:class {constructor(node,config){this.config=config;drawn[node.id]=this}destroy(){this.destroyed=true}}});
 vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
 (async()=>{
  await context.window.loadEventForecasts();assert.equal(drawn['event-price-chart'].config.data.labels.length,3);
+ const flatten=node=>[node.textContent||'',...(node.children||[]).map(flatten)].join(' ');
+ assert.match(flatten(nodes['event-scorecards']),/60.0% less error/);
+ assert.match(flatten(nodes['event-scorecards']),/40 out of 100 actual large rises/);
+ assert.match(flatten(nodes['event-scorecards']),/10.0% of periods without that move/);
+ assert.match(flatten(nodes['event-live-scorecards']),/40.0% less error/);
+ assert.doesNotMatch(flatten(nodes['event-period']),/[가-힣]/);
+ assert.doesNotMatch(flatten(nodes['event-market-filter']),/[가-힣]/);
  nodes['event-period'].onchange({target:{value:'year_2025'}});
- assert.match(nodes['event-replay-status'].textContent,/공통 1개/);assert.match(nodes['event-replay-status'].textContent,/-20.0%/);
+ assert.match(nodes['event-replay-status'].textContent,/1 matched observations/);assert.match(nodes['event-replay-status'].textContent,/-20.0%/);
+ assert.match(flatten(nodes['event-scorecards']),/20.0% more error/);
+ assert.match(nodes['event-verdict'].textContent,/has not beaten/);
+ assert.match(nodes['event-prospective-status'].textContent,/25 published, 10 settled, 15 awaiting/);
  assert.equal(drawn['event-price-chart'].config.data.labels[0],'2025-11-02');
  assert.ok(Math.abs(drawn['event-price-chart'].config.data.datasets[1].data[0]-110)<1e-10);
  const body=nodes['event-model-comparison'].children[0].children[1];assert.equal(body.children[0].children[1].textContent,'0.3000');
  nodes['event-period'].onchange({target:{value:'all'}});nodes['event-market-filter'].onchange({target:{value:'trend_up'}});
- assert.match(nodes['event-replay-status'].textContent,/공통 2개/);assert.equal(drawn['event-path-chart'].config.data.labels.length,2);
+ assert.match(nodes['event-replay-status'].textContent,/2 matched observations/);assert.equal(drawn['event-path-chart'].config.data.labels.length,2);
  nodes['event-price-unit'].onchange({target:{value:'return'}});
  assert.ok(Math.abs(drawn['event-price-chart'].config.data.datasets[1].data[0]-10)<1e-10);
  nodes['event-period'].onchange({target:{value:'recent_30'}});
- assert.match(nodes['event-replay-status'].textContent,/평가 표본이 없습니다/);assert.equal(drawn['event-price-chart'].destroyed,true);
+ assert.match(nodes['event-replay-status'].textContent,/No settled matching observations/);assert.equal(drawn['event-price-chart'].destroyed,true);
+ assert.match(nodes['event-verdict'].textContent,/No settled test results/);
+ assert.doesNotMatch(flatten(nodes['event-scorecards']),/80.0%/);
  assert.equal(nodes['event-model-comparison'].children[0].children[1].children.length,0);
  nodes['event-period'].onchange({target:{value:'all'}});
  nodes['event-horizon'].onchange({target:{value:'720'}});
- assert.match(nodes['event-replay-status'].textContent,/아직 준비되지 않았습니다/);
+ assert.match(nodes['event-replay-status'].textContent,/not ready/);
+ assert.match(nodes['event-prospective-status'].textContent,/4 published, 0 settled, 4 awaiting/);
+ assert.match(flatten(nodes['event-live-scorecards']),/Not available/);
  assert.equal(drawn['event-price-chart'].destroyed,true);
  assert.equal(nodes['event-period-comparison'].children.length,0);
  assert.equal(nodes['event-segment-download'].hidden,true);
+ context.Chart=undefined;nodes['event-horizon'].onchange({target:{value:'24'}});
+ assert.match(nodes['event-chart-status'].textContent,/chart library could not load/);
+ assert.match(flatten(nodes['event-scorecards']),/60.0% less error/);
 })().catch(e=>{console.error(e);process.exit(1)});
 '''
     subprocess.run(['node','-e',script],cwd=Path(__file__).resolve().parents[1],check=True)
