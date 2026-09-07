@@ -21,6 +21,11 @@ const element = () => ({style:{}, children:[], appendChild(child){this.children.
 const context = vm.createContext({document: {getElementById: id => elements[id] ||= element(), createElement:element}, window: {}, Chart:function(canvas,config){this.config=config;this.destroy=()=>{}}});
 vm.runInContext(source, context);
 const evaluate = expression => vm.runInContext(expression, context);
+evaluate('$("model-phase").textContent="Research beta"; $("event-status").textContent="Update delayed"; $("ref-price").textContent="$2,000"');
+evaluate('renderRun({run:{model_phase:"Retired model",input_timestamp_utc:"2026-09-05",reference_price:100},generated_at:"2026-09-05"},{}); renderFreshness({}, {}, {}, {})');
+assert.equal(elements['archive-ref-price'].textContent,'$100');
+assert.equal(elements['ref-price'].textContent,'$2,000');
+assert.equal(elements['event-status'].textContent,'Update delayed');
 assert.equal(evaluate('fmtDate("2026-09-05 00:00:00")'), '2026-09-05');
 assert.equal(evaluate('fmtPct(null)'), '--');
 assert.equal(evaluate('livePrice=9999; rollingTarget(110,100)'), 110);
@@ -47,12 +52,17 @@ const hybrid={schema_version:1,generated_at:'2026-09-05T12:00:00Z',protocol:{},m
 for(const h of [7,30])hybrid.horizons[h]={first_origin:'2026-01-01',last_target:'2026-09-05',leaderboard:[metric],recent:[metric],yearly:[{year:2026,...metric}],points:[{origin:'2026-08-01',target:'2026-09-05',reference_price:100,actual_price:120,actual_return:.2,returns:{optimized_hybrid:.1,safe_policy:0,equal_hybrid:.1,no_change:0}}],current:{origin:'2026-09-05',target:'2026-10-05',reference_price:100,predicted_price:110,predicted_return:.1,lower_price:80,upper_price:130,probability_down_flat_up:[.2,.5,.3],choice:{selection_rows:180,choice:{cat:'cat_short',transformer:'transformer_long',cat_weight:.75,amplitude:.5}}}};
 context.hybridFixture=hybrid;evaluate('renderHybrid(hybridFixture)');
 assert.equal(elements['legacy-archive'].open,false);
-assert.equal(elements['model-phase'].textContent,'CatBoost + Transformer');
+assert.equal(elements['model-phase'].textContent,'Research beta');
+assert.equal(elements['ref-price'].textContent,'$2,000');
 assert.match(elements['hybrid-verdict'].textContent,/has not beaten/);
 assert.equal(evaluate('hybridRows(hybridFixture,30,"optimized_hybrid","recent","return")[0].predicted'),.1);
 assert.equal(evaluate('hybridRows(hybridFixture,30,"optimized_hybrid","all","price")[0].raw'),100);
 assert.equal(evaluate('charts["chart-hybrid-30"].config.data.datasets[0].data[0]'),.1);
 assert.match(elements['hybrid-current'].children[1].children[4].textContent,/30.0% \/ 50.0% \/ 20.0%/);
-evaluate('fetchLiveEthPrice=async()=>3000; refreshLivePrice()').then(()=>assert.equal(elements['model-phase'].textContent,'CatBoost + Transformer'));
+evaluate('fetchLiveEthPrice=async()=>3000; refreshLivePrice()').then(()=>{
+ assert.equal(elements['model-phase'].textContent,'Research beta');
+ assert.equal(elements['event-status'].textContent,'Update delayed');
+ assert.equal(elements['ref-price'].textContent,'$2,000');
+});
 '''
     subprocess.run(["node", "-e", script], cwd=root, env={**os.environ, "TZ": timezone}, check=True)
