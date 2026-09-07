@@ -1,6 +1,7 @@
 """Verify the externally served release, exact issued IDs and hourly freshness."""
 import argparse
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 import time
@@ -73,6 +74,13 @@ def main():
             with urlopen('https://etherforecast.live/'+suffix,timeout=12) as response:html=response.read().decode()
             with urlopen('https://etherforecast.live/events.js'+suffix,timeout=12) as response:js=response.read().decode()
             if 'id="event-system"' not in html or 'loadEventForecasts' not in js:raise ValueError("new event charts missing")
+            if expected is not None:
+                for name, served in (("index.html", html), ("events.js", js)):
+                    source = Path("forecast_site/public", name).read_text()
+                    if source != served:raise ValueError("published interface differs from source: " + name)
+                print('Event interface verified: english-outlook-v1',
+                      'html_sha256='+hashlib.sha256(html.encode()).hexdigest(),
+                      'js_sha256='+hashlib.sha256(js.encode()).hexdigest())
             verify(actual,expected,require_ready=args.require_ready)
             if expected_replay is not None:
                 with urlopen('https://etherforecast.live/signals_replay.json'+suffix,timeout=30) as response:actual_replay=json.load(response)

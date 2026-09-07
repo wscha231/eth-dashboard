@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ETH Forecast</title>
-  <meta name="description" content="Simple leakage-safe ETH forecast dashboard.">
+  <meta name="description" content="Ethereum forecasts with clear probabilities, price ranges, and an honest record of predictions and outcomes.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -212,62 +212,136 @@
     #event-system select { padding:10px; margin:6px; font:inherit; }
     #event-system table { width:100%; white-space:nowrap; }
     #event-system td, #event-system th { padding:10px; text-align:left; }
+    /* A compact working view; detailed research remains available on demand. */
+    :root { --bg:#111613; --ink:#f0f4ed; --muted:#b2bdb1; --panel:#19201b; --line:rgba(220,240,216,.14); }
+    body { background:var(--bg); font-size:16px; }
+    a { color:var(--accent); text-underline-offset:4px; }
+    header { flex-wrap:wrap; margin-bottom:28px; }
+    nav { display:flex; flex-wrap:wrap; gap:20px; font-size:14px; }
+    nav a { color:var(--muted); text-decoration:none; }
+    nav a:hover { color:var(--ink); }
+    .mark { width:28px; height:28px; border-radius:8px; box-shadow:none; }
+    .panel { padding:24px; border-radius:16px; background:var(--panel); box-shadow:none; min-width:0; }
+    .hero { grid-template-columns:minmax(0,1fr) auto; align-items:center; margin-bottom:28px; }
+    h1 { font-family:Manrope,sans-serif; font-size:clamp(30px,5vw,46px); line-height:1.15; letter-spacing:-.04em; }
+    h2 { font-size:24px; line-height:1.3; }
+    .hero-copy { max-width:620px; font-size:16px; }
+    .quote { text-align:right; }
+    .live-price { font-size:30px; margin-top:4px; }
+    .small { font-size:14px; line-height:1.65; }
+    .eyebrow, .pill { font-size:12px; letter-spacing:.06em; }
+    .stat span { font-size:14px; text-transform:none; letter-spacing:0; }
+    .stat b { font-size:25px; font-variant-numeric:tabular-nums; }
+    .notice { padding:16px; border-radius:12px; font-size:14px; margin:14px 0; }
+    .status-line { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+    .status-line p { margin:0; }
+    .controls { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; }
+    .control { display:grid; gap:6px; font-size:14px; }
+    #event-system select { margin:0; padding:10px 32px 10px 12px; min-height:44px; max-width:100%; border-radius:8px; }
+    .horizon-control { margin-bottom:18px; }
+    .horizon-control label { font-size:16px; font-weight:700; }
+    #event-current { grid-template-columns:1fr; margin-bottom:12px; }
+    .outlook-top { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:12px; }
+    .outlook-price { font-size:clamp(38px,6vw,60px); font-weight:800; letter-spacing:-.045em; font-variant-numeric:tabular-nums; }
+    .direction-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:20px; }
+    .direction-cell { border-top:3px solid var(--line); padding-top:10px; }
+    .direction-cell b { display:block; font-size:24px; }
+    .direction-cell span { font-size:14px; color:var(--muted); }
+    .direction-cell.lower { border-color:var(--bad); }
+    .direction-cell.middle { border-color:var(--warn); }
+    .direction-cell.higher { border-color:var(--good); }
+    .event-probabilities { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); font-size:16px; }
+    .performance-summary { margin:18px 0; }
+    .score-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:18px; }
+    .score-card { border-top:2px solid var(--line); padding-top:14px; min-width:0; }
+    .score-card h3 { font-size:14px; font-weight:600; color:var(--muted); letter-spacing:0; }
+    .score-value { display:block; font-size:27px; line-height:1.3; font-weight:800; margin:10px 0; font-variant-numeric:tabular-nums; }
+    .score-card p { font-size:14px; line-height:1.6; }
+    details.panel { margin-top:16px; }
+    summary { cursor:pointer; font-weight:700; line-height:1.6; }
+    summary:focus-visible, a:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
+    details > div, details > p { margin-top:14px; }
+    .table-scroll { overflow-x:auto; }
+    #event-system table { font-size:14px; border-collapse:collapse; }
+    #event-system th { color:var(--muted); font-weight:600; }
+    #event-system td, #event-system th { border-bottom:1px solid var(--line); padding:12px; }
+    .chart-wrap { height:320px; }
+    .chart-section { margin-top:18px; }
+    .section-heading { margin:36px 0 18px; }
+    .reading-guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; margin-top:18px; }
+    .reading-guide h3 { font-size:16px; }
+    .reading-guide p { font-size:14px; }
+    .empty-outlook { border-color:var(--warn); }
+    [hidden] { display:none !important; }
+    footer { font-size:12px; }
+    @media (max-width:860px) {
+      header { flex-direction:row; align-items:center; }
+      .score-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .reading-guide { grid-template-columns:1fr; gap:16px; }
+    }
+    @media (max-width:560px) {
+      .shell { width:calc(100% - 28px); padding-top:18px; }
+      header { gap:18px; }
+      nav { width:100%; gap:20px; }
+      .hero { grid-template-columns:1fr; gap:18px; }
+      .quote { text-align:left; border-top:1px solid var(--line); padding-top:16px; }
+      .panel { padding:18px; }
+      .controls .control { flex:1 1 140px; }
+      .score-grid { gap:20px; }
+      .score-value { font-size:24px; }
+      .event-probabilities { grid-template-columns:1fr; }
+      .chart-wrap { height:260px; }
+    }
   </style>
 </head>
 <body>
   <div class="shell">
     <header>
       <div class="brand"><span class="mark"></span><span>ETH Forecast</span></div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <span class="pill" id="model-phase">loading</span>
-        <span class="pill" id="run-status">waiting</span>
-        <span class="pill" id="eval-status">eval loading</span>
-      </div>
+      <span class="pill" id="model-phase">Research beta</span>
+      <nav aria-label="Main navigation"><a href="#event-system">Forecast</a><a href="#performance">Performance</a><a href="#how-it-works">How to read it</a></nav>
     </header>
 
     <section class="hero">
-      <div class="panel">
-        <p class="eyebrow">Simple signal view</p>
-        <h1>이더리움, 가격과 추세의 변화를 함께.</h1>
-        <p class="hero-copy">
-          시간별 자료로 상승·하락 가능성과 가격 범위를 확인하세요.
-          과거 백테스트와 실제 발행 후 성과를 나란히 공개하는 연구 베타입니다.
-        </p>
+      <div>
+        <h1>Ethereum outlook.</h1>
+        <p class="hero-copy">Choose a forecast window. See the possible moves, the price range, and how the predictions have held up.</p>
       </div>
-      <aside class="panel">
+      <aside class="quote">
         <div class="small">Live ETH/USD</div>
         <div class="live-price" id="live-price">--</div>
         <div class="small" id="live-updated">loading spot price</div>
-        <div style="height: 18px;"></div>
-        <div class="small">Forecast reference</div>
-        <h2 id="ref-price">--</h2>
-        <div class="small" id="generated-at">loading latest forecast</div>
+        <div class="small">Forecast reference: <span id="ref-price">—</span></div>
+        <div class="small" id="generated-at">Waiting for forecast data</div>
       </aside>
     </section>
 
-    <section id="event-system">
-      <div class="section-heading"><div><p class="eyebrow">ETH-USD · 시간별 데이터</p><h2>앞으로의 움직임</h2><p id="event-updated" class="small">새 예측 자료를 불러오는 중입니다.</p></div><span id="event-status" class="pill">연구 베타</span></div>
-      <p class="notice">기간 중 상승과 하락 기준에 모두 도달할 수 있어 두 확률의 합은 100%가 아닙니다. 관측은 발행 후 다음 정시부터 시작합니다. 모델의 예측 우위는 아직 검증 중입니다.</p>
+    <section id="event-system" data-interface="english-outlook-v1">
+      <div class="status-line" role="status"><span id="event-status" class="pill">Checking update</span><p id="event-updated" class="small">Loading the latest forecast.</p></div>
+      <div class="controls horizon-control"><div class="control"><label for="event-horizon">Forecast window</label><select id="event-horizon"><option value="6">6 hours</option><option value="24" selected>1 day</option><option value="72">3 days</option><option value="168">7 days</option><option value="336">14 days</option><option value="720">30 days</option></select></div><p class="small">This window also applies to the performance below.</p></div>
       <div class="forecast-grid" id="event-current"></div>
       <p class="small" id="event-regime"></p>
-      <div class="section-heading"><div><h2>예측은 얼마나 맞았을까?</h2><p class="small">그때까지 확인할 수 있었던 결과로 매월 모델을 선택했습니다. 과거 자료의 수신 시각을 완전히 재현한 실전 성과는 아닙니다.</p></div></div>
-      <div class="panel" style="margin-bottom:16px">
-        <label for="event-horizon">예측 기간 </label><select id="event-horizon"><option value="6">6시간</option><option value="24" selected>24시간</option><option value="72">3일</option><option value="168">7일</option><option value="336">14일</option><option value="720">30일</option></select>
-        <label for="event-period">평가 구간 </label><select id="event-period"><option value="recent_365">최근 365일</option><option value="all">검증 전구간</option></select>
-        <label for="event-market-filter">예측 당시 상태 </label><select id="event-market-filter"><option value="all">모든 시장 상태</option></select>
-        <label for="event-price-unit">가격 차트 </label><select id="event-price-unit"><option value="usd">달러 가격</option><option value="return">기준 대비 수익률</option></select>
-        <p id="event-replay-status" class="small">백테스트 자료 확인 중</p>
-        <p><a id="event-segment-download" href="signals_segments.csv" download hidden>구간별 비교 결과 CSV 내려받기</a></p>
-        <p class="small">시장 상태는 예측 당시까지의 24시간 움직임과 30일 변동성으로 분류합니다. 고변동은 최근 24시간 변동성이 30일 기준의 1.5배 이상인 구간입니다. 만기가 도래하고 데이터가 완전한 공통 시점만 평가합니다.</p>
+      <div class="section-heading" id="performance"><div><p class="eyebrow">Historical simulation</p><h2>How well has it predicted?</h2><p class="small">Reconstructed tests on past data. Results below are for the selected forecast window, period, and market conditions.</p></div></div>
+      <div class="panel">
+        <div class="controls">
+          <div class="control"><label for="event-period">Test period</label><select id="event-period"><option value="recent_365">Last 365 days</option><option value="all">All history</option></select></div>
+          <div class="control"><label for="event-market-filter">Market at forecast time</label><select id="event-market-filter"><option value="all">All conditions</option></select></div>
+        </div>
+        <div class="performance-summary" aria-live="polite"><h3 id="event-verdict">Checking historical results</h3><p id="event-verdict-note" class="small"></p></div>
+        <div id="event-scorecards" class="score-grid"></div>
+        <p id="event-sample-status" class="small"></p>
       </div>
-      <div class="backtest"><article class="panel"><h2>급등·급락 도달 확률</h2><div class="chart-wrap"><canvas id="event-path-chart" aria-label="상승 하락 사건 예측 확률과 실제 도달"></canvas></div></article><article class="panel"><h2>만기 예측 가격과 실제 결과</h2><div class="chart-wrap"><canvas id="event-price-chart" aria-label="예측 가격 범위와 같은 만기 시점의 실제 가격"></canvas></div></article></div>
-      <details class="panel" style="margin-top:16px" open><summary>연도·최근 구간별 비교</summary><p class="small">현재 선택한 예측 기간과 시장 상태를 적용합니다. 개선율이 양수면 기준보다 오차가 작습니다. 날짜가 겹치는 예측은 독립 표본이 아니므로 겹치지 않는 구간 수도 함께 표시합니다. 최근 구간은 자료 기준일에 맞춰 고정하며, 장기 예측은 아직 평가할 표본이 없을 수 있습니다.</p><div id="event-period-comparison" style="overflow-x:auto"></div></details>
-      <details class="panel" style="margin-top:16px"><summary>기준 모델과 성능 비교</summary><p class="small">Brier는 확률의 오차로 낮을수록 좋습니다. 경보 기준은 과거 검증의 오경보율 5%를 목표로 정하며, 실제 이후 오경보율은 달라질 수 있습니다.</p><div id="event-model-comparison" style="overflow-x:auto"></div></details>
-      <details class="panel" style="margin-top:16px"><summary>실제로 발행한 예측과 결과</summary><p class="small" id="event-prospective-status"></p><div id="event-ledger" style="overflow-x:auto"></div></details>
+      <article class="panel chart-section"><div class="card-top"><div><h3>Predicted price vs. actual price</h3><p class="small">Green: forecast midpoint. White: actual outcome. Shading: the model's intended 80% range. Prices are compared at the same end date.</p></div><div class="control"><label for="event-price-unit">Show</label><select id="event-price-unit"><option value="usd">Price (USD)</option><option value="return">Return (%)</option></select></div></div><p id="event-chart-status" class="small" hidden></p><div class="chart-wrap"><canvas id="event-price-chart" role="img" aria-label="Predicted price range and actual price at the same forecast end date"></canvas></div></article>
+      <details class="panel" id="event-path-details"><summary>Large-move probabilities and outcomes</summary><p class="small">Lines show the estimated chance of touching each threshold. Dots at 1 mark periods when that move happened. Both moves can happen within one period.</p><div class="chart-wrap"><canvas id="event-path-chart" role="img" aria-label="Probabilities of a large rise or fall and the observed events"></canvas></div></details>
+      <details class="panel"><summary>Compare years and recent periods</summary><p class="small">The forecast window and market filter stay the same. Positive improvement means less error than the past-frequency baseline. Overlapping forecasts are not independent trials.</p><div id="event-period-comparison" class="table-scroll" tabindex="0" aria-label="Performance by period"></div></details>
+      <details class="panel"><summary>Detailed metrics and methodology</summary><p class="small">Brier score measures probability error; lower is better. Alert thresholds target a 5% false-positive rate in earlier validation data. The rate on later data can be different. Catch rate counts detected events; false-positive rate counts alerts among periods without that event.</p><p class="small">Models are selected monthly using outcomes already available then. Market conditions use trailing 24-hour returns and 30-day volatility. High volatility means at least 1.5 times the 30-day level. Only complete, settled, matching observations are scored. Historical receipt times are reconstructed, so these are not live results.</p><p id="event-replay-status" class="small">Loading test details.</p><div id="event-model-comparison" class="table-scroll" tabindex="0" aria-label="Model comparison"></div><p><a id="event-segment-download" href="signals_segments.csv" download hidden>Download all period comparisons (CSV)</a></p></details>
+      <article class="panel chart-section"><p class="eyebrow">Published forecast record</p><h3 id="event-live-verdict">Live evidence is still building</h3><p class="small" id="event-prospective-status"></p><div class="score-grid" id="event-live-scorecards"></div><p class="small">Only forecasts published before their observation window count here. This record uses the selected forecast window across all available live dates; the historical filters above do not apply. Pending outcomes are not counted as wins or losses.</p><details><summary>View published forecasts and outcomes</summary><div id="event-ledger" class="table-scroll" tabindex="0" aria-label="Published forecasts and outcomes"></div></details></article>
+      <details class="panel" id="how-it-works"><summary>How to read a forecast</summary><div class="reading-guide"><div><h3>1. The end price</h3><p>The midpoint is the model's central estimate. Lower, within range, and higher probabilities describe where the final price lands relative to the two stated move thresholds. These three probabilities add to 100%.</p></div><div><h3>2. A move along the way</h3><p>A large-rise probability means the price touches the upper threshold at any point during the window. The price can rise and then fall, so the two touch probabilities do not have to add to 100%.</p></div><div><h3>3. The evidence</h3><p>Less probability error does not mean the same percentage of predictions were correct. Check missed moves and false alarms too. An 80% price range is a model target; its actual hit rate is shown under Performance.</p></div></div><p class="small">Observation starts at the next full UTC hour after the forecast's input slot. Every forecast shows its exact start and end. The live quote does not change an already published forecast. Model edges and live performance remain under evaluation.</p></details>
     </section>
 
     <details id="hybrid-archive" class="panel" style="margin-top:22px">
-    <summary>이전 7·30일 가격 모델 · 비교 보관</summary>
+    <summary>Archive: earlier 7- and 30-day hybrid models</summary>
+    <p class="small">Previous research, retained for comparison. The hourly event outlook above is the current forecast system.</p>
     <section id="hybrid-system" hidden>
       <div class="section-heading">
         <div><p class="eyebrow">CatBoost + patch Transformer</p><h2 id="hybrid-title">7 / 30-day optimized forecasts</h2><p id="hybrid-updated"></p></div>
@@ -290,9 +364,11 @@
     </section>
 
     </details>
-    <details class="panel" id="legacy-archive" open style="margin-top:22px">
+    <details class="panel" id="legacy-archive" style="margin-top:22px">
       <summary>Previous model archive · retired from the active candidate roster</summary>
-      <p class="small">Earlier forecasts and evaluations are retained for comparison. The CatBoost + Transformer panel above is the current model family.</p>
+      <p class="small">Earlier forecasts and evaluations are retained for comparison. These archived statuses do not describe the current hourly outlook.</p>
+      <p><span id="archive-model-phase" class="pill">Archive</span> <span id="archive-run-status" class="pill">Checking archive</span> <span id="archive-eval-status" class="pill">Checking evaluation</span></p>
+      <p class="small">Archived reference: <span id="archive-ref-price">—</span> · <span id="archive-generated-at">—</span></p>
     <section class="forecast-grid" id="forecast-grid">
       <div class="panel">Loading forecast...</div>
     </section>
@@ -654,8 +730,8 @@ function renderFreshness(latest, health, latestReport, lastPassReport) {
     <div class="stat"><span>${label}</span><b class="${statusClass(value)}">${value}</b><div class="small">${note}</div></div>
   `).join("");
   const latestStatus = evaluationStatus(latestReport);
-  $("eval-status").textContent = `latest eval ${latestStatus}`;
-  $("eval-status").className = `pill ${statusClass(latestStatus)}`;
+  $("archive-eval-status").textContent = `latest archived eval ${latestStatus}`;
+  $("archive-eval-status").className = `pill ${statusClass(latestStatus)}`;
 }
 
 function renderDonations(donations) {
@@ -690,15 +766,15 @@ function renderDonations(donations) {
 function renderRun(latest, health) {
   if (!latest?.run) return;
   const run = latest.run;
-  $("model-phase").textContent = run.model_phase || "model";
+  $("archive-model-phase").textContent = run.model_phase || "model";
   const healthStatus = health?.components?.live_forecast?.status;
   const runDate = parseUTC(run.input_timestamp_utc || run.run_timestamp_utc || latest.generated_at);
   const ageHours = (Date.now() - runDate.getTime()) / 36e5;
   const status = healthStatus || (ageHours < 27 ? "ok" : ageHours < 48 ? "aging" : "stale");
-  $("run-status").textContent = `live ${status}`;
-  $("run-status").className = `pill ${statusClass(status)}`;
-  $("ref-price").textContent = fmtUSD(run.reference_price);
-  $("generated-at").textContent = `generated ${fmtDate(latest.generated_at)}; cutoff ${fmtDate(run.input_timestamp_utc)}`;
+  $("archive-run-status").textContent = `archived ${status}`;
+  $("archive-run-status").className = `pill ${statusClass(status)}`;
+  $("archive-ref-price").textContent = fmtUSD(run.reference_price);
+  $("archive-generated-at").textContent = `generated ${fmtDate(latest.generated_at)}; cutoff ${fmtDate(run.input_timestamp_utc)}`;
 }
 
 function renderForecast(latest, report, health) {
@@ -989,9 +1065,6 @@ function renderHybrid(payload) {
   if(payload?.schema_version!==1 || !payload.horizons?.["7"]?.current || !payload.horizons?.["30"]?.current)return;
   hybridPayload=payload;$("hybrid-system").hidden=false;$("legacy-archive").open=false;
   $("hybrid-archive").ontoggle=()=>Object.values(charts).forEach(c=>c.resize?.());
-  $("model-phase").textContent="CatBoost + Transformer";$("run-status").textContent="daily saved-model forecast";$("eval-status").textContent="live edge under evaluation";
-  $("ref-price").textContent=fmtUSD(payload.horizons["7"].current.reference_price);
-  $("generated-at").textContent=`Forecast origin ${payload.horizons["7"].current.origin} UTC`;
   $("hybrid-updated").textContent=`Updated ${payload.generated_at} · Daily inference / weekly replay review`;
   const negative=[7,30].filter(h=>payload.horizons[h].leaderboard.find(m=>m.model==="optimized_hybrid").mae_skill_vs_no_change<=0);
   $("hybrid-verdict").textContent=negative.length ? `The optimized ${negative.join(" / ")}-day hybrid has not beaten the no-change reference on full-period MAE. Its forecast is shown for prospective evaluation; improvement is not established. The earlier model family is archived below.` : "The optimized hybrid reduced historical MAE. Untouched prospective evidence is still required before asserting live predictive skill.";
@@ -1037,6 +1110,9 @@ async function refreshLivePrice() {
 
 (async function main() {
   $("footer-time").textContent = new Date().toISOString();
+  // Quote and current event data must never wait for the archived research files.
+  refreshLivePrice();
+  setInterval(refreshLivePrice, 60 * 1000);
   const hybridTask=loadJSON("hybrid_forecast.json").catch(()=>null);
   const [latest, latestReport, lastPassReport, candidateLongrun, history, accuracy, health, donations] = await Promise.all([
     loadJSON("latest.json").catch(() => null),
@@ -1089,9 +1165,6 @@ async function refreshLivePrice() {
   loadJSON("full_backtest.json").then(renderFullHistory).catch(() => {});
   const hybrid=await hybridTask;
   if(hybrid)renderHybrid(hybrid);
-  await window.loadEventForecasts?.();
-  await refreshLivePrice();
-  setInterval(refreshLivePrice, 60 * 1000);
 })();
 </script>
 </body>
