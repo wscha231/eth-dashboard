@@ -62,8 +62,10 @@ def verify(actual, expected=None, now=None, require_ready=False):
 
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument("--expected");p.add_argument("--require-ready",action="store_true");args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("--expected");p.add_argument("--require-ready",action="store_true")
+    p.add_argument("--expected-replay");args=p.parse_args()
     expected=json.loads(Path(args.expected).read_text()) if args.expected else None
+    expected_replay=json.loads(Path(args.expected_replay).read_text()) if args.expected_replay else None
     for attempt in range(15 if expected else 1):
         try:
             suffix=f"?verify={int(time.time())}"
@@ -72,6 +74,21 @@ def main():
             with urlopen('https://etherforecast.live/events.js'+suffix,timeout=12) as response:js=response.read().decode()
             if 'id="event-system"' not in html or 'loadEventForecasts' not in js:raise ValueError("new event charts missing")
             verify(actual,expected,require_ready=args.require_ready)
+            if expected_replay is not None:
+                with urlopen('https://etherforecast.live/signals_replay.json'+suffix,timeout=30) as response:actual_replay=json.load(response)
+                if actual_replay != expected_replay:raise ValueError("published replay differs from evaluated result")
+                for control in ('event-market-filter','event-price-unit','event-period-comparison'):
+                    if f'id="{control}"' not in html or control not in js:raise ValueError("period comparison controls missing")
+                with urlopen('https://etherforecast.live/signals_segments.csv'+suffix,timeout=15) as response:actual_csv=response.read()
+                from tempfile import TemporaryDirectory
+                from export_event_segments import export
+                with TemporaryDirectory() as temp:
+                    csv_path=Path(temp)/'segments.csv'
+                    row_count=export(expected_replay,csv_path)
+                    if actual_csv != csv_path.read_bytes():raise ValueError("published segment CSV differs from evaluated result")
+                print('Event replay verified:',actual_replay['generated_at'],
+                      'segmented_horizons='+str(sum(bool(r.get('segments')) for r in actual_replay['horizons'].values())),
+                      'csv_rows='+str(row_count))
             print('Event site verified:',actual['release_id'],actual['status'],
                   'slot='+actual['expected_slot'], 'generated='+actual['generated_at'],
                   'horizons='+str(len(actual.get('current',[]))));return

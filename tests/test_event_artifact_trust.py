@@ -51,3 +51,26 @@ const github={rest:{repos:{listPullRequestsAssociatedWithCommit:async()=>({data:
     for key,value in expected.items():
         assert actual['outputs'][key]==value
     assert not ({1,2}&set(actual['lookups']))
+
+
+@pytest.mark.parametrize('filename,needed',[('signal_pipeline/evaluate.py','false'),
+    ('signal_pipeline/engine.py','false'),('signal_pipeline/models.py','true'),
+    ('signal_pipeline/protocol.py','true')])
+def test_report_only_changes_do_not_repeat_foundation_diagnostics(filename,needed):
+    document=Path('.github/workflows/event_research.yml').read_text()
+    block=document.split('id: changed\n',1)[1].split('          script: |\n',1)[1]
+    lines=[]
+    for line in block.splitlines():
+        if not line.startswith('            '):break
+        lines.append(line[12:])
+    harness=r'''
+const input=JSON.parse(process.argv[1]),outputs={};
+const github={rest:{pulls:{listFiles(){}}},paginate:async()=>[{filename:input.filename}]};
+const context={eventName:'pull_request',repo:{owner:'owner',repo:'repo'},payload:{pull_request:{number:25}}};
+const core={setOutput:(k,v)=>{outputs[k]=v}};
+(async()=>{await new (Object.getPrototypeOf(async function(){}).constructor)('github','context','core',input.script)(github,context,core);
+ console.log(outputs.foundations);})().catch(e=>{console.error(e);process.exit(1)});
+'''
+    result=subprocess.run(['node','-e',harness,json.dumps({'script':'\n'.join(lines),'filename':filename})],
+                          check=True,capture_output=True,text=True)
+    assert result.stdout.strip()==needed

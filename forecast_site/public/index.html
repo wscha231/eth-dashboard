@@ -251,8 +251,17 @@
       <div class="forecast-grid" id="event-current"></div>
       <p class="small" id="event-regime"></p>
       <div class="section-heading"><div><h2>예측은 얼마나 맞았을까?</h2><p class="small">그때까지 확인할 수 있었던 결과로 매월 모델을 선택했습니다. 과거 자료의 수신 시각을 완전히 재현한 실전 성과는 아닙니다.</p></div></div>
-      <div class="panel" style="margin-bottom:16px"><label for="event-horizon">예측 기간 </label><select id="event-horizon"><option value="6">6시간</option><option value="24" selected>24시간</option><option value="72">3일</option><option value="168">7일</option><option value="336">14일</option><option value="720">30일</option></select> <label for="event-period">표시 구간 </label><select id="event-period"><option value="recent">최근 1년</option><option value="all">검증 전구간</option></select><p id="event-replay-status" class="small">백테스트 자료 확인 중</p></div>
-      <div class="backtest"><article class="panel"><h2>급등·급락 도달 확률</h2><div class="chart-wrap"><canvas id="event-path-chart" aria-label="상승 하락 사건 예측 확률과 실제 도달"></canvas></div></article><article class="panel"><h2>예측 범위와 실현 수익률</h2><div class="chart-wrap"><canvas id="event-price-chart" aria-label="예측 가격 범위와 실현 수익률"></canvas></div></article></div>
+      <div class="panel" style="margin-bottom:16px">
+        <label for="event-horizon">예측 기간 </label><select id="event-horizon"><option value="6">6시간</option><option value="24" selected>24시간</option><option value="72">3일</option><option value="168">7일</option><option value="336">14일</option><option value="720">30일</option></select>
+        <label for="event-period">평가 구간 </label><select id="event-period"><option value="recent_365">최근 365일</option><option value="all">검증 전구간</option></select>
+        <label for="event-market-filter">예측 당시 상태 </label><select id="event-market-filter"><option value="all">모든 시장 상태</option></select>
+        <label for="event-price-unit">가격 차트 </label><select id="event-price-unit"><option value="usd">달러 가격</option><option value="return">기준 대비 수익률</option></select>
+        <p id="event-replay-status" class="small">백테스트 자료 확인 중</p>
+        <p><a id="event-segment-download" href="signals_segments.csv" download hidden>구간별 비교 결과 CSV 내려받기</a></p>
+        <p class="small">시장 상태는 예측 당시까지의 24시간 움직임과 30일 변동성으로 분류합니다. 고변동은 최근 24시간 변동성이 30일 기준의 1.5배 이상인 구간입니다. 만기가 도래하고 데이터가 완전한 공통 시점만 평가합니다.</p>
+      </div>
+      <div class="backtest"><article class="panel"><h2>급등·급락 도달 확률</h2><div class="chart-wrap"><canvas id="event-path-chart" aria-label="상승 하락 사건 예측 확률과 실제 도달"></canvas></div></article><article class="panel"><h2>만기 예측 가격과 실제 결과</h2><div class="chart-wrap"><canvas id="event-price-chart" aria-label="예측 가격 범위와 같은 만기 시점의 실제 가격"></canvas></div></article></div>
+      <details class="panel" style="margin-top:16px" open><summary>연도·최근 구간별 비교</summary><p class="small">현재 선택한 예측 기간과 시장 상태를 적용합니다. 개선율이 양수면 기준보다 오차가 작습니다. 날짜가 겹치는 예측은 독립 표본이 아니므로 겹치지 않는 구간 수도 함께 표시합니다. 최근 구간은 자료 기준일에 맞춰 고정하며, 장기 예측은 아직 평가할 표본이 없을 수 있습니다.</p><div id="event-period-comparison" style="overflow-x:auto"></div></details>
       <details class="panel" style="margin-top:16px"><summary>기준 모델과 성능 비교</summary><p class="small">Brier는 확률의 오차로 낮을수록 좋습니다. 경보 기준은 과거 검증의 오경보율 5%를 목표로 정하며, 실제 이후 오경보율은 달라질 수 있습니다.</p><div id="event-model-comparison" style="overflow-x:auto"></div></details>
       <details class="panel" style="margin-top:16px"><summary>실제로 발행한 예측과 결과</summary><p class="small" id="event-prospective-status"></p><div id="event-ledger" style="overflow-x:auto"></div></details>
     </section>
