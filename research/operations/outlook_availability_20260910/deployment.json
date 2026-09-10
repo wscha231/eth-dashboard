@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "status": "implemented_merged_deployed_verified",
+  "user_approval": "어 재발 방지 수정",
+  "pr": "https://github.com/wscha231/eth-dashboard/pull/29",
+  "implementation_head": "95ffd89a09669d8e6a6000e95d5e9e8fd8f5a325",
+  "merge_commit": "fefe57926c5a759e745db0bb9638dcc71d16f8e1",
+  "checks": {
+    "focused_local_tests": 59,
+    "full_pipeline_ci_tests": 269,
+    "focused_tests_are_subset": true,
+    "full_ci": "https://github.com/wscha231/eth-dashboard/actions/runs/34538846018",
+    "research_replay": "https://github.com/wscha231/eth-dashboard/actions/runs/34538845967",
+    "result": "success"
+  },
+  "production": {
+    "site": "https://etherforecast.live",
+    "run": "https://github.com/wscha231/eth-dashboard/actions/runs/34539536935",
+    "job_id": 103078827873,
+    "run_result": "success",
+    "verified_at_utc": "2026-09-10T22:54:12.6208129Z",
+    "verified_at_kst": "2026-09-11T07:54:12.6208129+09:00",
+    "verification_method": "GitHub runner fetched the public site and matched complete JSON, HTML and JavaScript before strict readiness verification",
+    "data_commit": "49bfc39430b4546ec60c6960d94d90f11812dd1d",
+    "ledger_commit": "5286812f7ccbaeadc20f0e2e863982b800b0da4f",
+    "release_id": "435690372b07fd7d49887176f8779f3923bdec3d651e3027e9f5c564f6777485",
+    "status": "ready",
+    "expected_slot": "2026-09-10T22:00:00+00:00",
+    "generated_at": "2026-09-10T22:53:15.489005+00:00",
+    "horizon_hours": [
+      6,
+      24,
+      72,
+      168,
+      336,
+      720
+    ],
+    "html_sha256": "67731d338d14c427a8e30bc775ef8225c808897dbc01e934dde6e08f0f82c974",
+    "javascript_sha256": "10bb652398d887d62b76485df7ee8c51832f7544d4c516165967788a4b517055",
+    "verification_order": [
+      "exact_public_payload_and_interface",
+      "persist_publication_receipts",
+      "strict_public_readiness"
+    ]
+  },
+  "post_deployment_check": {
+    "checked_at_utc": "2026-09-10T22:55:38.444067+00:00",
+    "method": "Node DOM harness with deployed JavaScript and exact published JSON; strict Python validator",
+    "all_six_current_selectors_passed": true,
+    "simulated_empty_release_previous_selectors": 6,
+    "simulated_empty_release_status": "delayed",
+    "simulated_empty_release_strict_check": "rejected",
+    "production_outage_injected": false,
+    "original_values_unchanged": true
+  },
+  "published_record_comparison": [
+    {
+      "forecast_id": "ea02fd486f8ae7e8e0797029ecc567e526a4f8a409198ff311dcd18fa4170e66",
+      "horizon_hours": 6,
+      "issued_at": "2026-09-10T22:29:16.746767+00:00",
+      "published_at": "2026-09-10T22:30:01.351730+00:00",
+      "values_match": true
+    },
+    {
+      "forecast_id": "73cdf7b2bd29d8e2f26cf0afc8fdc43c70b864fc2a59976bde45f6ef1f1a33cc",
+      "horizon_hours": 24,
+      "issued_at": "2026-09-10T22:29:16.746767+00:00",
+      "published_at": "2026-09-10T22:30:01.351836+00:00",
+      "values_match": true
+    },
+    {
+      "forecast_id": "2786ad0410b287f90afa756eb8a5d609481b8902d5ec4c640f1d4b641776d06f",
+      "horizon_hours": 72,
+      "issued_at": "2026-09-10T22:29:16.746767+00:00",
+      "published_at": "2026-09-10T22:30:01.351849+00:00",
+      "values_match": true
+    },
+    {
+      "forecast_id": "57617fe87b034c0cdfde9080acff34515cda6a76a688364476e714251a01735a",
+      "horizon_hours": 168,
+      "issued_at": "2026-09-10T22:29:16.746767+00:00",
+      "published_at": "2026-09-10T22:30:01.351858+00:00",
+      "values_match": true
+    },
+    {
+      "forecast_id": "9d76d09e21b9d8e1f26303b20f44bdaae52e02df9045517b455a1430a84902cd",
+      "horizon_hours": 336,
+      "issued_at": "2026-09-10T22:29:16.746767+00:00",
+      "published_at": "2026-09-10T22:30:01.351865+00:00",
+      "values_match": true
+    },
+    {
+      "forecast_id": "11c352f44d7be2a28f8ced0e7357cf5137d3963224cf09d43173227dd1e9ce18",
+      "horizon_hours": 720,
+      "issued_at": "2026-09-10T22:29:16.746767+00:00",
+      "published_at": "2026-09-10T22:30:01.351882+00:00",
+      "values_match": true
+    }
+  ],
+  "limitations": [
+    "GitHub schedules can still be delayed; this does not guarantee uninterrupted fresh forecasts.",
+    "Previous records are visible only while their original target window remains unexpired and their publication was verified in time.",
+    "No model accuracy improvement is claimed."
+  ],
+  "rollback": "Revert PR #29 code changes and republish through the existing workflow. Preserve issuance and settlement ledgers."
+}

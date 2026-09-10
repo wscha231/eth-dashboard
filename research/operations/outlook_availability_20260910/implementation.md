@@ -26,7 +26,15 @@ JavaScript, shell and Python syntax checks and git diff --check passed.
 
 ## Delivery status
 
-Local implementation complete. GitHub checks, merge and production verification are recorded in PR #29 and the subsequent deployment record.
-This file does not assert that those later steps have already completed.
+Implementation, merge and production verification completed. [PR #29](https://github.com/wscha231/eth-dashboard/pull/29) was merged as fefe57926c5a759e745db0bb9638dcc71d16f8e1.
+
+- The exact PR head passed [269 full pipeline tests](https://github.com/wscha231/eth-dashboard/actions/runs/34538846018) and [hourly event research replay](https://github.com/wscha231/eth-dashboard/actions/runs/34538845967). The 59 focused local tests are a subset, not an additional 59 independent CI tests.
+- The [production hourly run](https://github.com/wscha231/eth-dashboard/actions/runs/34539536935) succeeded. At 2026-09-10 22:54:12 UTC (2026-09-11 07:54:12 KST), the runner fetched the public site and checked exact JSON, HTML and JavaScript equality, then passed the final strict readiness check: ready, slot 2026-09-10 22:00 UTC, horizons=6.
+- Published data commit: 49bfc39430b4546ec60c6960d94d90f11812dd1d. Release ID: 435690372b07fd7d49887176f8779f3923bdec3d651e3027e9f5c564f6777485.
+- Served JavaScript SHA256: 10bb652398d887d62b76485df7ee8c51832f7544d4c516165967788a4b517055. Both external interface checks matched the implementation source.
+- The runner preserved publication receipts in ledger commit 5286812f7ccbaeadc20f0e2e863982b800b0da4f before the final readiness check. All six current records match the corresponding previously published ledger records in recent_issued, including original prices and issuance dates. This deployment correctly reused the existing 22:00 issuance; it did not rewrite it as a new forecast.
+- At 22:55:38 UTC, the deployed JavaScript and exact published JSON passed all six horizon selections in the Node DOM harness. A local copy with current=[] displayed six verified previous cards and remained delayed; the strict Python validator rejected the same empty release. No outage was injected into production.
+
+Machine-readable checks, receipt comparisons and links are in deployment.json. The public-site check was executed by the GitHub runner; the local six-selector check used the exact deployed code and payload, not an interactive browser screenshot.
 
 GitHub scheduled execution can still be delayed. The change preserves useful, correctly dated forecasts and accurate outage status; it does not create an always-on scheduler or guarantee uninterrupted fresh forecasts.
