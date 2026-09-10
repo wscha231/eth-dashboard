@@ -1,7 +1,7 @@
 /* english-outlook-v1: fixed issued prices, matched historical evidence, separate live record. */
 (() => {
   let payload, replay, selectedHorizon = '24', selectedPeriod = 'recent_365', selectedRegime = 'all', priceUnit = 'usd';
-  let fetchFailed = false, replayFailed = false, lastDelayed, loading = false;
+  let fetchFailed = false, replayFailed = false, lastDelayed, lastCardKey, loading = false;
   const expectedHorizons = [6,24,72,168,336,720];
   const charts = {};
   const el = id => document.getElementById(id);
@@ -13,6 +13,30 @@
   const names = {selected:'Model selected at the time',climatology:'Past-frequency baseline',logistic:'Logistic regression',catboost:'CatBoost',catboost_calibrated:'CatBoost + frequency calibration'};
   const marketNames = {all:'All conditions',trend_up:'Rising market',trend_down:'Falling market',trend_range:'Sideways market',vol_high:'High volatility',vol_normal:'Normal volatility'};
   const periodName = id => id==='all' ? 'All history' : /^recent_\d+$/.test(id) ? `Last ${id.split('_')[1]} days` : /^year_\d{4}$/.test(id) ? id.slice(5) : 'Available history';
+  const stamp = value => typeof value==='string' && /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ? Date.parse(value) : NaN;
+  function validForecast(f, now) {
+    if(!f || typeof f.forecast_id!=='string' || !f.forecast_id || !Number.isFinite(f.horizon_seconds) || !expectedHorizons.includes(f.horizon_seconds/3600))return false;
+    const slot=stamp(f.input_cutoff),available=stamp(f.available_at),issued=stamp(f.issued_at),start=stamp(f.window_start),end=stamp(f.target_end);
+    const p=f.terminal_down_flat_up,q=f.price_quantiles;
+    return [slot,available,issued,start,end].every(Number.isFinite) && slot%3600000===0 && stamp(f.slot)===slot &&
+      available>=slot && available<=issued && issued>=slot && issued<slot+55*60000 && issued<=now && start===slot+3600000 &&
+      end-start===f.horizon_seconds*1000 && end>now &&
+      Array.isArray(p) && p.length===3 && p.every(v=>Number.isFinite(v)&&v>=0&&v<=1) && Math.abs(p.reduce((a,b)=>a+b,0)-1)<1e-6 &&
+      [f.hit_up,f.hit_down].every(v=>Number.isFinite(v)&&v>=0&&v<=1) &&
+      Array.isArray(q) && q.length===3 && q.every(v=>Number.isFinite(v)&&v>0) && q[0]<=q[1] && q[1]<=q[2] &&
+      [f.reference_price,f.lower_barrier_price,f.upper_barrier_price].every(v=>Number.isFinite(v)&&v>0) &&
+      f.lower_barrier_price<f.reference_price && f.reference_price<f.upper_barrier_price;
+  }
+  function outlook(now=Date.now()) {
+    const matches=f=>f.horizon_seconds/3600===Number(selectedHorizon) && validForecast(f,now);
+    const current=payload?.current?.find(f=>f && matches(f));
+    if(current)return {record:current,previous:false};
+    const previous=(payload?.recent_issued || []).filter(f=>f && matches(f) &&
+      Number.isFinite(stamp(f.published_at)) && stamp(f.published_at)>=stamp(f.issued_at) &&
+      stamp(f.published_at)<stamp(f.window_start) && stamp(f.published_at)<=now)
+      .sort((a,b)=>stamp(b.input_cutoff)-stamp(a.input_cutoff) || stamp(b.published_at)-stamp(a.published_at))[0];
+    return {record:previous,previous:!!previous};
+  }
   function text(parent,tag,value,className='') {
     const node=document.createElement(tag);node.textContent=value;node.className=className;parent.appendChild(node);return node;
   }
@@ -26,10 +50,11 @@
     if(!payload || payload.status!=='ready')return true;
     const now=Date.now(),slot=Date.parse(payload.expected_slot),generated=Date.parse(payload.generated_at);
     const dueSlot=Math.floor((now-15*60000)/3600000)*3600000;
-    const horizons=(payload.current || []).map(f=>f.horizon_seconds/3600);
+    const horizons=(payload.current || []).map(f=>f?.horizon_seconds/3600);
     return !Number.isFinite(slot)||!Number.isFinite(generated)||slot%3600000!==0||slot<dueSlot||slot>now+120000||
       generated>now+120000||now-generated>100*60000||horizons.length!==6||expectedHorizons.some(h=>!horizons.includes(h))||
-      payload.current.some(f=>Date.parse(f.input_cutoff)!==slot);
+      new Set(payload.current.map(f=>f?.forecast_id)).size!==6 ||
+      payload.current.some(f=>!validForecast(f,now)||Date.parse(f.input_cutoff)!==slot);
   }
   function renderStatus() {
     const stale=delayed();
@@ -38,12 +63,14 @@
     el('event-updated').textContent=payload ?
       `${fetchFailed?'Showing the last received data. ':''}Inputs: ${local(payload.expected_slot)} · Last update: ${local(payload.generated_at)}${stale?' · A complete current forecast is not available.':''}` :
       'The latest forecast could not be confirmed. Retrying automatically.';
-    if(payload && lastDelayed!==stale)renderCards();
-    lastDelayed=stale;
+    // Expiry matters even when the overall delayed status has not changed.
+    const chosen=outlook(),cardKey=`${selectedHorizon}:${chosen.record?.forecast_id||''}:${chosen.previous}`;
+    if(lastDelayed!==stale || lastCardKey!==cardKey)renderCards();
+    lastDelayed=stale;lastCardKey=cardKey;
   }
   function renderCards() {
     const root=el('event-current');root.replaceChildren();
-    const f=payload?.current?.find(row=>row.horizon_seconds/3600===Number(selectedHorizon));
+    const {record:f,previous}=outlook();
     el('ref-price').textContent=money(f?.reference_price);
     el('generated-at').textContent=f ? `Reference at ${local(f.input_cutoff)}` : 'No current reference for this forecast window';
     if(!f) {
@@ -53,8 +80,8 @@
       return;
     }
     const card=text(root,'article','','panel');
-    const stale=delayed();
-    text(card,'p',`${horizonName(selectedHorizon)} outlook · ${stale?'Update delayed':'Published forecast'}`,'eyebrow');
+    const stale=delayed()||previous;
+    text(card,'p',`${horizonName(selectedHorizon)} outlook · ${previous?'Previous published forecast · Update delayed':stale?'Update delayed':'Published forecast'}`,'eyebrow');
     const top=text(card,'div','','outlook-top');
     text(top,'h2',money(f.price_quantiles?.[1]),'outlook-price');
     text(top,'span','Estimated end price','small');
@@ -73,8 +100,9 @@
     text(bands,'span',`Touch ${money(f.upper_barrier_price)} or higher: ${pct(f.hit_up)}`,'event-up');
     text(bands,'span',`Touch ${money(f.lower_barrier_price)} or lower: ${pct(f.hit_down)}`,'event-down');
     text(detail,'p','Both thresholds can be touched within the window, so these two probabilities can add to more than 100%.','small');
-    text(detail,'p',`Published: ${local(f.issued_at)} · ${names[f.selected_model] || f.selected_model || 'Research model'}`,'small');
-    if(stale)text(card,'p','This forecast is out of date or the release is incomplete. The original estimate is preserved; wait for a complete update before treating it as the current outlook.','notice');
+    text(detail,'p',`Issued: ${local(f.issued_at)} · ${names[f.selected_model] || f.selected_model || 'Research model'}`,'small');
+    if(previous)text(card,'p',`Published: ${local(f.published_at)}. The latest update is delayed. This earlier forecast keeps its original prices and observation window.`,'notice');
+    else if(stale)text(card,'p','This forecast is out of date or the release is incomplete. The original estimate is preserved; wait for a complete update before treating it as the current outlook.','notice');
   }
   function chart(id,labels,datasets,yLabel) {
     charts[id]?.destroy();delete charts[id];
