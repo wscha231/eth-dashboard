@@ -160,3 +160,38 @@ def test_external_release_checks_stale_delayed_or_mismatched_outputs():
     with pytest.raises(ValueError):verify(d,{**d,'release_id':'two'},utc('2020-04-01T12:10Z'))
     with pytest.raises(ValueError):verify(d,d,utc('2020-04-01T14:00Z'))
     with pytest.raises(ValueError):verify({**d,'status':'delayed'},now=utc('2020-04-01T12:10Z'),require_ready=True)
+
+
+@pytest.mark.parametrize('late,reason', [('2020-04-01T12:55:00Z', 'issuance_deadline'),
+                                       ('2020-04-01T13:00:00Z', 'current hourly slot')])
+def test_daily_issuance_uses_actual_clock_after_inference(tmp_path, monkeypatch, late, reason):
+    from signal_pipeline import engine
+    slot = utc('2020-04-01T12:00:00Z')
+    features = pd.DataFrame({'signal': [1.], 'available_at': [slot+pd.Timedelta(minutes=2)],
+                             'eth_ret_24': [.01], 'eth_vol_720': [.01], 'eth_vol_24': [.01]}, index=[slot])
+    monkeypatch.setattr(engine, 'read_bars', lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(engine, 'build_features', lambda *a: features)
+    monkeypatch.setattr(engine, 'feature_columns', lambda *a: ['signal'])
+    monkeypatch.setattr(engine, 'settle', lambda *a, **k: 0)
+    def bundle(*args, allow_fit):
+        assert allow_fit is False
+        return {}, False
+    monkeypatch.setattr(engine, 'obtain_bundle', bundle)
+    monkeypatch.setattr(engine, 'forecast_record', lambda f, s, h, b: {**record(), 'horizon_seconds': h*3600,
+                         'target_end': (slot+pd.Timedelta(hours=h+1)).isoformat()})
+    monkeypatch.setattr(engine, 'baseline_record', lambda *a: {})
+    monkeypatch.setattr(engine, 'source_hash', lambda *a: 'fixed-source')
+    monkeypatch.setattr(engine, 'prospective_report', lambda *a: {})
+    times = iter([utc('2020-04-01T12:54:59Z'), utc(late), utc(late)+pd.Timedelta(seconds=1)])
+    data = engine.daily(tmp_path, horizons=(6, 24), now='2020-04-01T12:54:58Z', clock=lambda: next(times))
+    assert data['status'] == 'delayed'
+    assert len(data['current']) == len(history(tmp_path)) == 1
+    assert data['current'][0]['issued_at'] == '2020-04-01T12:54:59+00:00'
+    assert reason in data['errors'][0]['reason']
+    assert data['errors'][0]['horizon'] == 24
+
+
+def test_deadline_retry_preserves_an_already_issued_record(tmp_path):
+    original = issue(tmp_path, record(), now='2020-04-01T12:54:59Z')
+    assert issue(tmp_path, {**record(), 'price_quantiles': [1., 2., 3.]}, now='2020-04-01T12:55:00Z') == original
+    assert len(history(tmp_path)) == 1

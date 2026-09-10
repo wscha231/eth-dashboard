@@ -9,7 +9,7 @@ const WORKERS = new Set([
 ]);
 const COOLDOWN_MS = 20 * 60 * 1000;
 
-module.exports = async function recover({github, context, core, now = new Date()}) {
+module.exports = async function recover({github, context, core, now, clock = () => now ?? new Date()}) {
   async function finish(decision, message) {
     core.setOutput('recovery', decision);
     core.notice(message);
@@ -29,13 +29,15 @@ module.exports = async function recover({github, context, core, now = new Date()
   const {data} = await github.rest.actions.listWorkflowRuns({
     ...context.repo, workflow_id: 'event_hourly.yml', branch: 'main', event: 'workflow_dispatch', per_page: 50,
   });
+  // Read after the API calls: queued work and network time consume the issuance window.
+  const dispatchTime = clock();
   // A re-run keeps created_at, so consider the actual attempt start and completion.
   const recent = data.workflow_runs.find(run => run.event === 'workflow_dispatch' &&
     [run.created_at, run.run_started_at, run.updated_at].some(value =>
-      Number.isFinite(Date.parse(value)) && now.getTime() - Date.parse(value) < COOLDOWN_MS));
+      Number.isFinite(Date.parse(value)) && dispatchTime.getTime() - Date.parse(value) < COOLDOWN_MS));
   if (recent) return finish('cooldown', `Recovery deferred: manually dispatched hourly run ${recent.id} was active within the last 20 minutes.`);
-  // A new forecast cannot legally be issued in the last five minutes of a slot.
-  if (now.getUTCMinutes() >= 55) return finish('issuance_deadline', 'Recovery deferred until the next hourly issuance window.');
+  // Reserve five minutes for setup and inference before the existing :55 cutoff.
+  if (clock().getUTCMinutes() >= 50) return finish('issuance_deadline', 'Recovery deferred: fewer than five minutes remain before the :55 issuance cutoff.');
 
   await github.rest.actions.createWorkflowDispatch({...context.repo, workflow_id: 'event_hourly.yml', ref: 'main'});
   return finish('dispatched', 'One fresh hourly run requested on main; its external release must still be verified.');

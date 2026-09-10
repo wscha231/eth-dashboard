@@ -173,8 +173,10 @@ def baseline_record(features,slot,bundle):
             'alert_thresholds':bundle['alert_thresholds_by_model']['climatology']}
 
 
-def daily(root, *, horizons=DEFAULT_HORIZONS, now=None):
-    started = time.monotonic(); root = Path(root); current = utc(now); slot = current.floor("h")
+def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
+    # Explicit now is a fixed test clock; production reads wall time for every issue.
+    clock = clock or (utc if now is None else lambda: utc(now))
+    started = time.monotonic(); root = Path(root); current = utc(now) if now is not None else utc(clock()); slot = current.floor("h")
     bars = read_bars(root, as_of=current); features = build_features(bars)
     settle(root, bars, now=current)
     current_records = []; errors = []
@@ -190,7 +192,7 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None):
             record['baseline']=baseline_record(features,slot,bundle)
             # Link every individual inference to the actual complete source snapshot.
             record["input_snapshot"] = source_hash(bars, slot+pd.Timedelta(hours=1))
-            current_records.append(issue(root, record, now=current))
+            current_records.append(issue(root, record, now=clock()))
         except ValueError as exc:
             errors.append({"horizon": h, "reason": str(exc)})
     records = history(root)
@@ -204,7 +206,7 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None):
                 "meaning":"past-only current-state detection, not a prediction of an unseen turning point"}
     replay_payload = json.loads((root/"replay.json").read_text()) if (root/"replay.json").exists() else None
     source = json.loads((root/"source_status.json").read_text()) if (root/"source_status.json").exists() else None
-    payload = {"schema_version": 1, "product": "ETH event research beta", "generated_at": utc().isoformat(),
+    payload = {"schema_version": 1, "product": "ETH event research beta", "generated_at": utc(clock()).isoformat(),
                "protocol_hash": PROTOCOL_HASH, "runtime_hash": runtime_hash(), "status": "ready" if len(current_records) == len(horizons) else "delayed",
                "expected_slot": slot.isoformat(), "current": current_records, "errors": errors, "source": source,
                "current_regime":regime,

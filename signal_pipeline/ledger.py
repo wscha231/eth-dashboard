@@ -38,8 +38,10 @@ def connect(root):
 
 def validate_forecast(record, now):
     now = utc(now); slot = utc(record["slot"])
-    if slot != now.floor("h") or now >= slot+pd.Timedelta(minutes=55):
+    if slot != now.floor("h"):
         raise ValueError("only the current hourly slot can be actually issued")
+    if now >= slot+pd.Timedelta(minutes=55):
+        raise ValueError("issuance_deadline: the hourly :55 cutoff has passed")
     if utc(record["input_cutoff"]) != slot or utc(record["available_at"]) > now:
         raise ValueError("stale input or future source receipt")
     if utc(record["window_start"]) != slot+pd.Timedelta(hours=1):
