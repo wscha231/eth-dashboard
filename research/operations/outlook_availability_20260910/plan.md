@@ -1,6 +1,6 @@
 # ETH 예측 가용성 재발 방지 구현 계획
 
-상태: 검토용 계획. 구현 승인 대기.
+상태: 사용자가 “어 재발 방지 수정”으로 구현·검증·배포를 승인함. 아래 계획에 따라 수정 중이며 결과는 implementation.md에 기록한다.
 기준 코드: baf022d907512d3fdd79c819616095476c6e10b0.
 긴급 복구는 기존 작업 재실행으로 완료했다. 이 문서는 아래 변경이 구현·배포됐다는 뜻이 아니다.
 
@@ -68,7 +68,7 @@
 
 ## 3. 마감 직전 복구 요청 차단과 실제 발행 시각 확인
 
-수정: scripts/event_recovery.cjs, signal_pipeline/engine.py, 필요시 .github/workflows/event_hourly.yml
+수정: scripts/event_recovery.cjs, signal_pipeline/engine.py, signal_pipeline/ledger.py의 마감 오류 설명, 필요시 .github/workflows/event_hourly.yml
 검증: tests/test_event_recovery.py, tests/test_event_pipeline.py
 
 - 신규 복구 요청은 발행 마감인 :55까지 최소 5분을 확보하도록 :50 이전으로 제한한다.

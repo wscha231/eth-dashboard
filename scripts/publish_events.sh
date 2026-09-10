@@ -23,3 +23,6 @@ d=json.load(open('lake/signals/signals.json'))
 mark_verified('lake/signals',[r['forecast_id'] for r in d['current']],d['release_id'])
 PY
 bash scripts/persist_event_ledger.sh
+# A delivered payload can describe an outage. Persist its receipts before failing
+# the run when a complete, fresh forecast has not actually recovered.
+python scripts/verify_event_site.py --expected lake/signals/signals.json --require-ready
