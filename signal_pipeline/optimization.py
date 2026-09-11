@@ -4,6 +4,7 @@ This module deliberately does not change the incumbent training hash or active.j
 Historical diagnostics alone cannot authorize prospective promotion.
 """
 import hashlib
+import io
 import json
 from pathlib import Path
 import time
@@ -19,6 +20,15 @@ from .evaluate import metrics, paired_block_interval
 from .protocol import digest, training_hash, PROTOCOL_HASH
 
 POLICY = 'separate_heads_frozen_calibration_v1'
+
+
+def model_identity(models):
+    # Joblib normalizes fitted array views on first serialization. Hash the portable
+    # representation, so saving/loading a legitimate fit cannot invalidate calibration.
+    stream = io.BytesIO()
+    joblib.dump(models, stream)
+    stream.seek(0)
+    return joblib.hash(joblib.load(stream))
 
 
 def interval_loss(q, returns):
@@ -73,7 +83,7 @@ def train_candidate(features, outcomes, cutoff, horizon, *, deadline=float('inf'
               'threshold_target_end': outcomes.loc[threshold,'target_end'].max().isoformat() if len(threshold) else None,
               'selection_rows': len(val), 'calibration_rows': len(cal), 'threshold_rows': len(threshold),
               'selection_scores': results, 'no_change_selection_mae': no_change,
-              'fitted_identity': joblib.hash(models), 'temperature': 1., 'path_calibrators': [None, None],
+              'fitted_identity': model_identity(models), 'temperature': 1., 'path_calibrators': [None, None],
               'quantile_offsets': np.zeros(3), 'alert_thresholds': {'up': 1., 'down': 1.}}
     pred = predict_candidate(bundle, features.loc[cal]); truth = outcomes.loc[cal]
     # Fixed small temperature grid; calibration labels never reach fitting or selection.
@@ -94,13 +104,13 @@ def train_candidate(features, outcomes, cutoff, horizon, *, deadline=float('inf'
     for j,event in enumerate(('up','down')):
         negatives = calibrated['path'][outcomes.loc[threshold,event].eq(0).to_numpy(),j] if calibrated is not None else []
         bundle['alert_thresholds'][event] = float(np.quantile(negatives,.95,method='higher')) if len(negatives)>=40 else 1.
-    if joblib.hash(models) != bundle['fitted_identity']: raise ValueError('model changed during calibration')
+    if model_identity(models) != bundle['fitted_identity']: raise ValueError('model changed during calibration')
     bundle['model_version'] = digest({'policy':POLICY,'model':bundle['fitted_identity'],'calibration':joblib.hash(bundle),'cutoff':cutoff.isoformat(),'horizon':horizon})
     return bundle
 
 
 def predict_candidate(bundle, features):
-    if joblib.hash(bundle['models']) != bundle['fitted_identity']:
+    if model_identity(bundle['models']) != bundle['fitted_identity']:
         raise ValueError('calibrator/model identity mismatch')
     predictions = {days: predict_models(m, features) for days,m in bundle['models'].items()}
     def head(name):
