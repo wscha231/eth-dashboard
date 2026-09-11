@@ -233,7 +233,7 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
         from .diagnostics import live_point, compare_published
         payload['candidate_live_comparison'] = compare_published(records, shadow_records)
         payload['evidence_archives']['shadow'] = export_archive(root,
-            {str(h): [live_point(r) for r in shadow_records if r['horizon_seconds']==h*3600] for h in DEFAULT_HORIZONS},
+            {str(h): [live_point(r) for r in shadow_records if r['horizon_seconds']==h*3600] for h in HORIZONS},
             kind='shadow', as_of=current.isoformat())
     study_path = root/'optimization.json'
     if study_path.exists():
