@@ -182,6 +182,7 @@ def test_cli_distinguishes_payload_delivery_from_forecast_readiness(tmp_path, mo
         body = json.dumps(data) if resource == 'signals.json' else (ROOT/'forecast_site/public'/(resource or 'index.html')).read_text()
         return io.BytesIO(body.encode())
     monkeypatch.setattr(module, 'urlopen', fetch)
+    monkeypatch.setattr(module, 'verify_archives', lambda *a: None)
     monkeypatch.setattr(module.time, 'sleep', lambda _: pytest.fail('readiness must fail without polling'))
     monkeypatch.setattr(sys, 'argv', ['verify_event_site.py', '--expected', str(expected)] + (['--require-ready'] if require_ready else []))
     if require_ready and status == 'delayed':
@@ -198,13 +199,13 @@ def test_publisher_preserves_receipts_before_failing_readiness(tmp_path):
     binaries = tmp_path/'bin'; binaries.mkdir()
     trace = tmp_path/'trace'; runner = tmp_path/'runner'
     (runner/'event-site/forecast_site/public').mkdir(parents=True)
-    for name in ('forecast_site/public/index.html', 'forecast_site/public/events.js', 'forecast_site/vercel.json',
+    for name in ('forecast_site/public/index.html', 'forecast_site/public/events.js', 'forecast_site/public/event_diagnostics.js', 'forecast_site/vercel.json',
                  'lake/signals/signals.json', 'lake/signals/replay.json'):
         path = tmp_path/name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('{}')
     (binaries/'git').write_text('#!/bin/sh\nexit 0\n')
     (binaries/'python').write_text(f'#!{sys.executable}\n' + '''import os,sys,pathlib
 args=sys.argv[1:]
-kind='receipts' if args==['-'] else 'readiness' if '--require-ready' in args else 'payload' if 'verify_event_site.py' in args[0] else 'export'
+kind='archive' if 'copy_event_evidence.py' in args[0] else 'receipts' if args==['-'] else 'readiness' if '--require-ready' in args else 'payload' if 'verify_event_site.py' in args[0] else 'export'
 with open(os.environ['OUTLOOK_TEST_TRACE'],'a') as f:f.write(kind+'\\n')
 if kind=='receipts':sys.stdin.read()
 if kind=='export':pathlib.Path(args[-1]).write_text('')
@@ -217,4 +218,4 @@ if kind=='readiness':sys.exit(1)
                             env={**os.environ, 'PATH': str(binaries)+os.pathsep+os.environ['PATH'],
                                  'RUNNER_TEMP': str(runner), 'OUTLOOK_TEST_TRACE': str(trace)})
     assert result.returncode != 0
-    assert trace.read_text().splitlines() == ['export', 'payload', 'receipts', 'persisted', 'readiness']
+    assert trace.read_text().splitlines() == ['export', 'archive', 'payload', 'receipts', 'persisted', 'readiness']

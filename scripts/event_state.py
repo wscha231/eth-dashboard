@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from signal_pipeline.data import connect as observation_db
 from signal_pipeline.data import utc
 from signal_pipeline.ledger import backup
+from scripts.copy_event_evidence import copy_evidence
 
 
 def merge_research(source, destination):
@@ -33,6 +34,31 @@ def merge_research(source, destination):
         dst.execute("INSERT OR IGNORE INTO main.downloads SELECT * FROM research.downloads")
     for name in ("replay.json", "source_status.json"):
         shutil.copy2(source/name, destination/name)
+    copy_evidence(source,destination)
+    # Upgrade a trusted legacy artifact without retraining or waiting for the next research run.
+    replay=json.loads((destination/'replay.json').read_text())
+    if not replay.get('archive'):
+        import pandas as pd
+        from signal_pipeline.diagnostics import export_archive
+        for h,report in replay.get('horizons',{}).items():
+            audit=source/'replay'/f'h{h}.csv.gz'
+            if audit.exists():
+                frame=pd.read_csv(audit)
+                baseline={r['slot']:r for r in frame[frame.model.eq('climatology')].to_dict('records')}
+                points=frame[frame.model.eq('selected')].to_dict('records')
+                for point in points:
+                    point['baseline']={k:baseline[point['slot']][k] for k in
+                        ('p_down','p_flat','p_up','hit_up','hit_down','q10','q50','q90','threshold_up','threshold_down')}
+                report['points']=points
+            elif report.get('points'):
+                raise ValueError('legacy replay upgrade requires full audit rows')
+        replay['archive']=export_archive(destination,{h:r.get('points',[]) for h,r in replay.get('horizons',{}).items()},
+                                         kind='historical',as_of=replay.get('data_as_of',replay.get('generated_at')))
+        (destination/'replay.json').write_text(json.dumps(replay,allow_nan=False))
+    for name in ('optimization.json','shadow_active.json'):
+        if (source/name).exists():shutil.copy2(source/name,destination/name)
+    if (source/'shadow_models').exists():
+        shutil.copytree(source/'shadow_models',destination/'shadow_models',dirs_exist_ok=True)
     for p in (source/"raw").glob("*.json.gz"):
         target=destination/"raw"/p.name;target.parent.mkdir(exist_ok=True)
         if not target.exists():shutil.copy2(p,target)
@@ -67,6 +93,16 @@ def snapshot(root, destination):
         if p.exists():shutil.copy2(p,destination/"raw"/p.name)
     for name in ("replay.json","source_status.json","signals.json","weekly_review.json","research_run.txt","active.json"):
         if (root/name).exists():shutil.copy2(root/name,destination/name)
+    copy_evidence(root,destination)
+    for name in ('optimization.json','shadow_active.json'):
+        if (root/name).exists():shutil.copy2(root/name,destination/name)
+    if (root/'shadow_active.json').exists():
+        (destination/'shadow_models').mkdir(exist_ok=True)
+        for entry in json.loads((root/'shadow_active.json').read_text()).values():
+            shutil.copy2(root/'shadow_models'/entry['file'],destination/'shadow_models'/entry['file'])
+    if (root/'shadow/issued.db').exists():
+        (destination/'shadow').mkdir(exist_ok=True)
+        with sqlite3.connect(root/'shadow/issued.db') as src,sqlite3.connect(destination/'shadow/issued.db') as dst:src.backup(dst)
     if not (destination/"issued.db").exists():raise ValueError("cannot save hourly state without ledger")
 
 

@@ -10,6 +10,9 @@ on:
       - scripts/publish_events.sh
       - scripts/export_event_segments.py
       - forecast_site/public/events.js
+      - forecast_site/public/event_diagnostics.js
+      - forecast_site/public/index.html
+      - scripts/copy_event_evidence.py
       - forecast_site/vercel.json
   workflow_run:
     workflows: ["ETH hourly event research"]
@@ -73,9 +76,11 @@ jobs:
           RESEARCH_RUN: ${{ steps.state.outputs.research }}
         run: |
           python - <<'PY'
-          import os,pathlib
+          import os,pathlib,json
           p=pathlib.Path('lake/signals/research_run.txt')
-          changed=not p.exists() or p.read_text().strip()!=os.environ['RESEARCH_RUN']
+          replay=pathlib.Path('lake/signals/replay.json')
+          needs_archive=not replay.exists() or not json.loads(replay.read_text()).get('archive')
+          changed=needs_archive or not p.exists() or p.read_text().strip()!=os.environ['RESEARCH_RUN']
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write(f'changed={str(changed).lower()}\n')
           PY
       - uses: actions/download-artifact@v4
@@ -101,6 +106,10 @@ jobs:
           if git ls-remote --exit-code --heads origin data/event-ledger > /dev/null; then
             git fetch origin data/event-ledger:refs/remotes/origin/data/event-ledger
             git show origin/data/event-ledger:lake/event-ledger/issued.db > lake/signals/issued.db
+          fi
+          if git cat-file -e origin/data/event-ledger:lake/event-ledger/shadow_issued.db 2>/dev/null; then
+            mkdir -p lake/signals/shadow
+            git show origin/data/event-ledger:lake/event-ledger/shadow_issued.db > lake/signals/shadow/issued.db
           fi
           python scripts/run_event_forecast.py --collect --daily --review --horizons 6 24 72 168 336 720
       - name: Preserve the issuance audit before publication

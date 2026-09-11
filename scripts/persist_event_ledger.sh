@@ -19,8 +19,13 @@ target=pathlib.Path(os.environ['RUNNER_TEMP'])/'event-ledger/lake/event-ledger/i
 with sqlite3.connect('lake/signals/issued.db') as source,sqlite3.connect(target) as destination:
     source.backup(destination)
     assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+shadow=pathlib.Path('lake/signals/shadow/issued.db')
+if shadow.exists():
+    with sqlite3.connect(shadow) as source,sqlite3.connect(target.with_name('shadow_issued.db')) as destination:
+        source.backup(destination)
+        assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
 PY
-git -C "$RUNNER_TEMP/event-ledger" add -f lake/event-ledger/issued.db
+git -C "$RUNNER_TEMP/event-ledger" add -f lake/event-ledger/
 if ! git -C "$RUNNER_TEMP/event-ledger" diff --cached --quiet; then
   git -C "$RUNNER_TEMP/event-ledger" commit -m "chore(audit): preserve immutable hourly issuance and publication receipts"
   git -C "$RUNNER_TEMP/event-ledger" push origin HEAD:refs/heads/data/event-ledger

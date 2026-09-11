@@ -42,7 +42,15 @@ def metrics(rows):
             "up": up, "down": down, "return_mae": mae, "no_change_mae": baseline_mae,
             "mae_skill": 1-mae/baseline_mae if baseline_mae else None,
             "coverage80": float(((ret >= f.q10) & (ret <= f.q90)).mean()),
-            "mean_interval_width": float((np.expm1(f.q90)-np.expm1(f.q10)).mean())}
+            "mean_interval_width": float((np.expm1(f.q90)-np.expm1(f.q10)).mean()),
+            "return_rmse_pp": float(np.sqrt(np.mean((np.expm1(f.q50)-np.expm1(ret))**2))*100),
+            "return_mae_pp": mae*100,
+            "price_mae_usd": float(np.mean(np.abs(f.reference_price*(np.exp(f.q50)-np.exp(ret))))) if 'reference_price' in f else None,
+            "price_mape_pct": float(np.mean(np.abs(np.exp(f.q50-ret)-1))*100),
+            "interval_score80_pp": float(np.mean(np.expm1(f.q90)-np.expm1(f.q10)
+                +10*np.maximum(np.expm1(f.q10)-np.expm1(ret),0)
+                +10*np.maximum(np.expm1(ret)-np.expm1(f.q90),0))*100),
+            "confusion_actual_by_predicted": np.bincount(terminal*3+predicted,minlength=9).reshape(3,3).tolist()}
 
 
 def paired_block_interval(selected, baseline, horizon, samples=500):
@@ -122,15 +130,19 @@ def report_replay(rows, horizon, *, as_of=None):
                                   "membership": "state at prediction origin; never future realized return",
                                   "recent_windows": "calendar origin dates ending on the shared data as-of day; immature outcomes excluded",
                                   "inference": "exploratory overlapping slices; no model selection or promotion on these results"}}
-    # The audit CSV retains model/source provenance. Send only plot fields to browsers.
-    point_columns = [c for c in ("slot", "target_end", "reference_price", "actual_price", "return", "up", "down",
-                                "hit_up", "hit_down", "q10", "q50", "q90", "trend_state", "volatility_state") if c in selected]
+    # Full probabilities, target boundaries and model provenance enable identical filtered scoring.
+    point_columns = list(selected.columns)
+    points = selected[point_columns].to_dict("records")
+    baselines = {r['slot']: r for r in f[f.model.eq('climatology')].to_dict('records')}
+    for point in points:
+        point['baseline'] = {k: baselines[point['slot']][k] for k in
+            ('p_down','p_flat','p_up','hit_up','hit_down','q10','q50','q90','threshold_up','threshold_down')}
     return {"horizon_hours": horizon, "status": "retrospective_research",
             **overall,
             "eligible_calendar_coverage":len(common)/((pd.Timestamp(max(common))-pd.Timestamp(min(common))).days+1),
             "yearly_selected": years,
             "segments": slices,
-            "points": selected[point_columns].to_dict("records")}
+            "points": points}
 
 
 def prospective_report(records):
