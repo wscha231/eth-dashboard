@@ -65,3 +65,22 @@ if(f(rows,'','','trend_up').length!==1)throw Error('unknown regime counted');
 if(window.EventDiagnosticsMath.score([]).n!==0)throw Error('empty scored');
 """
     subprocess.run(['node','-e',script],check=True)
+
+
+def test_legacy_artifact_upgrades_full_probabilities_without_touching_ledger(tmp_path):
+    import pandas as pd
+    from scripts.event_state import merge_research
+    from signal_pipeline.data import connect
+    source=tmp_path/'source';target=tmp_path/'target';source.mkdir();target.mkdir()
+    with connect(source): pass
+    (source/'source_status.json').write_text('{}')
+    (source/'replay.json').write_text(json.dumps({'horizons':{'6':{'points':[row()]}},'data_as_of':'2026-01-02T00:00Z'}))
+    (source/'replay').mkdir()
+    pd.DataFrame([{**row(),'model':m} for m in ('selected','climatology')]).to_csv(source/'replay/h6.csv.gz',index=False)
+    (target/'issued.db').write_bytes(b'immutable sentinel')
+    merge_research(source,target)
+    assert (target/'issued.db').read_bytes()==b'immutable sentinel'
+    d=json.loads((target/'replay.json').read_text())
+    manifest=validate_object(target,d['archive'])
+    points=validate_object(target,manifest['horizons']['6']['shards'][0])['points']
+    assert len(points)==1 and points[0]['p_up']==.7 and points[0]['baseline']['p_up']==.7

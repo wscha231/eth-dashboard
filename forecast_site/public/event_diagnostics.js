@@ -5,6 +5,7 @@
   const mean=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
   const valid=x=>typeof x==='number'&&Number.isFinite(x);
   const fmt=(x,n=2)=>valid(x)?x.toLocaleString('en-US',{maximumFractionDigits:n}):'—';
+  const modelName=k=>k==='no_change'?'No-change price':String(k||'').replace(/^(365|730|1095):/,(_,d)=>({365:'1-year ',730:'2-year ',1095:'3-year '}[d])).replace('catboost_calibrated','CatBoost + frequency blend').replace('climatology','past frequency').replace('catboost','CatBoost').replace('logistic','logistic regression');
   const escape=x=>String(x??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const matured=r=>r.eligible!==false&&r.settled!==false&&valid(r.return);
   function averagePrecision(rows,key,truth){
@@ -129,7 +130,7 @@
   }
   window.updateEventDiagnostics=(next,h)=>{if(!next)return;const changed=payload?.evidence_archives?.[source]?.sha256!==next?.evidence_archives?.[source]?.sha256||horizon!==Number(h);payload=next;horizon=Number(h);if(changed)refresh();
     const study=next.optimization;$('diagnostic-optimization').textContent=study?`Candidate review as of ${study.data_as_of}: ${study.status}. ${study.claims}`:'Candidate review has not been published yet. Existing models remain active.';
-    table('diagnostic-candidates',['Window','Point / probability / range','Candidate MAE (pp)','Incumbent MAE (pp)','Candidate / incumbent Brier','Promotion'],Object.values(study?.horizons||{}).map(r=>[r.horizon_hours+'h',r.heads.point+' / '+r.heads.probability+' / '+r.heads.interval,fmt(r.candidate.return_mae_pp),fmt(r.incumbent.return_mae_pp),fmt(r.candidate.event_brier,4)+' / '+fmt(r.incumbent.event_brier,4),r.promotion]));};
+    table('diagnostic-candidates',['Window','Point / probability / range','Candidate MAE (pp)','Incumbent MAE (pp)','Candidate / incumbent Brier','Promotion'],Object.values(study?.horizons||{}).map(r=>[r.horizon_hours+'h',modelName(r.heads.point)+' / '+modelName(r.heads.probability)+' / '+modelName(r.heads.interval),fmt(r.candidate.return_mae_pp),fmt(r.incumbent.return_mae_pp),fmt(r.candidate.event_brier,4)+' / '+fmt(r.incumbent.event_brier,4),r.promotion==='held_for_prospective_evidence'?'Awaiting live evidence':r.promotion]));};
   document.addEventListener('DOMContentLoaded',()=>{
     $('diagnostic-source').onchange=e=>{source=e.target.value;page=0;refresh();};
     ['diagnostic-from','diagnostic-to','diagnostic-regime'].forEach(id=>$(id).onchange=()=>{page=0;refresh();});

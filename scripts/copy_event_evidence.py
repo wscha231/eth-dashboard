@@ -26,7 +26,8 @@ def copy_evidence(source, destination, *, retain_previous=False):
                 count+=entry['rows'];names.add(entry['path'])
             if count!=horizon['rows']:raise ValueError('manifest total count mismatch')
     (destination/'archive').mkdir(parents=True,exist_ok=True)
-    for name in names:shutil.copy2(source/name,destination/name)
+    if source.resolve()!=destination.resolve():
+        for name in names:shutil.copy2(source/name,destination/name)
     retention=destination/'archive_retention.json'
     previous=json.loads(retention.read_text()) if retain_previous and retention.exists() else []
     keep=names|set(previous[0] if previous else [])

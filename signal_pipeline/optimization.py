@@ -41,7 +41,7 @@ def train_candidate(features, outcomes, cutoff, horizon, *, deadline=float('inf'
     val = calibration_indices(features, outcomes, selection_start, cal_start)
     cal = calibration_indices(features, outcomes, cal_start, cal_middle)
     threshold = calibration_indices(features, outcomes, cal_middle, cutoff)
-    if min(len(val), len(cal), len(threshold)) < 60:
+    if min(len(val), len(cal)) < 60:
         raise ValueError('insufficient purged selection/calibration/threshold history')
     windows = (730, 1095) if long else (365, 730)
     results = {}; choices = {}
@@ -90,9 +90,9 @@ def train_candidate(features, outcomes, cutoff, horizon, *, deadline=float('inf'
     for j,a in enumerate((.1,.5,.9)):
         # Only bounds are adjusted; the independently selected point head is retained.
         if j != 1: bundle['quantile_offsets'][j] = np.quantile(truth['return'].to_numpy()-pred['quantiles'][:,j],a)
-    calibrated = predict_candidate(bundle, features.loc[threshold])
+    calibrated = predict_candidate(bundle, features.loc[threshold]) if len(threshold) else None
     for j,event in enumerate(('up','down')):
-        negatives = calibrated['path'][outcomes.loc[threshold,event].eq(0).to_numpy(),j]
+        negatives = calibrated['path'][outcomes.loc[threshold,event].eq(0).to_numpy(),j] if calibrated is not None else []
         bundle['alert_thresholds'][event] = float(np.quantile(negatives,.95,method='higher')) if len(negatives)>=40 else 1.
     if joblib.hash(models) != bundle['fitted_identity']: raise ValueError('model changed during calibration')
     bundle['model_version'] = digest({'policy':POLICY,'model':bundle['fitted_identity'],'calibration':joblib.hash(bundle),'cutoff':cutoff.isoformat(),'horizon':horizon})

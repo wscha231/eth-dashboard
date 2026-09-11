@@ -47,6 +47,9 @@ def main():
                       "promotion": "research only; no automatic paid-service promotion",
                       "retrain_policy": "monthly checkpoint; weekly replay reuses compatible checkpoints"}
             atomic_json(root/"weekly_review.json", review)
+        if args.replay or args.daily:
+            from scripts.copy_event_evidence import copy_evidence
+            copy_evidence(root, root)
         if args.backup:
             backup(root, args.backup)
     except Exception as exc:

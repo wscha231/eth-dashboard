@@ -35,6 +35,26 @@ def merge_research(source, destination):
     for name in ("replay.json", "source_status.json"):
         shutil.copy2(source/name, destination/name)
     copy_evidence(source,destination)
+    # Upgrade a trusted legacy artifact without retraining or waiting for the next research run.
+    replay=json.loads((destination/'replay.json').read_text())
+    if not replay.get('archive'):
+        import pandas as pd
+        from signal_pipeline.diagnostics import export_archive
+        for h,report in replay.get('horizons',{}).items():
+            audit=source/'replay'/f'h{h}.csv.gz'
+            if audit.exists():
+                frame=pd.read_csv(audit)
+                baseline={r['slot']:r for r in frame[frame.model.eq('climatology')].to_dict('records')}
+                points=frame[frame.model.eq('selected')].to_dict('records')
+                for point in points:
+                    point['baseline']={k:baseline[point['slot']][k] for k in
+                        ('p_down','p_flat','p_up','hit_up','hit_down','q10','q50','q90','threshold_up','threshold_down')}
+                report['points']=points
+            elif report.get('points'):
+                raise ValueError('legacy replay upgrade requires full audit rows')
+        replay['archive']=export_archive(destination,{h:r.get('points',[]) for h,r in replay.get('horizons',{}).items()},
+                                         kind='historical',as_of=replay.get('data_as_of',replay.get('generated_at')))
+        (destination/'replay.json').write_text(json.dumps(replay,allow_nan=False))
     for name in ('optimization.json','shadow_active.json'):
         if (source/name).exists():shutil.copy2(source/name,destination/name)
     if (source/'shadow_models').exists():

@@ -76,9 +76,11 @@ jobs:
           RESEARCH_RUN: ${{ steps.state.outputs.research }}
         run: |
           python - <<'PY'
-          import os,pathlib
+          import os,pathlib,json
           p=pathlib.Path('lake/signals/research_run.txt')
-          changed=not p.exists() or p.read_text().strip()!=os.environ['RESEARCH_RUN']
+          replay=pathlib.Path('lake/signals/replay.json')
+          needs_archive=not replay.exists() or not json.loads(replay.read_text()).get('archive')
+          changed=needs_archive or not p.exists() or p.read_text().strip()!=os.environ['RESEARCH_RUN']
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write(f'changed={str(changed).lower()}\n')
           PY
       - uses: actions/download-artifact@v4
