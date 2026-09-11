@@ -97,8 +97,11 @@
     const reliabilitySets=defs.map(([label,key,truth,color])=>line(label,reliability(settled,key,truth).filter(b=>b.n),color,{showLine:true,pointRadius:4}));
     chart('diagnostic-reliability','scatter',[],[line('Perfect calibration',[{x:0,y:0},{x:1,y:1}],'#607060',{showLine:true,borderDash:[4,4]}),...reliabilitySets],'Observed rate (0–1)');
     table('diagnostic-bins',['Outcome','Predicted probability','Observed rate','Samples'],defs.flatMap(([label,key,truth])=>reliability(settled,key,truth).filter(b=>b.n).map(b=>[label,p(b.x),p(b.y),b.n])));
-    const dates=settled.map(r=>r.target_end),price=k=>settled.map(r=>r.reference_price*Math.exp(r[k]));
-    chart('diagnostic-price','line',dates,[line('Actual',price('return'),'#f0f4ed'),line('Original median',price('q50'),'#c9ff7a'),line('10th percentile',price('q10'),'#677e55'),line('90th percentile',price('q90'),'#677e55',{fill:'-1',backgroundColor:'rgba(150,200,110,.12)'})],'Target-end price (USD)');
+    // Show genuine pending forecasts as well; only matured outcomes enter scores.
+    const plotted=rows.filter(r=>r.eligible!==false).sort((a,b)=>a.target_end.localeCompare(b.target_end));
+    const dates=plotted.map(r=>r.target_end),price=k=>plotted.map(r=>valid(r[k])?r.reference_price*Math.exp(r[k]):null);
+    const actual=plotted.map(r=>matured(r)?r.reference_price*Math.exp(r.return):null);
+    chart('diagnostic-price','line',dates,[line('Actual (settled only)',actual,'#f0f4ed'),line('Original median (includes pending)',price('q50'),'#c9ff7a'),line('10th percentile',price('q10'),'#677e55'),line('90th percentile',price('q90'),'#677e55',{fill:'-1',backgroundColor:'rgba(150,200,110,.12)'})],'Target-end price (USD)');
     const months={};for(const r of settled)(months[r.slot.slice(0,7)]??=[]).push(r);
     const keys=Object.keys(months).sort(),monthly=keys.map(k=>score(months[k]));
     chart('diagnostic-monthly','line',keys,[line('Monthly return MAE (pp)',monthly.map(s=>s.mae),'#c9ff7a'),line('No-change MAE (pp)',monthly.map(s=>s.noChange),'#f0f4ed'),line('Return RMSE (pp)',monthly.map(s=>s.rmse),'#fc8c87')],'Return error (percentage points)');

@@ -13,7 +13,12 @@ const nodes={};const element=()=>({children:[],className:'',appendChild(x){this.
 const clock=Date.parse('2026-09-06T12:10:00Z');
 class Clock extends Date {constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}}
 const fixture={schema_version:1,generated_at:'2026-09-06T12:08:00Z',expected_slot:'2026-09-06T12:00:00Z',status:'ready',current:[{forecast_id:'fixed-24',slot:'2026-09-06T12:00:00Z',available_at:'2026-09-06T12:02:00Z',horizon_seconds:86400,input_cutoff:'2026-09-06T12:00:00Z',issued_at:'2026-09-06T12:08:00Z',window_start:'2026-09-06T13:00:00Z',target_end:'2026-09-07T13:00:00Z',reference_price:2000,price_quantiles:[1800,2100,2500],hit_up:.8,hit_down:.6,upper_barrier_price:2200,lower_barrier_price:1800,terminal_down_flat_up:[.2,.3,.5],selected_model:'catboost'}],recent_issued:[],prospective:{},replay_generated_at:'v1'};
-const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id] ||= element(),createElement:element,addEventListener(){}},fetch:async url=>({ok:true,json:async()=>url==='signals.json'?fixture:{generated_at:'v1',horizons:{}}}),Date:Clock,Intl,setInterval(){}});
+fixture.prospective['24']={resolved:2,nonoverlap_resolved:1,metrics:{return_mae:.02,no_change_mae:.01,mae_skill:-1,coverage80:.5}};
+let diagnosticsStarted=false;
+const context=vm.createContext({window:{updateEventDiagnostics(){diagnosticsStarted=true}},document:{getElementById:id=>nodes[id] ||= element(),createElement:element,addEventListener(){}},fetch:async url=>{
+ if(url==='signals_replay.json')assert.ok(diagnosticsStarted,'Archive should start before legacy replay');
+ return {ok:true,json:async()=>url==='signals.json'?fixture:{generated_at:'v1',horizons:{}}};
+},Date:Clock,Intl,setInterval(){}});
 vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
 context.window.loadEventForecasts().then(()=>{
  assert.equal(nodes['ref-price'].textContent,'$2,000');
@@ -22,6 +27,12 @@ context.window.loadEventForecasts().then(()=>{
  assert.match(card,/Touch \$2,200 or higher: 80.0%/);assert.match(card,/Touch \$1,800 or lower: 60.0%/);
  assert.match(card,/more than 100%/);assert.match(card,/not a record of accuracy/);
  assert.doesNotMatch(card,/[가-힣]/);
+ assert.match(card,/Price error exceeds no-change/);assert.match(card,/Limited live evidence/);
+ assert.match(card,/2.00 percentage points MAE; no-change baseline: 1.00/);
+ const health=flatten(nodes['event-horizon-health']);
+ assert.match(health,/30 days/);assert.match(health,/Unavailable/);
+ assert.match(health,/Awaiting first settled outcome/);
+ assert.equal(nodes['event-horizon-health'].children[0].children[1].children.length,6);
 });
 '''
     subprocess.run(['node','-e',script],cwd=Path(__file__).resolve().parents[1],check=True)
