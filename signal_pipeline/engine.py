@@ -14,6 +14,7 @@ from .ledger import history, issue, settle
 from .models import labels, predict_models, train_bundle
 from .protocol import DEFAULT_HORIZONS, HORIZONS, PROTOCOL_HASH, SPEC, digest, runtime_hash, training_hash
 from .segments import origin_market_states
+from .diagnostics import export_archive, export_live
 
 
 def atomic_json(path, payload):
@@ -140,6 +141,8 @@ def replay(root, *, horizons=DEFAULT_HORIZONS, budget_seconds=1200, start=None, 
                                 "limit": "historical source receipt vintages cannot be reconstructed; this is retrospective development"},
                "runtime": {"seconds": time.monotonic()-started, "new_monthly_fits": fits, "cached_months": cached},
                "claims": "Exploratory historical reconstruction. No prospective superiority established."}
+    payload['archive'] = export_archive(root, {h: r.get('points', []) for h, r in reports.items()},
+                                        kind='historical', as_of=as_of.isoformat())
     atomic_json(root/"replay.json", payload)
     # Prior protocol artifacts remain in the previous immutable research release.
     # Don't upload obsolete code families on every weekly refresh.
@@ -190,6 +193,7 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
             bundle, _ = obtain_bundle(root, bars, features, None, cutoff, h, allow_fit=False)
             record = forecast_record(features, slot, h, bundle)
             record['baseline']=baseline_record(features,slot,bundle)
+            record['origin_market']=origin_market_states(features.loc[[slot]]).loc[slot].to_dict()
             # Link every individual inference to the actual complete source snapshot.
             record["input_snapshot"] = source_hash(bars, slot+pd.Timedelta(hours=1))
             current_records.append(issue(root, record, now=clock()))
@@ -206,7 +210,7 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
                 "meaning":"past-only current-state detection, not a prediction of an unseen turning point"}
     replay_payload = json.loads((root/"replay.json").read_text()) if (root/"replay.json").exists() else None
     source = json.loads((root/"source_status.json").read_text()) if (root/"source_status.json").exists() else None
-    payload = {"schema_version": 1, "product": "ETH event research beta", "generated_at": utc(clock()).isoformat(),
+    payload = {"schema_version": 1, "product": "ETH event research beta", "generated_at": None,
                "protocol_hash": PROTOCOL_HASH, "runtime_hash": runtime_hash(), "status": "ready" if len(current_records) == len(horizons) else "delayed",
                "expected_slot": slot.isoformat(), "current": current_records, "errors": errors, "source": source,
                "current_regime":regime,
@@ -214,6 +218,26 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
                "replay_generated_at": replay_payload["generated_at"] if replay_payload else None,
                "runtime_seconds": time.monotonic()-started, "next_expected_update": (slot+pd.Timedelta(hours=1,minutes=8)).isoformat(),
                "service_status": "public_research_beta; paid service and predictive edge not established"}
+    payload['evidence_archives'] = {'published': export_live(root, records, current.isoformat()),
+                                    'historical': replay_payload.get('archive') if replay_payload else None}
+    if ready:
+        from .optimization import infer_shadow
+        try:
+            shadow_current, shadow_records, shadow_errors = infer_shadow(root, features, slot, bars, now=now)
+        except Exception as exc:
+            # Experimental diagnostics must not prevent a valid incumbent release.
+            shadow_current, shadow_records, shadow_errors = [], [], [{'reason': str(exc)[:300]}]
+        payload['shadow_current'] = shadow_current
+        payload['shadow_errors'] = shadow_errors
+        payload['shadow_prospective'] = prospective_report(shadow_records)
+        from .diagnostics import live_point
+        payload['evidence_archives']['shadow'] = export_archive(root,
+            {str(h): [live_point(r) for r in shadow_records if r['horizon_seconds']==h*3600] for h in DEFAULT_HORIZONS},
+            kind='shadow', as_of=current.isoformat())
+    study_path = root/'optimization.json'
+    if study_path.exists():
+        payload['optimization'] = json.loads(study_path.read_text())
+    payload["generated_at"] = utc(clock()).isoformat()
     payload["release_id"] = digest(payload)
     atomic_json(root/"signals.json", payload)
     return payload

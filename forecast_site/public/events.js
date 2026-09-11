@@ -10,7 +10,7 @@
   const num = value => Number.isFinite(value) ? value.toFixed(4) : '—';
   const local = value => Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('en-GB', {timeZone:'UTC',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' UTC' : '—';
   const horizonName = hours => Number(hours)<24 ? `${hours} hours` : `${Number(hours)/24} ${Number(hours)===24?'day':'days'}`;
-  const names = {selected:'Model selected at the time',climatology:'Past-frequency baseline',logistic:'Logistic regression',catboost:'CatBoost',catboost_calibrated:'CatBoost + frequency calibration'};
+  const names = {selected:'Model selected at the time',climatology:'Past-frequency baseline',logistic:'Logistic regression',catboost:'CatBoost',catboost_calibrated:'CatBoost + frequency blend'};
   const marketNames = {all:'All conditions',trend_up:'Rising market',trend_down:'Falling market',trend_range:'Sideways market',vol_high:'High volatility',vol_normal:'Normal volatility'};
   const periodName = id => id==='all' ? 'All history' : /^recent_\d+$/.test(id) ? `Last ${id.split('_')[1]} days` : /^year_\d{4}$/.test(id) ? id.slice(5) : 'Available history';
   const stamp = value => typeof value==='string' && /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ? Date.parse(value) : NaN;
@@ -243,7 +243,7 @@
         }
         replayFailed=false;
       } catch (_) {replayFailed=true;}
-      renderResearch();
+      renderResearch();window.updateEventDiagnostics?.(payload,selectedHorizon);
     } catch (_) {
       fetchFailed=true;renderStatus();if(!payload){renderCards();renderResearch();}
     } finally {loading=false;}
@@ -253,7 +253,7 @@
   document.addEventListener('DOMContentLoaded',()=>{
     // Current forecasts are independent of archived JSON and the chart CDN.
     window.loadEventForecasts();
-    el('event-horizon').onchange=e=>{selectedHorizon=e.target.value;renderCards();renderResearch();renderLedger();};
+    el('event-horizon').onchange=e=>{selectedHorizon=e.target.value;renderCards();renderResearch();renderLedger();window.updateEventDiagnostics?.(payload,selectedHorizon);};
     el('event-period').onchange=e=>{selectedPeriod=e.target.value;renderResearch();};
     el('event-market-filter').onchange=e=>{selectedRegime=e.target.value;renderResearch();};
     el('event-price-unit').onchange=e=>{priceUnit=e.target.value;renderResearch();};

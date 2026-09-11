@@ -93,6 +93,38 @@ def verify(actual, expected=None, now=None, require_ready=False):
     return True
 
 
+def verify_archives(actual, suffix):
+    from concurrent.futures import ThreadPoolExecutor
+    import re
+    def fetch_entry(entry):
+        if not re.fullmatch(r'archive/[a-zA-Z0-9_.-]+\.json', entry['path']):
+            raise ValueError('unsafe archive path')
+        with urlopen('https://etherforecast.live/'+entry['path']+suffix,timeout=30) as response:
+            raw=response.read()
+        if len(raw)!=entry['bytes'] or hashlib.sha256(raw).hexdigest()!=entry['sha256']:
+            raise ValueError('published archive integrity mismatch')
+        return json.loads(raw)
+    refs=actual.get('evidence_archives',{})
+    if not refs.get('published') or not refs.get('historical'):
+        raise ValueError('complete historical and published archives required')
+    total=0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for kind,ref in refs.items():
+            if not ref:continue
+            manifest=fetch_entry(ref)
+            if manifest['kind']!=kind or set(manifest['horizons'])!={'6','24','72','168','336','720'}:
+                raise ValueError('incomplete archive horizons')
+            for h,info in manifest['horizons'].items():
+                objects=list(pool.map(fetch_entry,info['shards']))
+                if sum(len(d['points']) for d in objects)!=info['rows']:
+                    raise ValueError('published archive count mismatch')
+                for obj,entry in zip(objects,info['shards']):
+                    if obj['kind']!=kind or obj['horizon_hours']!=int(h) or len(obj['points'])!=entry['rows']:
+                        raise ValueError('published archive shard mismatch')
+                total+=info['rows']
+    print('Event evidence verified: all horizons, archive hashes and counts; rows='+str(total))
+
+
 def main():
     p=argparse.ArgumentParser();p.add_argument("--expected");p.add_argument("--require-ready",action="store_true")
     p.add_argument("--expected-replay");args=p.parse_args()
@@ -112,6 +144,9 @@ def main():
                 for name, served in (("index.html", html), ("events.js", js)):
                     source = Path("forecast_site/public", name).read_text()
                     if source != served:raise ValueError("published interface differs from source: " + name)
+                with urlopen('https://etherforecast.live/event_diagnostics.js'+suffix,timeout=15) as response:diagnostics=response.read().decode()
+                if diagnostics!=Path('forecast_site/public/event_diagnostics.js').read_text():raise ValueError('published diagnostics differ from source')
+                if not args.require_ready:verify_archives(actual,suffix)
                 print('Event interface verified: english-outlook-v1',
                       'html_sha256='+hashlib.sha256(html.encode()).hexdigest(),
                       'js_sha256='+hashlib.sha256(js.encode()).hexdigest())
