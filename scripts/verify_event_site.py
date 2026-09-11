@@ -113,7 +113,7 @@ def verify_archives(actual, suffix):
             if not ref:continue
             manifest=fetch_entry(ref)
             if manifest['kind']!=kind or set(manifest['horizons'])!={'6','24','72','168','336','720'}:
-                raise ValueError('incomplete archive horizons')
+                raise ValueError('incomplete archive horizons: '+kind+' '+str(sorted(manifest.get('horizons',{}))))
             for h,info in manifest['horizons'].items():
                 objects=list(pool.map(fetch_entry,info['shards']))
                 if sum(len(d['points']) for d in objects)!=info['rows']:

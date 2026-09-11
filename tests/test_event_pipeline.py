@@ -184,6 +184,9 @@ def test_daily_issuance_uses_actual_clock_after_inference(tmp_path, monkeypatch,
     monkeypatch.setattr(engine, 'prospective_report', lambda *a: {})
     times = iter([utc('2020-04-01T12:54:59Z'), utc(late), utc(late)+pd.Timedelta(seconds=1)])
     data = engine.daily(tmp_path, horizons=(6, 24), now='2020-04-01T12:54:58Z', clock=lambda: next(times))
+    from signal_pipeline.diagnostics import validate_object
+    archive = validate_object(tmp_path, data['evidence_archives']['shadow'])
+    assert set(archive['horizons']) == {'6', '24', '72', '168', '336', '720'}
     assert data['status'] == 'delayed'
     assert len(data['current']) == len(history(tmp_path)) == 1
     assert data['current'][0]['issued_at'] == '2020-04-01T12:54:59+00:00'
