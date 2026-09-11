@@ -230,7 +230,8 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
         payload['shadow_current'] = shadow_current
         payload['shadow_errors'] = shadow_errors
         payload['shadow_prospective'] = prospective_report(shadow_records)
-        from .diagnostics import live_point
+        from .diagnostics import live_point, compare_published
+        payload['candidate_live_comparison'] = compare_published(records, shadow_records)
         payload['evidence_archives']['shadow'] = export_archive(root,
             {str(h): [live_point(r) for r in shadow_records if r['horizon_seconds']==h*3600] for h in DEFAULT_HORIZONS},
             kind='shadow', as_of=current.isoformat())

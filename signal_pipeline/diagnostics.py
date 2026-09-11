@@ -79,3 +79,31 @@ def validate_object(root, entry):
     if len(raw) != entry['bytes'] or hashlib.sha256(raw).hexdigest() != entry['sha256']:
         raise ValueError('archive integrity mismatch')
     return json.loads(raw)
+
+
+def compare_published(incumbent, candidate):
+    """Pair the first timely publication per horizon/origin, never cherry-pick outcomes."""
+    from .evaluate import paired_block_interval
+    def indexed(records):
+        result={}
+        for r in sorted(records,key=lambda r:r.get('published_at') or 'z'):
+            p=live_point(r)
+            if p['eligible'] and p['settled']:
+                result.setdefault((r['horizon_seconds']//3600,r['slot']),p)
+        return result
+    a,b=indexed(incumbent),indexed(candidate);report={}
+    for h in (6,24,72,168,336,720):
+        keys=sorted(k for k in a.keys() & b.keys() if k[0]==h)
+        # Truth revisions must agree; unaligned settlements are held out until repaired.
+        keys=[k for k in keys if all(a[k][field]==b[k][field] for field in ('target_end','return','terminal','up','down'))]
+        original=[a[k] for k in keys];shadow=[b[k] for k in keys]
+        independent=0;end=None
+        for r in shadow:
+            if end is None or pd.Timestamp(r['slot'])>=end:
+                independent+=1;end=pd.Timestamp(r['target_end'])
+        report[str(h)]={'paired_rows':len(keys),'nonoverlap':independent,'candidate':metrics(shadow),
+                        'incumbent':metrics(original),'paired_event_brier':paired_block_interval(shadow,original,h),
+                        'candidate_versions':sorted({r['model_version'] for r in shadow}),
+                        'status':'insufficient_prospective_evidence' if independent<20 else 'requires_multi_metric_review',
+                        'promotion':'incumbent_retained'}
+    return report

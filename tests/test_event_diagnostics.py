@@ -84,3 +84,42 @@ def test_legacy_artifact_upgrades_full_probabilities_without_touching_ledger(tmp
     manifest=validate_object(target,d['archive'])
     points=validate_object(target,manifest['horizons']['6']['shards'][0])['points']
     assert len(points)==1 and points[0]['p_up']==.7 and points[0]['baseline']['p_up']==.7
+
+
+def test_forward_comparison_uses_timely_matching_truth():
+    from signal_pipeline.diagnostics import compare_published
+    r={**row(),'horizon_seconds':21600,'price_quantiles':[90,100,120],
+       'terminal_down_flat_up':[.1,.2,.7],'alert_thresholds':{'up':.7,'down':.7},
+       'window_start':'2026-01-01T01:00:00+00:00','published_at':'2026-01-01T00:10:00+00:00',
+       'outcome':{k:row()[k] for k in ('actual_price','return','up','down','terminal')},'model_version':'fixed'}
+    assert compare_published([r],[r])['6']['paired_rows']==1
+    late={**r,'published_at':'2026-01-01T01:01:00+00:00'}
+    assert compare_published([r],[late])['6']['paired_rows']==0
+    revised={**r,'outcome':{**r['outcome'],'return':.2}}
+    assert compare_published([r],[revised])['6']['paired_rows']==0
+
+
+def test_frontend_renders_verified_archive_and_clears_empty_filter(tmp_path):
+    ref=export_archive(tmp_path,{str(h):[row()] for h in (6,24,72,168,336,720)},kind='historical',as_of='2026-02-01T00:00Z')
+    source=Path('forecast_site/public/event_diagnostics.js').read_text()
+    script=r'''
+const fs=require('fs');global.crypto=require('crypto').webcrypto;
+const elements={},listeners=[],plots={};
+global.window={};global.document={getElementById(id){return elements[id]??={id,value:id==='diagnostic-regime'?'all':'',textContent:'',innerHTML:'',removeAttribute(k){delete this[k];}};},addEventListener(_,fn){listeners.push(fn);}};
+global.Chart=class{constructor(el,config){plots[el.id]=config;}destroy(){}};
+global.fetch=async path=>{const b=fs.readFileSync(ROOT+'/'+path);return {ok:true,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)}};
+'''.replace('ROOT',json.dumps(str(tmp_path)))+source+r'''
+(async()=>{
+listeners.forEach(f=>f());
+window.updateEventDiagnostics(PAYLOAD,6);
+await new Promise(r=>setTimeout(r,50));
+if(!elements['diagnostic-status'].textContent.includes('1 scored / 1 records'))throw Error(elements['diagnostic-status'].textContent);
+if(plots['diagnostic-price'].data.datasets[0].data.length!==1)throw Error('price not rendered');
+if(!elements['diagnostic-confusion'].innerHTML.includes('Higher'))throw Error('confusion missing');
+elements['diagnostic-from'].value='2027-01-01';elements['diagnostic-from'].onchange();
+await new Promise(r=>setTimeout(r,50));
+if(!elements['diagnostic-status'].textContent.includes('0 scored / 0 records'))throw Error('stale metrics');
+if(plots['diagnostic-price'].data.datasets[0].data.length!==0)throw Error('stale chart');
+})().catch(e=>{console.error(e);process.exitCode=1});
+'''.replace('PAYLOAD',json.dumps({'evidence_archives':{'historical':ref}}))
+    subprocess.run(['node','-e',script],check=True,capture_output=True,text=True)

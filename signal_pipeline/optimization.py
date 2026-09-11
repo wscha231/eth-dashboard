@@ -70,7 +70,7 @@ def train_candidate(features, outcomes, cutoff, horizon, *, deadline=float('inf'
     bundle = {'models': models, 'choices': choices, 'policy': POLICY, 'fit_cutoff': cutoff.isoformat(),
               'training_target_end': max(training_ends).isoformat(), 'validation_target_end': outcomes.loc[val,'target_end'].max().isoformat(),
               'calibration_target_end': outcomes.loc[cal,'target_end'].max().isoformat(),
-              'threshold_target_end': outcomes.loc[threshold,'target_end'].max().isoformat(),
+              'threshold_target_end': outcomes.loc[threshold,'target_end'].max().isoformat() if len(threshold) else None,
               'selection_rows': len(val), 'calibration_rows': len(cal), 'threshold_rows': len(threshold),
               'selection_scores': results, 'no_change_selection_mae': no_change,
               'fitted_identity': joblib.hash(models), 'temperature': 1., 'path_calibrators': [None, None],
@@ -172,6 +172,7 @@ def run_review(root, *, budget_seconds=1500, bars=None):
             live=train_candidate(features,outcomes,live_cutoff,h,deadline=deadline)
             temp=path.with_suffix('.tmp'); joblib.dump(live,temp);temp.replace(path)
         active[str(h)]={'file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+    if time.monotonic()>=deadline: raise TimeoutError('candidate review budget exhausted; prior complete review retained')
     public={h:{k:v for k,v in r.items() if k not in ('rows','incumbent_rows','baseline_rows')} for h,r in reports.items()}
     result={'schema_version':1,'policy':POLICY,'generated_at':utc().isoformat(),'data_as_of':as_of.isoformat(),
             'status':'shadow_only','horizons':public,'runtime_seconds':time.monotonic()-started,
