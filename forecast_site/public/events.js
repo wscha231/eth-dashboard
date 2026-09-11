@@ -27,8 +27,8 @@
       [f.reference_price,f.lower_barrier_price,f.upper_barrier_price].every(v=>Number.isFinite(v)&&v>0) &&
       f.lower_barrier_price<f.reference_price && f.reference_price<f.upper_barrier_price;
   }
-  function outlook(now=Date.now()) {
-    const matches=f=>f.horizon_seconds/3600===Number(selectedHorizon) && validForecast(f,now);
+  function outlook(now=Date.now(), horizon=selectedHorizon) {
+    const matches=f=>f.horizon_seconds/3600===Number(horizon) && validForecast(f,now);
     const current=payload?.current?.find(f=>f && matches(f));
     if(current)return {record:current,previous:false};
     const previous=(payload?.recent_issued || []).filter(f=>f && matches(f) &&
@@ -67,6 +67,25 @@
     const chosen=outlook(),cardKey=`${selectedHorizon}:${chosen.record?.forecast_id||''}:${chosen.previous}`;
     if(lastDelayed!==stale || lastCardKey!==cardKey)renderCards();
     lastDelayed=stale;lastCardKey=cardKey;
+    renderHorizonHealth();
+  }
+  function liveAssessment(forward) {
+    if(!forward?.resolved)return 'Awaiting first settled outcome';
+    const m=forward.metrics,parts=[];
+    if(Number.isFinite(m?.mae_skill)&&m.mae_skill<0)parts.push('Price error exceeds no-change');
+    if((forward.nonoverlap_resolved||0)<20)parts.push('Limited live evidence');
+    if(forward.performance_watch==='review_required')parts.push('Probability error needs review');
+    return parts.join(' · ')||'Live research; no proven edge';
+  }
+  function renderHorizonHealth() {
+    if(!el('event-horizon-health'))return;
+    const now=Date.now(),due=Math.floor((now-15*60000)/3600000)*3600000;
+    table('event-horizon-health',['Window','Forecast update','End estimate / intended 80% range','Settled / non-overlap','Price MAE / no-change (pp)','Evidence'],expectedHorizons.map(h=>{
+      const {record:f,previous}=outlook(now,h),p=payload?.prospective?.[h],m=p?.metrics;
+      const status=!f?'Unavailable':previous?'Previous published forecast':stamp(f.input_cutoff)<due?'Update delayed':fetchFailed?'Last received forecast':'Current';
+      return [horizonName(h),status,f?`${money(f.price_quantiles[1])} / ${money(f.price_quantiles[0])}–${money(f.price_quantiles[2])}`:'—',
+        `${p?.resolved||0} / ${p?.nonoverlap_resolved||0}`,`${Number.isFinite(m?.return_mae)?(100*m.return_mae).toFixed(2):'—'} / ${Number.isFinite(m?.no_change_mae)?(100*m.no_change_mae).toFixed(2):'—'}`,liveAssessment(p)];
+    }));
   }
   function renderCards() {
     const root=el('event-current');root.replaceChildren();
@@ -103,6 +122,10 @@
     text(detail,'p',`Issued: ${local(f.issued_at)} · ${names[f.selected_model] || f.selected_model || 'Research model'}`,'small');
     if(previous)text(card,'p',`Published: ${local(f.published_at)}. The latest update is delayed. This earlier forecast keeps its original prices and observation window.`,'notice');
     else if(stale)text(card,'p','This forecast is out of date or the release is incomplete. The original estimate is preserved; wait for a complete update before treating it as the current outlook.','notice');
+    const forward=payload?.prospective?.[selectedHorizon],metric=forward?.metrics;
+    text(card,'p',`Live validation: ${liveAssessment(forward)}. ${forward?.resolved||0} settled forecasts; ${forward?.nonoverlap_resolved||0} non-overlapping windows.`,'notice');
+    if(Number.isFinite(metric?.return_mae))text(card,'p',`Observed return error: ${(100*metric.return_mae).toFixed(2)} percentage points MAE; no-change baseline: ${(100*metric.no_change_mae).toFixed(2)}. Intended 80% range covered ${pct(metric.coverage80)} of settled outcomes. These small, overlapping samples do not establish future accuracy.`,'small');
+    if(f.selected_model==='climatology')text(card,'p','This window currently uses past event frequency and historical return quantiles. It is not a market-responsive direction signal.','small');
   }
   function chart(id,labels,datasets,yLabel) {
     charts[id]?.destroy();delete charts[id];
@@ -232,6 +255,8 @@
       fetchFailed=false;
       if(payload && new Date(next.generated_at)<new Date(payload.generated_at)){renderStatus();return;}
       payload=next;renderStatus();renderCards();renderLedger();renderProspective();
+      // The complete archive must not wait behind the much larger legacy replay.
+      window.updateEventDiagnostics?.(payload,selectedHorizon);
       const state=payload.current_regime;
       el('event-regime').textContent=state?`Observed market: ${{up:'rising',down:'falling',range:'sideways'}[state.state]||'unclassified'} · Last 24 hours: ${pct(state.trailing_24h_return)} · Volatility: ${Number.isFinite(state.volatility_ratio_24h_30d)?state.volatility_ratio_24h_30d.toFixed(1):'—'}× the 30-day level. This describes past movement, not a forecast.`:'';
       try {

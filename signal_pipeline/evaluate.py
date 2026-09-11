@@ -154,11 +154,11 @@ def prospective_report(records):
     for horizon in sorted({r["horizon_seconds"]//3600 for r in records}):
         issued = [r for r in records if r["horizon_seconds"] == horizon*3600]
         rows = []; paired_selected=[];baseline_rows=[]; independent_end=None;independent_count=0
-        for r in issued:
+        for r in sorted(issued, key=lambda r: pd.Timestamp(r['slot'])):
             if r["outcome"] is None:
                 continue
             q = np.log(np.asarray(r["price_quantiles"])/r["reference_price"])
-            row={**r["outcome"], "slot":r['slot'],"target_end":r['target_end'],"p_down": r["terminal_down_flat_up"][0],
+            row={**r["outcome"], "reference_price":r['reference_price'], "slot":r['slot'],"target_end":r['target_end'],"p_down": r["terminal_down_flat_up"][0],
                          "p_flat": r["terminal_down_flat_up"][1], "p_up": r["terminal_down_flat_up"][2],
                          "hit_up": r["hit_up"], "hit_down": r["hit_down"],
                          "threshold_up": r["alert_thresholds"]["up"], "threshold_down": r["alert_thresholds"]["down"],
