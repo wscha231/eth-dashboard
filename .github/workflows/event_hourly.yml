@@ -22,7 +22,7 @@ on:
       - scripts/copy_event_evidence.py
       - forecast_site/vercel.json
   workflow_run:
-    workflows: ["ETH hourly event research"]
+    workflows: ["ETH hourly event research", "Daily archived hybrid settlement"]
     types: [completed]
     branches: [main]
   schedule:
@@ -146,7 +146,7 @@ jobs:
           compression-level: 9
           retention-days: 2
       - uses: actions/upload-artifact@v4
-        if: ${{ github.event_name == 'workflow_run' || steps.state.outputs.backup == 'true' }}
+        if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'ETH hourly event research') || steps.state.outputs.backup == 'true' }}
         with:
           name: event-daily-backup
           path: hourly-state/
