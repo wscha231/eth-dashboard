@@ -25,3 +25,6 @@ Baseline: main ba038ed5c925109f34a1b03a2d2b17d6095720e1.
 - https://support.google.com/webmasters/answer/9008080?hl=ko
 - https://searchadvisor.naver.com/guide/request-feed
 - https://www.bing.com/webmasters/help/add-and-verify-site-12184f8b
+
+## Concurrent update reconciled
+While this work was in progress, main fe43884193f2b74536d5a9ee37606bde07c24fd8 added sitemap/robots publication and verification plus a private draft privacy notice. This change retains the new publisher checks, tests, README and non-public privacy draft. The sitemap now extends the homepage entry with the Korean guide and dated outlook. No incomplete privacy notice is published.

@@ -118,6 +118,26 @@ The daily job verifies the deployed `health.json` after pushing. A separate
 13:30 KST watchdog dispatches at most one recovery run when the site is stale
 and no daily run is already active.
 
+## Search discovery
+
+The public sitemap is `https://etherforecast.live/sitemap.xml`. It lists
+canonical public pages, not data files or dashboard anchor links. Add new
+pages only when they are publicly available. No synthetic `lastmod` date is
+emitted; hourly data refreshes must not invent page modification timestamps.
+
+`robots.txt` allows crawling and advertises the sitemap. The hourly publisher
+copies both files to the deployment branch and verifies their served contents.
+In Google Search Console, select the `etherforecast.live` property, open
+**Sitemaps**, and submit the full sitemap URL (or just `sitemap.xml` if the
+form already displays the site's URL prefix). Google controls crawling,
+indexing, and ranking; publishing or submitting the sitemap does not confirm
+any of those outcomes.
+
+The privacy notice is prepared in `drafts/privacy.html`, outside the `public/`
+deployment directory. Confirm the operator name and private contact email,
+finalize its effective date, and remove the draft markers before publication.
+Then add the published page to the footer, sitemap, publisher, and verification.
+
 ## Schema notes
 
 * Idempotent per `(input_timestamp_utc, model_phase)` — safe to rerun the
