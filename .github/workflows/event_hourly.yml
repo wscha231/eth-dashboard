@@ -121,6 +121,7 @@ jobs:
           PY
       - name: Find a complete compatible historical candidate report
         id: historical
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
@@ -134,14 +135,16 @@ jobs:
               break;
             }
       - uses: actions/download-artifact@v4
+        id: historical_download
         if: steps.historical.outputs.run != ''
+        continue-on-error: true
         with:
           github-token: ${{ github.token }}
           run-id: ${{ steps.historical.outputs.run }}
           name: event-historical-report
           path: lake/historical-source
       - name: Import historical evidence without importing models or issued records
-        if: steps.historical.outputs.run != ''
+        if: steps.historical.outputs.run != '' && steps.historical_download.outcome == 'success'
         continue-on-error: true
         env:
           HISTORICAL_RUN: ${{ steps.historical.outputs.run }}

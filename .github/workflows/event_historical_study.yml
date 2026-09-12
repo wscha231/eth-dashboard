@@ -2,14 +2,16 @@ name: ETH multi-year candidate study
 on:
   pull_request:
     branches: [main]
-    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'scripts/run_event_historical_study.py', 'scripts/event_historical_artifacts.cjs', '.github/workflows/event_historical_study.yml']
+    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', '.github/workflows/event_historical_study.yml']
   push:
     branches: [main]
-    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'scripts/run_event_historical_study.py', 'scripts/event_historical_artifacts.cjs', '.github/workflows/event_historical_study.yml']
+    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', '.github/workflows/event_historical_study.yml']
   workflow_run:
     workflows: ['ETH hourly event research']
     types: [completed]
     branches: [main]
+  schedule:
+    - cron: '43 3 * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -66,6 +68,7 @@ jobs:
         run: |
           python scripts/audit_event_historical_study.py
           python scripts/import_event_study.py lake/signals historical-public
+          python scripts/report_event_historical_study.py --output historical-public/results.md
       - uses: actions/upload-artifact@v4
         if: steps.study.outputs.complete == 'true'
         with:
@@ -80,7 +83,7 @@ jobs:
           path: |
             lake/signals/historical_study/
             lake/signals/historical_progress.json
-          retention-days: 90
+          retention-days: 7
           compression-level: 9
       - name: Record completion or the exact resume point
         if: always()
@@ -91,4 +94,6 @@ jobs:
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
               f.write('Multi-year candidate research; separate from actual published forecasts.\n\n')
               f.write(p.read_text() if p.exists() else 'No historical work completed; inspect the source step.')
+              report=pathlib.Path('historical-public/results.md')
+              if report.exists():f.write('\n\n'+report.read_text())
           PY

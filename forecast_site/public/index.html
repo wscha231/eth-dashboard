@@ -310,15 +310,26 @@
       .event-probabilities { grid-template-columns:1fr; }
       .chart-wrap { height:260px; }
     }
+    .chart-wrap canvas { max-width:100%; }
   </style>
+  <link rel="stylesheet" href="brand-status.css">
 </head>
 <body>
   <div class="shell">
     <header>
-      <div class="brand"><span class="mark"></span><span>ETH Forecast</span></div>
+      <div class="brand"><img class="ef-header-logo" id="ef-header-logo" src="assets/etherforecast-poster.svg" width="44" height="48" alt=""><span>EtherForecast</span></div>
       <span class="pill" id="model-phase">Research beta</span>
       <nav aria-label="Main navigation"><a href="#event-system">Forecast</a><a href="#performance">Performance</a><a href="#how-it-works">How to read it</a><a href="/outlook.html">Published snapshot</a><a href="/ko/" lang="ko">한국어</a><a href="#donation-panel">Support</a></nav>
     </header>
+
+    <section class="ef-service" aria-label="Forecast service status">
+      <div class="ef-brand" id="ef-brand" data-state="checking" data-motion="paused" aria-hidden="true"><img src="assets/etherforecast-poster.svg" width="112" height="123" alt=""></div>
+      <div class="ef-service-copy">
+        <p class="eyebrow">EtherForecast · Service status</p>
+        <div role="status" aria-live="polite" aria-atomic="true"><span id="event-status" class="pill">Checking status</span><p id="event-updated" class="small">Confirming service status and current forecasts.</p></div>
+        <p class="ef-status-key">Lights on: current forecasts available. Lights off: maintenance or status not confirmed. Forecast quality is reported separately below.</p>
+      </div>
+    </section>
 
     <section class="hero">
       <div>
@@ -335,7 +346,7 @@
     </section>
 
     <section id="event-system" data-interface="english-outlook-v1">
-      <div class="status-line" role="status"><span id="event-status" class="pill">Checking update</span><p id="event-updated" class="small">Loading the latest forecast.</p></div>
+
       <div class="controls horizon-control"><div class="control"><label for="event-horizon">Forecast window</label><select id="event-horizon"><option value="6">6 hours</option><option value="24" selected>1 day</option><option value="72">3 days</option><option value="168">7 days</option><option value="336">14 days</option><option value="720">30 days</option></select></div><p class="small">This window also applies to the performance below.</p></div>
       <div class="forecast-grid" id="event-current"></div>
       <article class="panel"><h3>All forecast windows at a glance</h3><p class="small">Update status and predictive performance are separate. Live errors use only settled, timely published forecasts. No-change assumes the reference price stays the same; lower MAE is better. Overlapping windows share price movements.</p><div id="event-horizon-health" class="table-scroll" tabindex="0" aria-label="Current forecasts and live validation for all six windows"></div></article>
@@ -534,6 +545,37 @@
         </div>
         <span class="pill" id="donation-milestone">Voluntary support</span>
       </div>
+      <div class="support-research" id="support-research">
+        <h3>Help build a better evidence base.</h3>
+        <p>Keeping a useful public forecast takes more than a model: it takes continuous data collection, reliable hosting and honest testing. Your support helps preserve the data available at each forecast time, evaluate new signals and keep the research open to everyone.</p>
+        <div class="support-budget">
+          <div><span class="eyebrow">Two candidate subscriptions</span><strong>$4,826 / year</strong><p class="small">CoinGlass Standard + CoinGecko Analyst</p></div>
+          <p>This is a planning estimate, not a current bill or a requirement to buy both. We would test one source at a time before an annual commitment. Business quotes, tax, overages, storage and computing are additional costs.</p>
+        </div>
+        <p class="small">Official public prices checked 12 September 2026 (UTC), in USD, with annual billing. These are proposed data sources; paid-data integration and additional forecast gains have not been demonstrated.</p>
+        <div class="table-scroll" tabindex="0" aria-label="Candidate paid data sources and annual costs">
+          <table class="support-table">
+            <thead><tr><th scope="col">Source</th><th scope="col">Annual cost</th><th scope="col">Data to evaluate</th><th scope="col">Why test it?</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://www.coinglass.com/pricing" target="_blank" rel="noopener noreferrer">CoinGlass<br>Standard ↗</a></td><td><b>$3,588 / year</b><span class="small">Commercial plan · $299/month equivalent</span></td><td>Cross-exchange open interest, funding rates and liquidation history; ETH ETF flows where entitled. <a href="https://docs.coinglass.com/reference/endpoint-overview" target="_blank" rel="noopener noreferrer">Data catalogue ↗</a></td><td>Test whether leverage and forced selling add warning signals at 6 hours–3 days. Standard hourly history reaches up to 360 days; minute data is shorter. Verify endpoint access before buying.<span class="small">Additional forecast gain: unmeasured.</span></td></tr>
+              <tr><td><a href="https://www.coingecko.com/en/api/pricing" target="_blank" rel="noopener noreferrer">CoinGecko<br>Analyst ↗</a></td><td><b>$1,238 / year</b><span class="small">Published annual total · attribution required</span></td><td>Aggregated prices, market capitalisation and trading volumes; up to 10 years of history where available.</td><td>Test whether broader market context and more complete historical coverage help the 1–30 day windows. Some price data is already available free; paying alone does not create a new signal.<span class="small">Additional forecast gain: unmeasured.</span></td></tr>
+              <tr><td><a href="https://app.santiment.net/pricing" target="_blank" rel="noopener noreferrer">Santiment<br>Sanbase / SanAPI ↗</a></td><td><b>Business quote required</b><span class="small">Individual Max reference: $2,700/year. Excluded from the total above.</span></td><td>Social activity and sentiment, on-chain wallet and exchange activity, subject to metric and ETH coverage.</td><td>Test attention spikes and network activity as context for 1–14 day forecasts. The individual price is not a confirmed public-site licence; real-time API, history and commercial terms must be checked.<span class="small">Additional forecast gain: unmeasured.</span></td></tr>
+              <tr><td><a href="https://studio.glassnode.com/pricing" target="_blank" rel="noopener noreferrer">Glassnode<br>Professional + API ↗</a></td><td><b>Annual quote required</b><span class="small">API access, credits and usage rights must be included.</span></td><td>ETH on-chain flows, realised-value and staking metrics where supported. <a href="https://docs.glassnode.com/basic-api/api" target="_blank" rel="noopener noreferrer">API plan details ↗</a></td><td>Test whether supply and holder behaviour help the 7–30 day windows. The cheaper Advanced subscription is not equivalent to a full historical API licence.<span class="small">Additional forecast gain: unmeasured.</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="support-evaluation">
+          <h3>How much better could the forecast become?</h3>
+          <p><b>We do not yet have a measured uplift from these subscriptions.</b> More data can produce no improvement or even worse forecasts. It would be misleading to promise a percentage increase in accuracy before a matched test.</p>
+          <p><b>Proposed pilot hurdle: 3% lower price error or 5% lower probability error.</b> These are evaluation targets, not expected gains. Before each pilot, choose one primary metric: price MAE or Brier score. Compare the added data with the same frozen model without it, and check that other metrics and forecast windows do not materially deteriorate.</p>
+          <p class="small">Illustration only: Brier 0.20 → 0.19 is a 5% relative reduction in probability error; MAE $100 → $97 is a 3% error reduction. Neither means accuracy rises by 5 or 3 percentage points. These numbers are not EtherForecast results.</p>
+          <p class="small">Report each of the six windows separately using time-ordered tests, data actually available at the issue time, gaps between training and test targets, and non-overlapping outcomes with uncertainty ranges. Long windows need much more history. An inconclusive or harmful result is a reason to defer adoption.</p>
+        </div>
+        <h3>Why your donation matters</h3>
+        <p>Your donation can fund licensed historical data, collection and storage, model evaluation and the infrastructure that keeps the site available. The aim is to make better-supported forecasts and show whether a change helped—not to hide unsuccessful tests. Data sources would be adopted in stages, with their coverage and measured impact reported alongside the research.</p>
+        <p><b>Forecast access stays free.</b> Support is voluntary and does not purchase a trading signal, a promised accuracy level or an investment return.</p>
+        <details lang="ko"><summary>후원이 필요한 이유 · 한국어</summary><p>후원은 유료 데이터 이용권, 과거 데이터 보관, 수집·서버 운영과 예측 검증 비용에 쓰일 수 있습니다. CoinGlass Standard와 CoinGecko Analyst의 후보 예산은 합계 연 $4,826이며, 현재 지출이나 필수 구독을 뜻하지 않습니다. Santiment와 Glassnode의 사이트용 이용 조건은 별도 견적이 필요합니다.</p><p>유료 데이터의 실제 예측력 향상은 아직 측정되지 않았습니다. 가격 오차 3% 또는 확률 오차 5% 상대 감소는 파일럿 평가 목표이며 예상 성과가 아닙니다. 한 가지 주 지표를 미리 정해 동일 조건에서 비교하고, 개선이 없거나 악화되면 도입을 미룹니다. 후원 여부와 관계없이 예측은 무료로 열람할 수 있습니다.</p></details>
+      </div>
       <div class="donation-grid" id="donation-wallets"><p>Wallet details are loading. If they remain unavailable, please check again later.</p></div>
       <p class="small" id="donation-copy-status" role="status" aria-live="polite"></p>
       <p class="small" lang="ko">도움이 되었다면 무료 예측 운영을 후원해주세요. <a href="/ko/">한국어 이용 안내</a></p>
@@ -547,6 +589,7 @@
   </div>
 
 <script src="event_diagnostics.js"></script>
+<script src="brand-status.js"></script>
 <script src="events.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -937,6 +980,7 @@ function formatChartModel(info) {
 function renderChart(id, rows, labels = {}) {
   const canvas = $(id);
   if (!canvas || !rows.length) return;
+  if (typeof Chart !== 'function') return;
   const chartModel = rows.find((r) => r.chartModel)?.chartModel;
   const predictedLabel = labels.predicted || (chartModel === "no_change_anchor" ? "No-change anchor" : "Forecast");
   const datasets = [
