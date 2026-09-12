@@ -254,7 +254,8 @@
     .status-line { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
     .status-line p { margin:0; }
     .controls { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; }
-    .control { display:grid; gap:6px; font-size:14px; }
+    .control { display:grid; grid-template-columns:minmax(0,1fr); gap:6px; font-size:14px; min-width:0; }
+    .control select { min-width:0; }
     #event-system select { margin:0; padding:10px 32px 10px 12px; min-height:44px; max-width:100%; border-radius:8px; }
     .horizon-control { margin-bottom:18px; }
     .horizon-control label { font-size:16px; font-weight:700; }
@@ -323,11 +324,16 @@
     </header>
 
     <section class="ef-service" aria-label="Forecast service status">
-      <div class="ef-brand" id="ef-brand" data-state="checking" data-motion="paused" aria-hidden="true"><img src="assets/etherforecast-poster.svg" width="112" height="123" alt=""></div>
+      <div class="ef-brand" id="ef-brand" data-state="checking" data-motion="paused" data-playback="paused" aria-hidden="true">
+        <img class="ef-video-poster" src="assets/etherforecast-poster.svg" width="640" height="700" alt="">
+        <video id="ef-video" muted loop playsinline preload="metadata" src="assets/etherforecast-loop.mp4" poster="assets/etherforecast-poster.svg" width="640" height="700" tabindex="-1"></video>
+      </div>
       <div class="ef-service-copy">
         <p class="eyebrow">EtherForecast · Service status</p>
         <div role="status" aria-live="polite" aria-atomic="true"><span id="event-status" class="pill">Checking status</span><p id="event-updated" class="small">Confirming service status and current forecasts.</p></div>
         <p class="ef-status-key">Lights on: current forecasts available. Lights off: maintenance or status not confirmed. Forecast quality is reported separately below.</p>
+        <button id="ef-video-toggle" class="ef-video-toggle" type="button" hidden>Pause animation</button>
+        <p id="ef-video-error" class="small" hidden>Animation could not load. The service status remains available above.</p>
       </div>
     </section>
 
