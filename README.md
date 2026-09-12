@@ -1,46 +1,25 @@
-# R1000 Top30 Institutional (Colab)
+# ETH Forecast
 
-## Files
-- `r1000_top30_institutional.py`: Full pipeline implementation.
-- `R1000_Top30_Institutional_Colab.ipynb`: One-click Colab runner.
-- `eth_price_forecast.py`: ETH-USD daily price forecast example.
+Public research dashboard: https://etherforecast.live/
 
-## Quick Start (Colab)
-1. Create `/content/drive/MyDrive/r1000_top30_institutional`.
-2. Upload both files above into that folder.
-3. Open `R1000_Top30_Institutional_Colab.ipynb`.
-4. Update `cfg['sec_user_agent']` to your real contact email.
-5. Run all cells.
+The active `signal_pipeline` produces 6-hour, 1-day, 3-day, 7-day, 14-day and 30-day ETH forecasts from closed Coinbase ETH-USD and BTC-USD hourly bars. Saved models run hourly; incumbent checkpoints refresh monthly through the weekly/monthly research workflow. Separate experimental candidates require prospective evidence before promotion. Availability does not establish predictive accuracy.
 
-If you see `ModuleNotFoundError: pandas_market_calendars`, run:
-`%pip -q install pandas-market-calendars` and rerun imports.
+## Operations and storage
 
-If yfinance transiently fails and many tickers get blacklisted, delete:
-`<base_dir>/cache_misc/yf_fail_tickers.json` and rerun.
+- `event_hourly.yml`: incremental collection, immutable issuance, settlement, all-horizon evidence report, snapshot and verified publication.
+- `event_watchdog.yml`: checks actual public timestamps and all six windows; bounded recovery when workers are idle. An existing account-level hourly automation provides another trigger.
+- `daily_forecast.yml`: daily auxiliary source collection and retired-forecast settlement. Macro/on-chain data is collected separately and is not yet an input to the hourly model.
+- `data/event-ledger`: original forecasts, outcomes and verified receipts; `lake/event-inputs` preserves public source receipt vintages and content-addressed active checkpoints.
+- `data/daily-forecast`: deployed static website, daily master, availability metadata and normalized market/vendor CSV caches.
+- Actions state: two-day hourly snapshots and up to 90-day daily recovery backups; restore chooses the newest trusted hourly or daily copy. Research artifacts still expire after 30 days. Plan dedicated object storage before sustained archive growth.
 
-If you previously ran an older build, regenerate `feature_store` after updating code.
-Older builds clipped large numeric fields too aggressively and may drop all rows in training.
+[Recovery runbook](ops/event_recovery.md) · [Current audit](research/system_audit_20260912/research.md) · [Implementation plan](research/system_audit_20260912/plan.md)
 
-## Public Interfaces
-- `run_all(cfg) -> dict`
-- `build_universe_monthly(cfg) -> DataFrame`
-- `build_feature_store(cfg) -> DataFrame`
-- `train_walkforward(cfg, features) -> ModelBundle`
-- `backtest_portfolio(cfg, signals) -> BacktestResult`
-- `export_outputs(cfg, artifacts) -> dict[str]`
+Run `python scripts/audit_event_system.py --root lake/signals` to report source readiness and all six live evidence cohorts without fitting or issuing forecasts.
 
-## Outputs
-Saved under `<base_dir>/outputs/`:
-- `top30_latest.csv`
-- `scored_latest.csv`
-- `top30_explain_latest.csv`
-- `weights_latest.json`
-- `backtest_metrics.json`
-- `equity_curve.csv`
-- `run_summary.json`
+## Legacy daily collector / model reference
 
-Phase-0 audit reports are saved under `<base_dir>/outputs/reports/`.
-Acceptance test summary is saved as `<base_dir>/outputs/reports/acceptance_checks.json`.
+The following documentation describes the reusable daily collector and retired daily model examples. It is not the production hourly inference entrypoint.
 
 ## ETH Data Lake + Forecast
 ETH forecasting now assumes a data-lake-first workflow:

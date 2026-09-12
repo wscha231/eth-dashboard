@@ -1,0 +1,14 @@
+# Implementation plan - operational continuity
+
+The current request authorizes necessary data/automation updates. Scope is the demonstrated operational defects; model replacement requires a separate measured proposal.
+
+1. Extend the trusted hourly artifact selector to search hourly and daily backups, use the newest valid same-repository/main/non-PR source, and retain successful research provenance. Make daily backup due whenever no trusted backup exists for the current UTC date, with 90-day retention.
+2. Preserve actual source receipts and revisions before publishing by adding `scripts/archive_event_inputs.py` to the existing `persist_event_ledger.sh` flow. Union canonical rows into compressed observation-date partitions; use content hashes for raw data and active model files; reject mismatching existing blobs; write a manifest. Keep current ledger semantics and original forecast IDs intact.
+3. Restore/persist only daily normalized vendor/market CSV caches and the availability file using `scripts/daily_source_state.py`. Preserve detailed source-status, schema and exclusion reports. Use explicit suffix/type allowlists; never copy secrets, manual inputs or arbitrary raw files.
+4. Remove homepage-only retired source refresh trigger; retain its source-code, schedule and market-data triggers. Keep the shared publication lock until a separate architecture change resolves branch-writer races.
+5. Add a read-only `scripts/audit_event_system.py` report: publication/source/model age and all six horizon metrics. Report insufficient evidence and no-change comparisons without inventing performance improvements; retain the report in the hourly artifact and GitHub step summary.
+6. Replace stale README entrypoint with active architecture and links to the audit/runbook, preserving legacy collector documentation as explicitly archival.
+
+Validation: exercise artifact expiry/fork/PR provenance and daily backup fallback, source-vintage union/idempotency/conflict rejection, CSV-cache restart preservation, report generation on the actual trusted state, existing recovery contracts and the repository CI suite. Run a disposable restore/review on the downloaded state; never issue retrospective forecasts or alter original ledgers. Publish a reviewable PR, verify CI, then apply the authorized operational update and check the first real producer and source runs when execution access permits.
+
+Tradeoffs: longer retained backups increase Actions storage (current ZIP ~6.9 MB, one/day ~621 MB at 90 days). Content-addressed source/model archival grows Git history; migrate to object storage for sustained growth. Existing cron can be delayed, and the independent account automation still depends on its connection. This change does not promise real-time SLA, improved forecast accuracy, auxiliary feature integration, or full restoration after every research artifact has expired.

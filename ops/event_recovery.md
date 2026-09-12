@@ -25,7 +25,7 @@ predictive performance or a paid-service uptime guarantee.
 - The first failed normal run can cause one fresh `workflow_dispatch` on `main`.
   A dispatched hourly attempt imposes a 20-minute cooldown from its creation,
   actual attempt start or latest update. This prevents completion-triggered retry
-  loops. No new recovery is dispatched at :55–:59, after the new-issuance deadline.
+  loops. No new recovery is dispatched at :50–:59, reserving five minutes before the :55 new-issuance deadline.
 - A watchdog that found a problem stays failed, including when recovery was
   requested or deferred. Its job summary says `active_worker`, `cooldown`,
   `issuance_deadline` or `dispatched`. A dispatch is not proof of restored service.
@@ -71,3 +71,34 @@ clears the warning. Source, generation and next expected update times stay visib
 Validation covers missing/future/mixed-slot releases, all six horizons, the :15
 boundary, every active worker state, retry cooldown including old-run new attempts,
 the issuance deadline, offline page aging and recovery of the freshness display.
+
+## Source continuity and routine audit
+
+The hourly worker restores the newest trusted `event-hourly-state` or
+`event-daily-backup`, requiring the same repository, main branch and producer
+workflow, excluding pull-request runs. Failed publication does not invalidate an
+already uploaded consistent snapshot; original delivery receipts are restored from
+the durable ledger. A newer successful research run can update checkpoints and
+inputs. A recovered complete snapshot can operate without an unexpired research
+artifact only while its exact protocol, training hash and current-month checkpoint
+remain valid. The inference gate still refuses stale or incompatible models.
+
+At the first actual run of each UTC day, save a 90-day backup if none exists for
+that date. Hourly snapshots retain two days. These are expiring recovery copies,
+not permanent full research archives. Before public release, the existing ledger
+writer also saves `lake/event-inputs` on `data/event-ledger`: compressed partitions
+of actual observation receipt dates, raw Coinbase receipts and content-addressed
+active checkpoints. Existing partitions are unioned, never replaced by the rolling
+40-day subset. Historical backfill retains its actual later receipt time.
+
+`system_audit.json` and `system_audit.md` accompany each hourly snapshot and the
+Actions step summary. They report six-window availability, source cutoffs,
+settled/non-overlap counts, price MAE versus no-change and pending long windows.
+An operationally ready system may still have no demonstrated predictive edge.
+Daily macro/on-chain/flow sources remain outside the current hourly feature set.
+
+The daily collector restores/persists normalized market/vendor CSV caches and
+availability metadata. No private manual inputs, keys, or arbitrary raw files
+are copied. Homepage-only edits no longer start retired daily source collection.
+Continue monitoring Git archive growth; use dedicated object storage for sustained
+large historical/model retention. No external archive service is configured here.
