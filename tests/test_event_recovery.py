@@ -111,6 +111,18 @@ def test_old_recovery_expires_but_new_issuance_deadline_is_respected():
     assert not result['dispatches']
 
 
+@pytest.mark.parametrize('now,decision', [
+    ('2026-09-12T20:06:31Z', 'hosting_cooldown'),
+    ('2026-09-13T20:09:59Z', 'hosting_cooldown'),
+    ('2026-09-13T20:10:00Z', 'dispatched'),
+])
+def test_provider_cooldown_suppresses_recovery_but_expires(now, decision):
+    result = recovery(now=now)
+    assert result['outputs']['recovery'] == decision
+    assert len(result['dispatches']) == int(decision == 'dispatched')
+    assert result['failures']  # Neither a wait nor a dispatch proves recovery.
+
+
 def test_recovery_guard_covers_all_workflows_sharing_the_publisher_lock():
     guard = (ROOT/'scripts/event_recovery.cjs').read_text()
     names = set(re.findall(r"'([a-z_]+\.yml)'", guard))
@@ -193,7 +205,8 @@ def test_cli_distinguishes_payload_delivery_from_forecast_readiness(tmp_path, mo
         assert ('Event site verified:' if require_ready else 'Event payload verified:') in output
 
 
-def test_publisher_preserves_receipts_before_failing_readiness(tmp_path):
+@pytest.mark.parametrize('hosting_blocked', [False, True])
+def test_publisher_preserves_receipts_before_failing_readiness(tmp_path, hosting_blocked):
     import os
     import sys
     binaries = tmp_path/'bin'; binaries.mkdir()
@@ -207,7 +220,9 @@ def test_publisher_preserves_receipts_before_failing_readiness(tmp_path):
     (binaries/'python').write_text(f'#!{sys.executable}\n' + '''import os,sys,pathlib
 args=sys.argv[1:]
 kind='search' if 'publish_search_assets.py' in args[0] else 'archive' if 'copy_event_evidence.py' in args[0] else 'receipts' if args==['-'] else 'readiness' if '--require-ready' in args else 'payload' if 'verify_event_site.py' in args[0] else 'export'
+if 'deployment_policy.py' in args[0]:kind='policy'
 with open(os.environ['OUTLOOK_TEST_TRACE'],'a') as f:f.write(kind+'\\n')
+if kind=='policy' and '--require-enabled' in args and os.environ['HOSTING_BLOCKED']=='1':sys.exit(75)
 if kind=='receipts':sys.stdin.read()
 if kind=='export':pathlib.Path(args[-1]).write_text('')
 if kind=='readiness':sys.exit(1)
@@ -217,6 +232,10 @@ if kind=='readiness':sys.exit(1)
     (tmp_path/'scripts/persist_event_ledger.sh').write_text('printf "persisted\\n" >> "$OUTLOOK_TEST_TRACE"\n')
     result = subprocess.run(['bash', str(ROOT/'scripts/publish_events.sh')], cwd=tmp_path, capture_output=True, text=True,
                             env={**os.environ, 'PATH': str(binaries)+os.pathsep+os.environ['PATH'],
-                                 'RUNNER_TEMP': str(runner), 'OUTLOOK_TEST_TRACE': str(trace)})
+                                 'RUNNER_TEMP': str(runner), 'OUTLOOK_TEST_TRACE': str(trace),
+                                 'HOSTING_BLOCKED': str(int(hosting_blocked))})
     assert result.returncode != 0
-    assert trace.read_text().splitlines() == ['export', 'archive', 'search', 'payload', 'receipts', 'persisted', 'readiness']
+    before_delivery = ['export', 'archive', 'search', 'policy', 'policy']
+    assert trace.read_text().splitlines() == before_delivery + ([] if hosting_blocked else ['payload', 'receipts', 'persisted', 'readiness'])
+    if hosting_blocked:
+        assert result.returncode == 75

@@ -71,6 +71,7 @@ jobs:
             research_base=origin/data/daily-forecast
           fi
           git worktree add --detach "$RUNNER_TEMP/forward-ledger" "$research_base"
+          python scripts/deployment_policy.py --target "$RUNNER_TEMP/forward-ledger" --stage
           mkdir -p "$RUNNER_TEMP/forward-ledger/lake/forward"
           cp -a lake/forward/. "$RUNNER_TEMP/forward-ledger/lake/forward/"
           git -C "$RUNNER_TEMP/forward-ledger" add -f lake/forward
@@ -80,6 +81,7 @@ jobs:
         run: |
           git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
           git worktree add --detach "$RUNNER_TEMP/forward-site" origin/data/daily-forecast
+          python scripts/deployment_policy.py --target "$RUNNER_TEMP/forward-site" --stage
           cp lake/forward/forward.json "$RUNNER_TEMP/forward-site/forecast_site/public/forward.json"
           cp forecast_site/public/index.html "$RUNNER_TEMP/forward-site/forecast_site/public/index.html"
           git -C "$RUNNER_TEMP/forward-site" add -f forecast_site/public/forward.json forecast_site/public/index.html
@@ -88,6 +90,7 @@ jobs:
       - name: Verify the deployed research timestamp and panel
         timeout-minutes: 4
         run: |
+          python scripts/deployment_policy.py --require-enabled
           python - <<'PY'
           import json, time
           from urllib.request import urlopen

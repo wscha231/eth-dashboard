@@ -38,9 +38,12 @@ jobs:
           git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
           git worktree add --detach "$RUNNER_TEMP/search-site" origin/data/daily-forecast
           python scripts/publish_search_assets.py --target "$RUNNER_TEMP/search-site" --stage
+          python scripts/deployment_policy.py --target "$RUNNER_TEMP/search-site" --stage
           if ! git -C "$RUNNER_TEMP/search-site" diff --cached --quiet; then
             git -C "$RUNNER_TEMP/search-site" commit -m "chore(site): publish search metadata and dated outlook"
             git -C "$RUNNER_TEMP/search-site" push origin HEAD:refs/heads/data/daily-forecast
           fi
       - name: Verify the public privacy policy and homepage link
-        run: python scripts/verify_site_privacy.py
+        run: |
+          python scripts/deployment_policy.py --require-enabled
+          python scripts/verify_site_privacy.py

@@ -34,6 +34,7 @@ jobs:
           git config user.name "eth-forecast-bot"
           git config user.email "eth-forecast-bot@users.noreply.github.com"
           git worktree add "$RUNNER_TEMP/review-publish" origin/data/daily-forecast
+          python scripts/deployment_policy.py --target "$RUNNER_TEMP/review-publish" --stage
           cp "$RUNNER_TEMP/live_review.json" "$RUNNER_TEMP/review-publish/forecast_site/public/live_review.json"
           git -C "$RUNNER_TEMP/review-publish" add -f forecast_site/public/live_review.json
           git -C "$RUNNER_TEMP/review-publish" commit -m "chore(eval): review matured live forecasts"

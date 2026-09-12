@@ -8,6 +8,7 @@ const WORKERS = new Set([
   'full_history_backtest.yml', 'weekly_live_review.yml', 'site_search.yml',
 ]);
 const COOLDOWN_MS = 20 * 60 * 1000;
+const HOSTING_POLICY = require('../ops/deployment_cooldown.json');
 
 module.exports = async function recover({github, context, core, now, clock = () => now ?? new Date()}) {
   async function finish(decision, message) {
@@ -18,6 +19,14 @@ module.exports = async function recover({github, context, core, now, clock = () 
     // Dispatch is not proof that publication recovered. Leave the incident visible.
     core.setFailed('Hourly site is delayed or unavailable; ' + message);
     return decision;
+  }
+  const start = Date.parse(HOSTING_POLICY.detected_at), end = Date.parse(HOSTING_POLICY.not_before);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return finish('invalid_hosting_policy', 'Recovery deferred: provider cooldown policy is invalid.');
+  }
+  const checkedAt = clock().getTime();
+  if (start <= checkedAt && checkedAt < end) {
+    return finish('hosting_cooldown', `Recovery deferred until ${HOSTING_POLICY.not_before}: ${HOSTING_POLICY.reason}`);
   }
   for (const status of ACTIVE) {
     const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo,

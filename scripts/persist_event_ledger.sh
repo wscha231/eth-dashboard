@@ -26,6 +26,7 @@ if shadow.exists():
         assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
 PY
 python scripts/archive_event_inputs.py lake/signals "$RUNNER_TEMP/event-ledger/lake/event-inputs"
+python scripts/deployment_policy.py --target "$RUNNER_TEMP/event-ledger" --stage
 git -C "$RUNNER_TEMP/event-ledger" add -f lake/event-ledger/
 git -C "$RUNNER_TEMP/event-ledger" add -f lake/event-inputs/
 if ! git -C "$RUNNER_TEMP/event-ledger" diff --cached --quiet; then
