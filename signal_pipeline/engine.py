@@ -238,6 +238,12 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
     study_path = root/'optimization.json'
     if study_path.exists():
         payload['optimization'] = json.loads(study_path.read_text())
+    historical_path = root/'historical_study.json'
+    if historical_path.exists():
+        study = json.loads(historical_path.read_text())
+        if study.get('status') == 'complete' and study.get('protocol_hash') == PROTOCOL_HASH and study.get('training_hash') == training_hash():
+            payload['historical_study'] = {k: v for k, v in study.items() if k not in ('monthly_audits', 'excluded_months')}
+            payload['evidence_archives']['candidate_history'] = study['archive']
     payload["generated_at"] = utc(clock()).isoformat()
     payload["release_id"] = digest(payload)
     atomic_json(root/"signals.json", payload)
