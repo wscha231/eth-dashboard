@@ -1,5 +1,39 @@
 # forecast_site
 
+## Logo and service status
+
+The top logo lights up only when `events.js` validates all six current forecast
+windows and `site_status.json` confirms `auto` mode. An operating light means
+current forecasts are available; it does not certify accuracy or active computation.
+Maintenance, unknown status, connection failure and delayed data turn the light off.
+Reduced motion and a hidden tab pause the effects without changing service status.
+
+To enter maintenance, edit `forecast_site/public/site_status.json` on main:
+
+```json
+{"schema_version":1,"mode":"maintenance","message":"Forecast service maintenance"}
+```
+
+To resume automatic status use `{"schema_version":1,"mode":"auto","message":""}`.
+The file is a static deployment asset: a repository edit takes effect only after
+a successful deployment. The page polls it every 60 seconds independently of the
+large replay download. A failed status request turns the light off and preserves
+any last confirmed maintenance instruction. An invalid or stale forecast cannot
+be made operational by `auto` alone. Reloading starts with lights off.
+
+The search, hourly-event and completed-hybrid publication paths all use the
+asset list in `scripts/publish_search_assets.py`, including the status file from
+main. A status-only edit triggers the search-assets workflow. Respect
+`ops/deployment_cooldown.json`; do not enable deployment early. After publication,
+check the public status JSON, the visible badge, actual motion and maintenance
+transition before claiming the live site has changed.
+
+The donation rationale sits immediately above the existing wallets. API figures
+are dated candidate budgets, not confirmed expenses. The 3% MAE / 5% Brier figures
+are proposed pilot hurdles, not measured or expected gains. Review official prices,
+endpoint coverage and public-use licences before a purchase. See
+`docs/brand-status-animation/research.md` for sources and limitations.
+
 The public-facing half of the ETH price-forecasting project. The ML pipeline
 (`../eth_price_forecast.py`) runs once a day in GitHub Actions; this package
 turns every run into durable database rows and exports JSON blobs that a

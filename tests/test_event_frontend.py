@@ -54,28 +54,29 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 let clock=Date.parse('2026-09-07T06:38:00Z'),fail=false;
 class Clock extends Date {constructor(...args){super(...(args.length?args:[clock]))}static now(){return clock}}
 const nodes={},timers=[];
-const element=()=>({children:[],className:'',appendChild(x){this.children.push(x)},append(...x){this.children.push(...x)},replaceChildren(...x){this.children=x}});
+const element=()=>({children:[],dataset:{},className:'',appendChild(x){this.children.push(x)},append(...x){this.children.push(...x)},replaceChildren(...x){this.children=x}});
 const fixture={schema_version:1,generated_at:'2026-09-07T06:08:00Z',expected_slot:'2026-09-07T06:00:00Z',
  status:'ready',current:[6,24,72,168,336,720].map(h=>({forecast_id:`fixed-${h}`,slot:'2026-09-07T06:00:00Z',available_at:'2026-09-07T06:02:00Z',horizon_seconds:h*3600,input_cutoff:'2026-09-07T06:00:00Z',
  issued_at:'2026-09-07T06:08:00Z',window_start:'2026-09-07T07:00:00Z',target_end:new Date(Date.parse('2026-09-07T07:00:00Z')+h*3600000).toISOString(),
  reference_price:2000,price_quantiles:[1800,2100,2500],hit_up:.8,hit_down:.6,terminal_down_flat_up:[.2,.3,.5],
  upper_barrier_price:2200,lower_barrier_price:1800,selected_model:'catboost'})),recent_issued:[],prospective:{},replay_generated_at:'v1'};
-const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id] ||= element(),createElement:element,addEventListener:(_,fn)=>fn()},
- fetch:async url=>{if(fail)throw new Error('offline');return {ok:true,json:async()=>url==='signals.json'?structuredClone(fixture):{generated_at:'v1',horizons:{}}}},
+const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id] ||= element(),createElement:element,addEventListener:(event,fn)=>{if(event==="DOMContentLoaded")fn()}},
+ fetch:async url=>{if(url==='site_status.json')return {ok:true,json:async()=>({schema_version:1,mode:'auto'})};if(fail)throw new Error('offline');return {ok:true,json:async()=>url==='signals.json'?structuredClone(fixture):{generated_at:'v1',horizons:{}}}},
  Date:Clock,Intl,setInterval:(fn,ms)=>timers.push({fn,ms})});
+vm.runInContext(fs.readFileSync('forecast_site/public/brand-status.js','utf8'),context);
 vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
 (async()=>{
- await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Up to date');
+ await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Forecast operating');
  fail=true;await context.window.loadEventForecasts();assert.match(nodes['event-status'].textContent,/Connection interrupted/);
  assert.match(nodes['event-updated'].textContent,/last received/);
  clock=Date.parse('2026-09-07T07:15:00Z');timers.find(t=>t.ms===30000).fn();
- assert.match(nodes['event-status'].textContent,/Update delayed/);assert.match(nodes['event-status'].className,/warn/);
+ assert.match(nodes['event-status'].textContent,/Connection interrupted/);assert.match(nodes['event-status'].className,/warn/);
  assert.match(nodes['event-current'].children[0].children[0].textContent,/Update delayed/);
  assert.equal(nodes['event-current'].children[0].children[1].children[0].textContent,'$2,100');
  fixture.expected_slot='2026-09-07T07:00:00Z';fixture.generated_at='2026-09-07T07:12:00Z';
  fixture.current.forEach(f=>{f.slot=f.input_cutoff=fixture.expected_slot;f.available_at=f.issued_at=fixture.generated_at;
   f.window_start='2026-09-07T08:00:00Z';f.target_end=new Date(Date.parse(f.window_start)+f.horizon_seconds*1000).toISOString();});
- fail=false;await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Up to date');
+ fail=false;await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Forecast operating');
  assert.doesNotMatch(nodes['event-status'].className,/warn/);
  fixture.current.pop();await context.window.loadEventForecasts();assert.equal(nodes['event-status'].textContent,'Update delayed');
 })().catch(e=>{console.error(e);process.exit(1)});
@@ -101,10 +102,11 @@ const payload={schema_version:1,status:'delayed',generated_at:'2026-09-10T14:55:
 const flatten=n=>[n.textContent||'',...(n.children||[]).map(flatten)].join(' ');
 function mount(){
  const nodes={},timers=[];
- const element=()=>({children:[],appendChild(x){this.children.push(x)},append(...x){this.children.push(...x)},replaceChildren(...x){this.children=x}});
- const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id]??=element(),createElement:element,addEventListener:(_,fn)=>fn()},
-  fetch:async url=>{if(offline)throw Error('offline');return {ok:true,json:async()=>url==='signals.json'?structuredClone(payload):{generated_at:'replay',horizons:{}}}},Date:Clock,Intl,setInterval:(fn,ms)=>timers.push({fn,ms})});
- vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
+ const element=()=>({children:[],dataset:{},appendChild(x){this.children.push(x)},append(...x){this.children.push(...x)},replaceChildren(...x){this.children=x}});
+ const context=vm.createContext({window:{},document:{getElementById:id=>nodes[id]??=element(),createElement:element,addEventListener:(event,fn)=>{if(event==="DOMContentLoaded")fn()}},
+  fetch:async url=>{if(url==='site_status.json')return {ok:true,json:async()=>({schema_version:1,mode:'auto'})};if(offline)throw Error('offline');return {ok:true,json:async()=>url==='signals.json'?structuredClone(payload):{generated_at:'replay',horizons:{}}}},Date:Clock,Intl,setInterval:(fn,ms)=>timers.push({fn,ms})});
+ vm.runInContext(fs.readFileSync('forecast_site/public/brand-status.js','utf8'),context);
+vm.runInContext(fs.readFileSync('forecast_site/public/events.js','utf8'),context);
  return {nodes,timers,load:()=>context.window.loadEventForecasts(),select:h=>nodes['event-horizon'].onchange({target:{value:String(h)}}),card:()=>flatten(nodes['event-current'])};
 }
 (async()=>{
@@ -125,7 +127,7 @@ function mount(){
  payload.current.pop();await page.load();page.select(720);assert.match(page.card(),/Previous published forecast/);
  page.select(24);assert.match(page.card(),/\$2,200/);assert.doesNotMatch(page.card(),/Previous published forecast/);
  payload.current.push({...payload.current[0],forecast_id:'new-720',horizon_seconds:720*3600,target_end:iso(Date.parse('2026-09-10T16:00:00Z')+720*3600000)});
- payload.status='ready';await page.load();assert.equal(page.nodes['event-status'].textContent,'Up to date');
+ payload.status='ready';await page.load();assert.equal(page.nodes['event-status'].textContent,'Forecast operating');
  page.select(720);assert.match(page.card(),/Published forecast/);assert.doesNotMatch(page.card(),/Previous published forecast/);
  assert.equal(JSON.stringify(payload.recent_issued),bytes);
  payload.status='delayed';payload.current=[];payload.recent_issued=[old(24)];page.select(24);

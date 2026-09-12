@@ -15,6 +15,8 @@ BASE = "https://etherforecast.live"
 ASSETS = (
     "index.html", "robots.txt", "sitemap.xml", "site-info.css", "privacy.html",
     "ko/index.html", "social-preview.svg", "social-preview.png",
+    "events.js", "event_diagnostics.js", "brand-status.js", "brand-status.css", "site_status.json",
+    "assets/etherforecast-logo.svg", "assets/etherforecast-poster.svg",
 )
 HORIZONS = (6, 24, 72, 168, 336, 720)
 
