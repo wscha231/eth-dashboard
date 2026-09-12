@@ -22,6 +22,7 @@ fi
 # Checkpoints may be retained on failure, but incomplete charts are never published.
 if [ "${HYBRID_PUBLISH_COMPLETE:-false}" != "true" ]; then exit 0; fi
 git worktree add --detach "$RUNNER_TEMP/hybrid-site" origin/data/daily-forecast
+python scripts/publish_search_assets.py --target "$RUNNER_TEMP/hybrid-site" --stage
 python scripts/deployment_policy.py --target "$RUNNER_TEMP/hybrid-site" --stage
 cp lake/hybrid/hybrid_forecast.json "$RUNNER_TEMP/hybrid-site/forecast_site/public/hybrid_forecast.json"
 cp lake/hybrid/hybrid_predictions.csv.gz "$RUNNER_TEMP/hybrid-site/forecast_site/public/hybrid_predictions.csv.gz"
