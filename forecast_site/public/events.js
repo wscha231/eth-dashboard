@@ -58,11 +58,10 @@
   }
   function renderStatus() {
     const stale=delayed();
-    el('event-status').textContent=!payload?'Forecast unavailable':stale?'Update delayed':fetchFailed?'Connection interrupted':'Up to date';
-    el('event-status').className=`pill ${stale||fetchFailed?'warn':'good'}`;
-    el('event-updated').textContent=payload ?
+    const detail=payload ?
       `${fetchFailed?'Showing the last received data. ':''}Inputs: ${local(payload.expected_slot)} · Last update: ${local(payload.generated_at)}${stale?' · A complete current forecast is not available.':''}` :
       'The latest forecast could not be confirmed. Retrying automatically.';
+    window.EtherForecastBrand?.updateForecast({available:!!payload, delayed:stale, fetchFailed, detail});
     // Expiry matters even when the overall delayed status has not changed.
     const chosen=outlook(),cardKey=`${selectedHorizon}:${chosen.record?.forecast_id||''}:${chosen.previous}`;
     if(lastDelayed!==stale || lastCardKey!==cardKey)renderCards();
