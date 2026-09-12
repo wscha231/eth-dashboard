@@ -13,7 +13,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "https://etherforecast.live"
 ASSETS = (
-    "index.html", "robots.txt", "sitemap.xml", "site-info.css",
+    "index.html", "robots.txt", "sitemap.xml", "site-info.css", "privacy.html",
     "ko/index.html", "social-preview.svg", "social-preview.png",
 )
 HORIZONS = (6, 24, 72, 168, 336, 720)
@@ -129,6 +129,7 @@ def render_snapshot(payload, now=None):
 <p>Outperformance over a no-change forecast is not assumed. Read the <a href="/#performance">measured errors and limitations</a> before drawing conclusions. This is statistical research, not investment advice.</p></section>
 <section><h2>Keep this research available</h2><p>Voluntary support helps with data collection, hosting and model evaluation. Forecast access does not require a donation.</p><a class="button" href="/#donation-panel">Support the project</a></section>
 <details><summary>Source release identifier</summary><p class="identifier">{release}</p><a href="/signals.json">Published source JSON</a></details>
+<footer><a href="https://etherforecast.live/privacy.html" rel="privacy-policy">Privacy Policy</a> · <a href="https://etherforecast.live/privacy.html#korean" lang="ko">개인정보처리방침</a></footer>
 </main></body></html>\n'''
 
 

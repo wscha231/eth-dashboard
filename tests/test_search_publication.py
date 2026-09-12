@@ -8,6 +8,10 @@ import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 
+privacy_spec = importlib.util.spec_from_file_location("site_privacy", Path(__file__).resolve().parents[1] / "scripts/verify_site_privacy.py")
+privacy = importlib.util.module_from_spec(privacy_spec)
+privacy_spec.loader.exec_module(privacy)
+
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("search_assets", ROOT / "scripts/publish_search_assets.py")
 search = importlib.util.module_from_spec(spec)
@@ -101,12 +105,28 @@ class SearchPublicationTests(unittest.TestCase):
                 (public / name).write_text(contents)
             search.publish(target, stage=True)
             original_html = (public / "outlook.html").read_text()
+            # The deployed bundle must fix the original broken-link/404 case.
+            privacy.validate((public / "index.html").read_text(), (public / "privacy.html").read_text())
+            for page in ("ko/index.html", "outlook.html"):
+                self.assertIn('href="https://etherforecast.live/privacy.html"', (public / page).read_text())
             search.publish(target, stage=True)
             self.assertEqual((public / "outlook.html").read_text(), original_html)
             for name, contents in retained.items():
                 self.assertEqual((public / name).read_text(), contents)
             staged = subprocess.check_output(["git", "-C", str(target), "diff", "--cached", "--name-only"], text=True).splitlines()
             self.assertEqual(set(staged), {f"forecast_site/public/{name}" for name in (*search.ASSETS, "outlook.html")} | {"forecast_site/vercel.json"})
+
+    def test_privacy_validation_rejects_broken_link_soft_404_and_draft(self):
+        home = (ROOT / "forecast_site/public/index.html").read_text()
+        policy = (ROOT / "forecast_site/public/privacy.html").read_text()
+        for html, body in (
+            (home.replace("https://etherforecast.live/privacy.html", "/missing-policy.html"), policy),
+            (home, '<!doctype html><html><body>404: This page could not be found.</body></html>'),
+            (home, policy.replace('id="google-data"', 'id="absent-section"')),
+            (home, policy + "<!-- [Email to be confirmed] -->"),
+        ):
+            with self.assertRaises(ValueError):
+                privacy.validate(html, body)
 
 
 if __name__ == "__main__":

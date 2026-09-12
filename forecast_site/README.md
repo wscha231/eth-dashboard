@@ -133,10 +133,27 @@ form already displays the site's URL prefix). Google controls crawling,
 indexing, and ranking; publishing or submitting the sitemap does not confirm
 any of those outcomes.
 
-The privacy notice is prepared in `drafts/privacy.html`, outside the `public/`
-deployment directory. Confirm the operator name and private contact email,
-finalize its effective date, and remove the draft markers before publication.
-Then add the published page to the footer, sitemap, publisher, and verification.
+The published privacy policy is `public/privacy.html`, served at
+`https://etherforecast.live/privacy.html`. It is linked in the homepage, Korean
+guide, dated outlook and sitemap. The search-assets publisher and hourly
+publisher retain it on the deployment branch. `verify_site_privacy.py` checks
+the live canonical URL, meaningful HTML body and homepage link after publication;
+hourly exact-release verification also compares its bytes with the source.
+
+The policy identifies the public ETH Forecast maintainer (`wscha231`) and uses
+the existing GitHub support route. Public requests must contain only a request
+for private contact. For Google authorizations, the consent screen's support
+email is an additional private contact route. No contact email was invented.
+The old `drafts/privacy.html` remains an unpublished historical draft.
+
+Google Drive backup/restore is not yet implemented in the hourly workflow.
+The policy explicitly labels this operator-only integration as preparation and
+describes the handling required before enabling it: least-privilege access,
+private tokens and working files, retention/deletion, permitted sharing and
+Google Limited Use. Implementing or changing the connection requires updating
+the disclosure to match actual scopes, recipients and retention. Do not use
+Google Workspace APIs to train generalized or non-personalized AI/ML models.
+Do not describe publication of these pages as Google OAuth verification approval.
 
 ## Schema notes
 

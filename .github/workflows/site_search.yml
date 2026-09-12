@@ -5,9 +5,11 @@ on:
     paths:
       - .github/workflows/site_search.yml
       - scripts/publish_search_assets.py
+      - scripts/verify_site_privacy.py
       - forecast_site/public/index.html
       - forecast_site/public/robots.txt
       - forecast_site/public/sitemap.xml
+      - forecast_site/public/privacy.html
       - forecast_site/public/site-info.css
       - forecast_site/public/ko/**
       - forecast_site/public/social-preview.*
@@ -40,3 +42,5 @@ jobs:
             git -C "$RUNNER_TEMP/search-site" commit -m "chore(site): publish search metadata and dated outlook"
             git -C "$RUNNER_TEMP/search-site" push origin HEAD:refs/heads/data/daily-forecast
           fi
+      - name: Verify the public privacy policy and homepage link
+        run: python scripts/verify_site_privacy.py
