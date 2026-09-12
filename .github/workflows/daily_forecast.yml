@@ -60,6 +60,7 @@ jobs:
           git config user.name "eth-forecast-bot"
           git config user.email "eth-forecast-bot@users.noreply.github.com"
           git worktree add --detach "$RUNNER_TEMP/market-site" origin/data/daily-forecast
+          python scripts/deployment_policy.py --target "$RUNNER_TEMP/market-site" --stage
           mkdir -p "$RUNNER_TEMP/market-site/lake/gold" "$RUNNER_TEMP/market-site/lake/reports"
           cp lake/gold/eth_master_daily.csv lake/gold/eth_provisional_daily.csv lake/gold/eth_master_daily.availability.json "$RUNNER_TEMP/market-site/lake/gold/"
           cp lake/reports/collector_summary.json lake/reports/collector_data_quality_audit.json "$RUNNER_TEMP/market-site/lake/reports/"

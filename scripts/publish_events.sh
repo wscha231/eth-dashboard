@@ -12,11 +12,13 @@ cp lake/signals/replay.json "$RUNNER_TEMP/event-site/forecast_site/public/signal
 python scripts/export_event_segments.py lake/signals/replay.json "$RUNNER_TEMP/event-site/forecast_site/public/signals_segments.csv"
 python scripts/copy_event_evidence.py lake/signals "$RUNNER_TEMP/event-site/forecast_site/public" --retain-previous
 python scripts/publish_search_assets.py --target "$RUNNER_TEMP/event-site" --stage
+python scripts/deployment_policy.py --target "$RUNNER_TEMP/event-site" --stage
 git -C "$RUNNER_TEMP/event-site" add -f forecast_site/public/event_diagnostics.js forecast_site/public/archive forecast_site/public/archive_retention.json forecast_site/public/index.html forecast_site/public/events.js forecast_site/public/sitemap.xml forecast_site/public/robots.txt forecast_site/public/signals.json forecast_site/public/signals_replay.json forecast_site/public/signals_segments.csv forecast_site/vercel.json
 if ! git -C "$RUNNER_TEMP/event-site" diff --cached --quiet; then
   git -C "$RUNNER_TEMP/event-site" commit -m "chore(site): publish immutable hourly ETH event forecasts"
   git -C "$RUNNER_TEMP/event-site" push origin HEAD:refs/heads/data/daily-forecast
 fi
+python scripts/deployment_policy.py --require-enabled
 python scripts/verify_event_site.py --expected lake/signals/signals.json --expected-replay lake/signals/replay.json
 python - <<'PY'
 import json

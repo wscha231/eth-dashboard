@@ -46,7 +46,8 @@ def test_hybrid_publish_preserves_deployed_workflows_and_archives(tmp_path, comp
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stub = bin_dir / "python"
-    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$RUNNER_TEMP/verification-call"\n')
+    stub.write_text('#!/bin/sh\nif [ "$1" = "scripts/verify_hybrid_site.py" ]; then\n'
+                    '  printf "%s\\n" "$@" > "$RUNNER_TEMP/verification-call"\nfi\n')
     stub.chmod(0o755)
     env = dict(os.environ, RUNNER_TEMP=str(runner),
                PATH=f"{bin_dir}:{os.environ['PATH']}",

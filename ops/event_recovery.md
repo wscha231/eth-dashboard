@@ -102,3 +102,9 @@ availability metadata. No private manual inputs, keys, or arbitrary raw files
 are copied. Homepage-only edits no longer start retired daily source collection.
 Continue monitoring Git archive growth; use dedicated object storage for sustained
 large historical/model retention. No external archive service is configured here.
+
+## Provider deployment cooldown
+
+`ops/deployment_cooldown.json` records the confirmed Vercel rate-limit incident and an absolute UTC waiting window. During this window, `scripts/deployment_policy.py` preserves Git data commits but writes `git.deploymentEnabled` with every branch disabled. The publishers stop with exit 75 before polling the site or recording delivery receipts. The watchdog still checks public freshness and reports `hosting_cooldown` without dispatching another producer; a known outage remains visible as a failure.
+
+After `not_before`, the next normal writer re-enables only `data/daily-forecast`; all code, audit and model branches remain excluded from Vercel deployment. Existing response headers are preserved. There is no paid upgrade, host migration, quota bypass, or retrospective delivery marking. A new current-hour release must pass external verification before recovery is complete. If the provider reports another explicit waiting period, inspect the actual commit status and update the incident window through the normal reviewed change process, rather than repeatedly triggering deployments.

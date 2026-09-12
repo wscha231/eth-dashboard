@@ -109,6 +109,7 @@ jobs:
             replay_base=origin/data/daily-forecast
           fi
           git worktree add --detach "$RUNNER_TEMP/replay-data" "$replay_base"
+          python scripts/deployment_policy.py --target "$RUNNER_TEMP/replay-data" --stage
           mkdir -p "$RUNNER_TEMP/replay-data/lake/full_backtest"
           cp -a lake/full_backtest/. "$RUNNER_TEMP/replay-data/lake/full_backtest/"
           git -C "$RUNNER_TEMP/replay-data" add -f lake/full_backtest
@@ -120,6 +121,7 @@ jobs:
         if: ${{ needs.replay.result == 'success' }}
         run: |
           git worktree add --detach "$RUNNER_TEMP/replay-site" origin/data/daily-forecast
+          python scripts/deployment_policy.py --target "$RUNNER_TEMP/replay-site" --stage
           cp lake/full_backtest/full_backtest.json "$RUNNER_TEMP/replay-site/forecast_site/public/full_backtest.json"
           cp lake/full_backtest/full_backtest_predictions.csv.gz "$RUNNER_TEMP/replay-site/forecast_site/public/full_backtest_predictions.csv.gz"
           cp forecast_site/public/index.html "$RUNNER_TEMP/replay-site/forecast_site/public/index.html"
@@ -130,6 +132,7 @@ jobs:
         if: ${{ needs.replay.result == 'success' }}
         timeout-minutes: 4
         run: |
+          python scripts/deployment_policy.py --require-enabled
           python - <<'PY'
           import json,time
           from urllib.request import urlopen
