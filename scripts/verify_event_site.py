@@ -146,6 +146,12 @@ def main():
                     if source != served:raise ValueError("published interface differs from source: " + name)
                 with urlopen('https://etherforecast.live/event_diagnostics.js'+suffix,timeout=15) as response:diagnostics=response.read().decode()
                 if diagnostics!=Path('forecast_site/public/event_diagnostics.js').read_text():raise ValueError('published diagnostics differ from source')
+                for name in ('sitemap.xml', 'robots.txt'):
+                    with urlopen('https://etherforecast.live/'+name+suffix,timeout=12) as response:
+                        served=response.read().decode()
+                    if served!=Path('forecast_site/public',name).read_text():
+                        raise ValueError('published search file differs from source: '+name)
+                print('Search discovery verified: sitemap.xml and robots.txt match source')
                 if not args.require_ready:verify_archives(actual,suffix)
                 print('Event interface verified: english-outlook-v1',
                       'html_sha256='+hashlib.sha256(html.encode()).hexdigest(),
