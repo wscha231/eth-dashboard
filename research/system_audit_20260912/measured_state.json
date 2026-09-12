@@ -1,0 +1,94 @@
+{
+  "generated_at": "2026-09-12T19:13:44+00:00",
+  "release_id": "747a2b55619c7d99444c6c38dcf5810a5ac1908705e3b762e63b5c082474aafb",
+  "slot": "2026-09-12T19:00:00+00:00",
+  "operation": "ready",
+  "issues": [],
+  "horizons": [
+    {
+      "horizon_hours": 6,
+      "available": true,
+      "model": "catboost",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "settled": 109,
+      "nonoverlap": 20,
+      "return_mae_pp": 0.8617586989409707,
+      "no_change_mae_pp": 0.8610360906811789,
+      "coverage80": 0.8899082568807339,
+      "balanced_accuracy": 0.3333333333333333,
+      "assessment": "no_change_not_beaten"
+    },
+    {
+      "horizon_hours": 24,
+      "available": true,
+      "model": "catboost_calibrated",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "settled": 95,
+      "nonoverlap": 5,
+      "return_mae_pp": 1.4283030113351673,
+      "no_change_mae_pp": 1.4207067979299886,
+      "coverage80": 0.9578947368421052,
+      "balanced_accuracy": 0.3333333333333333,
+      "assessment": "no_change_not_beaten"
+    },
+    {
+      "horizon_hours": 72,
+      "available": true,
+      "model": "climatology",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "settled": 54,
+      "nonoverlap": 1,
+      "return_mae_pp": 1.4759682922444384,
+      "no_change_mae_pp": 1.4588950094788506,
+      "coverage80": 1.0,
+      "balanced_accuracy": null,
+      "assessment": "no_change_not_beaten"
+    },
+    {
+      "horizon_hours": 168,
+      "available": true,
+      "model": "climatology",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "settled": 0,
+      "nonoverlap": 0,
+      "return_mae_pp": null,
+      "no_change_mae_pp": null,
+      "coverage80": null,
+      "balanced_accuracy": null,
+      "assessment": "pending"
+    },
+    {
+      "horizon_hours": 336,
+      "available": true,
+      "model": "catboost_calibrated",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "settled": 0,
+      "nonoverlap": 0,
+      "return_mae_pp": null,
+      "no_change_mae_pp": null,
+      "coverage80": null,
+      "balanced_accuracy": null,
+      "assessment": "pending"
+    },
+    {
+      "horizon_hours": 720,
+      "available": true,
+      "model": "climatology",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "settled": 0,
+      "nonoverlap": 0,
+      "return_mae_pp": null,
+      "no_change_mae_pp": null,
+      "coverage80": null,
+      "balanced_accuracy": null,
+      "assessment": "pending"
+    }
+  ],
+  "active_inputs": [
+    "Coinbase ETH-USD closed hourly OHLCV",
+    "Coinbase BTC-USD closed hourly OHLCV"
+  ],
+  "auxiliary_inputs": "Daily macro, on-chain and flow collectors are separate; not used by this hourly model.",
+  "storage": "Original ledgers and archived input vintages/checkpoints: data/event-ledger. Rolling snapshots: Actions artifacts, subject to expiry.",
+  "interpretation": "Availability is not predictive skill. Overlapping results are not independent evidence; no automatic promotion."
+}

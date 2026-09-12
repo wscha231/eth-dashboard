@@ -25,7 +25,9 @@ if shadow.exists():
         source.backup(destination)
         assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
 PY
+python scripts/archive_event_inputs.py lake/signals "$RUNNER_TEMP/event-ledger/lake/event-inputs"
 git -C "$RUNNER_TEMP/event-ledger" add -f lake/event-ledger/
+git -C "$RUNNER_TEMP/event-ledger" add -f lake/event-inputs/
 if ! git -C "$RUNNER_TEMP/event-ledger" diff --cached --quiet; then
   git -C "$RUNNER_TEMP/event-ledger" commit -m "chore(audit): preserve immutable hourly issuance and publication receipts"
   git -C "$RUNNER_TEMP/event-ledger" push origin HEAD:refs/heads/data/event-ledger

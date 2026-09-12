@@ -43,6 +43,8 @@ jobs:
           git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv > lake/gold/eth_master_daily.csv
           git show origin/data/daily-forecast:forecast_site/predictions.db > forecast_site/predictions.db
           git show origin/data/daily-forecast:lake/gold/eth_provisional_daily.csv > lake/gold/eth_provisional_daily.csv || rm -f lake/gold/eth_provisional_daily.csv
+          git show origin/data/daily-forecast:lake/gold/eth_master_daily.availability.json > lake/gold/eth_master_daily.availability.json || rm -f lake/gold/eth_master_daily.availability.json
+          python scripts/daily_source_state.py restore origin/data/daily-forecast
           git show origin/data/daily-forecast:forecast_site/public/donations.json > forecast_site/public/donations.json || true
       - name: Incremental market collection
         run: python eth_data_collector.py
@@ -61,10 +63,20 @@ jobs:
           mkdir -p "$RUNNER_TEMP/market-site/lake/gold" "$RUNNER_TEMP/market-site/lake/reports"
           cp lake/gold/eth_master_daily.csv lake/gold/eth_provisional_daily.csv lake/gold/eth_master_daily.availability.json "$RUNNER_TEMP/market-site/lake/gold/"
           cp lake/reports/collector_summary.json lake/reports/collector_data_quality_audit.json "$RUNNER_TEMP/market-site/lake/reports/"
+          python scripts/daily_source_state.py persist "$RUNNER_TEMP/market-site"
+          for report in collector_source_status.csv collector_learning_exclusion_report.csv; do
+            if [ -f "lake/reports/$report" ]; then cp "lake/reports/$report" "$RUNNER_TEMP/market-site/lake/reports/"; fi
+          done
+          for report in eth_master_schema.csv external_feature_summary.csv; do
+            if [ -f "lake/gold/$report" ]; then cp "lake/gold/$report" "$RUNNER_TEMP/market-site/lake/gold/"; fi
+          done
           cp forecast_site/predictions.db "$RUNNER_TEMP/market-site/forecast_site/predictions.db"
           cp forecast_site/public/latest.json forecast_site/public/accuracy.json forecast_site/public/history.json forecast_site/public/issued_history.json forecast_site/public/health.json "$RUNNER_TEMP/market-site/forecast_site/public/"
           if [ -s forecast_site/public/donations.json ]; then cp forecast_site/public/donations.json "$RUNNER_TEMP/market-site/forecast_site/public/"; fi
           git -C "$RUNNER_TEMP/market-site" add -f lake/gold lake/reports forecast_site/predictions.db forecast_site/public
+          for cache in lake/raw/market lake/raw/vendor; do
+            if [ -d "$RUNNER_TEMP/market-site/$cache" ]; then git -C "$RUNNER_TEMP/market-site" add -f "$cache"; fi
+          done
           if ! git -C "$RUNNER_TEMP/market-site" diff --cached --quiet; then
             git -C "$RUNNER_TEMP/market-site" commit -m "chore(data): refresh sources and settle retired forecasts"
             git -C "$RUNNER_TEMP/market-site" push origin HEAD:refs/heads/data/daily-forecast

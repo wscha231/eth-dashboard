@@ -6,6 +6,10 @@ on:
       - .github/workflows/event_hourly.yml
       - .github/workflows/event_watchdog.yml
       - scripts/event_recovery.cjs
+      - scripts/archive_event_inputs.py
+      - scripts/audit_event_system.py
+      - scripts/persist_event_ledger.sh
+      - scripts/event_state.py
       - scripts/verify_event_site.py
       - scripts/publish_events.sh
       - scripts/publish_search_assets.py
@@ -53,25 +57,35 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            core.setOutput('backup',new Date().getUTCHours()===0 ? 'true':'false');
-            for (const [name,key,workflow] of [['event-research-state','research','event_research.yml'],['event-hourly-state','hourly','event_hourly.yml']]) {
+            const today = new Date().toISOString().slice(0,10);
+            let latestHourly = null, dailyBackup = null;
+            for (const [name,key,workflow] of [['event-research-state','research','event_research.yml'],['event-hourly-state','hourly','event_hourly.yml'],['event-daily-backup','daily','event_hourly.yml']]) {
               const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name,per_page:100});
               for(const a of data.artifacts) {
                 if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
                 const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
                 if(!run.path.endsWith('/'+workflow) || run.event==='pull_request')continue;
                 if(key==='research' && run.conclusion!=='success')continue;
-                core.setOutput(key,a.workflow_run.id);break;
+                if(key==='research')core.setOutput(key,a.workflow_run.id);
+                else {
+                  const candidate={run:a.workflow_run.id,name,created:a.created_at};
+                  if(key==='daily')dailyBackup=candidate;
+                  if(!latestHourly || Date.parse(candidate.created)>Date.parse(latestHourly.created))latestHourly=candidate;
+                }
+                break;
               }
             }
-      - name: Require an existing replay before issuance
-        run: test -n "${{ steps.state.outputs.research }}"
+            if(latestHourly) {
+              core.setOutput('hourly',latestHourly.run);
+              core.setOutput('hourly_name',latestHourly.name);
+            }
+            core.setOutput('backup',String(!dailyBackup || dailyBackup.created?.slice(0,10)!==today));
       - uses: actions/download-artifact@v4
         if: steps.state.outputs.hourly != ''
         with:
           github-token: ${{ github.token }}
           run-id: ${{ steps.state.outputs.hourly }}
-          name: event-hourly-state
+          name: ${{ steps.state.outputs.hourly_name }}
           path: lake/signals
       - name: Check whether a new research state is available
         id: refresh
@@ -83,7 +97,7 @@ jobs:
           p=pathlib.Path('lake/signals/research_run.txt')
           replay=pathlib.Path('lake/signals/replay.json')
           needs_archive=not replay.exists() or not json.loads(replay.read_text()).get('archive')
-          changed=needs_archive or not p.exists() or p.read_text().strip()!=os.environ['RESEARCH_RUN']
+          changed=bool(os.environ['RESEARCH_RUN']) and (needs_archive or not p.exists() or p.read_text().strip()!=os.environ['RESEARCH_RUN'])
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write(f'changed={str(changed).lower()}\n')
           PY
       - uses: actions/download-artifact@v4
@@ -103,6 +117,8 @@ jobs:
           import os,pathlib
           pathlib.Path('lake/signals/research_run.txt').write_text(os.environ['RESEARCH_RUN'])
           PY
+      - name: Require restored replay and checkpoint manifest before issuance
+        run: test -s lake/signals/replay.json && test -s lake/signals/active.json
       - name: Collect closed bars, settle matured outcomes and infer from saved models
         id: inference
         run: |
@@ -115,6 +131,10 @@ jobs:
             git show origin/data/event-ledger:lake/event-ledger/shadow_issued.db > lake/signals/shadow/issued.db
           fi
           python scripts/run_event_forecast.py --collect --daily --review --horizons 6 24 72 168 336 720
+      - name: Report all horizon evidence and source readiness
+        run: |
+          python scripts/audit_event_system.py
+          cat lake/signals/system_audit.md >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve the issuance audit before publication
         run: bash scripts/persist_event_ledger.sh
       - name: Consistent durable snapshot before any public release
@@ -131,6 +151,6 @@ jobs:
           name: event-daily-backup
           path: hourly-state/
           compression-level: 9
-          retention-days: 30
+          retention-days: 90
       - name: Publish event probabilities, price ranges and immutable results
         run: bash scripts/publish_events.sh
