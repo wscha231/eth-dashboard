@@ -5,7 +5,7 @@ const ACTIVE = ['queued', 'in_progress', 'requested', 'waiting', 'pending'];
 const WORKERS = new Set([
   'event_hourly.yml', 'event_research.yml', 'daily_forecast.yml',
   'forward_research.yml', 'hybrid_daily.yml', 'hybrid_replay.yml',
-  'full_history_backtest.yml', 'weekly_live_review.yml',
+  'full_history_backtest.yml', 'weekly_live_review.yml', 'site_search.yml',
 ]);
 const COOLDOWN_MS = 20 * 60 * 1000;
 
