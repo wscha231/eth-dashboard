@@ -2509,6 +2509,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def report_json(payload: Any) -> str:
+    """Missing vendor measurements are null, never invalid JSON NaN or fake zero."""
+    def clean(value):
+        if isinstance(value, dict):
+            return {key: clean(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [clean(item) for item in value]
+        if value is pd.NA or value is pd.NaT:
+            return None
+        if isinstance(value, np.generic):
+            value = value.item()
+        if isinstance(value, float) and not np.isfinite(value):
+            return None
+        return value
+    return json.dumps(clean(payload), ensure_ascii=False, indent=2, allow_nan=False)
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     if args.interval != "1d":
@@ -2671,7 +2688,7 @@ def main(argv: list[str] | None = None) -> None:
     pd.DataFrame(data_quality_audit["group_summary"]).to_csv(paths.data_quality_audit_csv, index=False)
     learning_exclusion_report.to_csv(paths.learning_exclusion_report_csv, index=False)
     with paths.data_quality_audit_json.open("w", encoding="utf-8") as handle:
-        json.dump(data_quality_audit, handle, ensure_ascii=False, indent=2)
+        handle.write(report_json(data_quality_audit))
 
     payload = {
         "root": str(paths.root),
@@ -2698,10 +2715,10 @@ def main(argv: list[str] | None = None) -> None:
         "sources": source_status.to_dict(orient="records"),
     }
     with paths.collector_summary_json.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.write(report_json(payload))
 
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print(report_json(payload))
         return
 
     print("ETH data lake collector")
