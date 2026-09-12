@@ -1,8 +1,10 @@
-/* One state for the badge and original-logo lighting; forecast validity lives in events.js. */
+/* One service state for the top animation and badge; validity lives in events.js. */
 (() => {
   'use strict';
   let config = null, configConfirmed = false, checked = false, polling = false;
   let forecast = {available:false, delayed:true, fetchFailed:false, detail:'Loading the latest forecast.'};
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  let playPending = false, playBlocked = false, userPaused = false;
   const labels = {
     maintenance:'Maintenance', unknown:'Status unconfirmed', checking:'Checking status',
     connection_error:'Connection interrupted', unavailable:'Forecast unavailable',
@@ -27,7 +29,39 @@
     const badge = document.getElementById('event-status'), detail = document.getElementById('event-updated');
     if (badge) { badge.textContent = status.label; badge.className = `pill ${status.state === 'operating' ? 'good' : 'warn'}`; }
     if (detail) detail.textContent = status.message;
+    syncVideo(status, brand);
     return status;
+  }
+  function canPlay() {
+    return resolve().state === 'operating' && !document.hidden && !reducedMotion?.matches && !userPaused;
+  }
+  function syncVideo(status, holder) {
+    const video = document.getElementById('ef-video');
+    if (!holder || typeof video?.play !== 'function') return;
+    const allowed = canPlay();
+    holder.dataset.motion = allowed && !playBlocked ? 'running' : 'paused';
+    const errorNote = document.getElementById('ef-video-error');
+    if (errorNote) errorNote.hidden = !video.error;
+    const toggle = document.getElementById('ef-video-toggle');
+    if (toggle) {
+      toggle.hidden = status.state !== 'operating' || !!reducedMotion?.matches || !!video.error;
+      toggle.textContent = userPaused || playBlocked ? 'Play animation' : 'Pause animation';
+    }
+    if (!allowed || video.error) {
+      video.pause(); holder.dataset.playback = 'paused';
+      return;
+    }
+    if (!video.paused || playPending || playBlocked) return;
+    video.muted = true;
+    playPending = true;
+    Promise.resolve(video.play()).then(() => {
+      // A maintenance transition can arrive while play() is still pending.
+      if (!canPlay()) { video.pause(); holder.dataset.playback = 'paused'; }
+      else holder.dataset.playback = 'playing';
+    }).catch(error => {
+      if (canPlay() && error.name !== 'AbortError') playBlocked = true;
+      holder.dataset.playback = 'paused';
+    }).finally(() => { playPending = false; render(); });
   }
   async function refreshConfig() {
     if (polling) return;
@@ -44,19 +78,20 @@
       configConfirmed = false;
     } finally { checked = true; polling = false; render(); }
   }
-  async function mountLogo() {
-    const holder = document.getElementById('ef-brand');
-    if (!holder) return;
-    try {
-      const response = await fetch('assets/etherforecast-logo.svg', {signal:globalThis.AbortSignal?.timeout?.(10000)});
-      if (!response.ok) throw new Error('logo unavailable');
-      const parsed = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
-      const svg = parsed.documentElement;
-      if (svg.localName !== 'svg' || parsed.querySelector('parsererror,script,foreignObject')) throw new Error('invalid logo');
-      // This is a fixed, versioned first-party asset, never a URL or markup from status JSON.
-      svg.setAttribute('aria-hidden','true'); svg.removeAttribute('aria-labelledby');
-      holder.replaceChildren(document.importNode(svg, true));
-    } catch (_) { holder.dataset.asset = 'fallback'; }
+  function mountVideo() {
+    const video = document.getElementById('ef-video');
+    if (typeof video?.play !== 'function') return;
+    video.muted = true;
+    video.addEventListener('playing', () => {
+      if (!canPlay()) video.pause();
+      else document.getElementById('ef-brand').dataset.playback = 'playing';
+    });
+    video.addEventListener('error', render);
+    const toggle = document.getElementById('ef-video-toggle');
+    if (toggle) toggle.addEventListener('click', () => {
+      userPaused = playBlocked ? false : !userPaused;
+      playBlocked = false; render();
+    });
   }
   window.EtherForecastBrand = Object.freeze({
     updateForecast(value) { forecast = {...value}; return render(); },
@@ -64,8 +99,9 @@
     getStatus:resolve
   });
   document.addEventListener('visibilitychange', render);
+  reducedMotion?.addEventListener?.('change', render);
   document.addEventListener('DOMContentLoaded', () => {
-    render(); mountLogo(); refreshConfig();
+    mountVideo(); render(); refreshConfig();
     setInterval(refreshConfig, 60000);
   });
 })();
