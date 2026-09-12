@@ -200,6 +200,7 @@ def test_publisher_preserves_receipts_before_failing_readiness(tmp_path):
     trace = tmp_path/'trace'; runner = tmp_path/'runner'
     (runner/'event-site/forecast_site/public').mkdir(parents=True)
     for name in ('forecast_site/public/index.html', 'forecast_site/public/events.js', 'forecast_site/public/event_diagnostics.js', 'forecast_site/vercel.json',
+                 'forecast_site/public/sitemap.xml', 'forecast_site/public/robots.txt',
                  'lake/signals/signals.json', 'lake/signals/replay.json'):
         path = tmp_path/name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('{}')
     (binaries/'git').write_text('#!/bin/sh\nexit 0\n')
