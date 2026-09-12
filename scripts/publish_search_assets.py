@@ -17,6 +17,7 @@ ASSETS = (
     "ko/index.html", "social-preview.svg", "social-preview.png",
     "events.js", "event_diagnostics.js", "brand-status.js", "brand-status.css", "site_status.json",
     "assets/etherforecast-logo.svg", "assets/etherforecast-poster.svg",
+    "assets/etherforecast-loop.mp4",
 )
 HORIZONS = (6, 24, 72, 168, 336, 720)
 

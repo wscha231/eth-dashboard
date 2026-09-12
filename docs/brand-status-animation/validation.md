@@ -49,3 +49,29 @@ The $4,826 candidate budget is $3,588 + $1,238, excluding optional commercial
 quotes and other operating costs. The 3% MAE / 5% Brier thresholds are labelled
 proposed pilot targets with illustrative arithmetic, not measured or expected
 forecast improvement. No paid API was purchased or newly integrated.
+
+## User correction: place the actual animation at the top
+
+The top panel now contains the original **MP4 video**, at 240px wide on desktop
+and 192px on mobile, with the service status beside/below it. The earlier 112px
+SVG mount is no longer used in that panel. SHA-256 of the copied 5-second video
+matches the file shown to the user:
+`e6294ea238ecfebb5568b7a2f1ddde4631b8d2eec414ef018cb1c83082385871`.
+
+Chromium verified real `currentTime` advancement, looping over the 5-second end,
+manual pause/resume, maintenance stopping time advancement, automatic recovery,
+reduced-motion / hidden-tab pausing, blocked-playback recovery with a button,
+and a missing MP4 displaying a static fallback with a visible load-error note.
+All prior service-state cases and 320px/390px overflow checks passed. No page
+errors. The published source uses a native muted/loop/playsinline video and the
+same service-state resolver. The MP4 is included in the shared asset publisher.
+
+The full Python suite passed **319 tests** on the updated main baseline. After
+final markup and responsive-control adjustments, **17 relevant tests** passed
+again. JavaScript syntax and `git diff --check` passed. The viewport check also
+constrained the newly lengthened Evidence selector's grid track to prevent
+mobile overflow; its options and data remain unchanged.
+
+`top-animation-preview.png` shows the rendered top panel with fixture status;
+it is a placement preview, not evidence of deployment or a real current forecast.
+The previously recorded Vercel cooldown still applies to public deployment.

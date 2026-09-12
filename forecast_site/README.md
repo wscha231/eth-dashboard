@@ -1,11 +1,15 @@
 # forecast_site
 
-## Logo and service status
+## Top animation and service status
 
-The top logo lights up only when `events.js` validates all six current forecast
+The top panel plays the original 5-second, muted, looping MP4 only when `events.js` validates all six current forecast
 windows and `site_status.json` confirms `auto` mode. An operating light means
 current forecasts are available; it does not certify accuracy or active computation.
-Maintenance, unknown status, connection failure and delayed data turn the light off.
+Maintenance, unknown status, connection failure and delayed data pause the video
+and display a dim static poster. The actual MP4 is an owned deployment asset,
+not a link to a video-generation service. The panel is 240px wide on desktop
+and 192px on small screens. A pause/play button respects manual pausing and
+provides recovery when a browser blocks automatic playback.
 Reduced motion and a hidden tab pause the effects without changing service status.
 
 To enter maintenance, edit `forecast_site/public/site_status.json` on main:
@@ -22,7 +26,7 @@ any last confirmed maintenance instruction. An invalid or stale forecast cannot
 be made operational by `auto` alone. Reloading starts with lights off.
 
 The search, hourly-event and completed-hybrid publication paths all use the
-asset list in `scripts/publish_search_assets.py`, including the status file from
+asset list in `scripts/publish_search_assets.py`, including the MP4 and status file from
 main. A status-only edit triggers the search-assets workflow. Respect
 `ops/deployment_cooldown.json`; do not enable deployment early. After publication,
 check the public status JSON, the visible badge, actual motion and maintenance

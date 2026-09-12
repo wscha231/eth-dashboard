@@ -34,6 +34,11 @@ def test_logo_is_self_contained_and_donation_precedes_wallets():
     assert html.index('id="support-research"') < html.index('id="donation-wallets"')
     assert "evaluation targets, not expected gains" in html
     assert "$4,826 / year" in html
+    assert '<video id="ef-video" muted loop playsinline' in html
+    assert 'src="assets/etherforecast-loop.mp4"' in html
+    video = PUBLIC / "assets/etherforecast-loop.mp4"
+    assert b"ftyp" in video.read_bytes()[:32]
+    assert 0 < video.stat().st_size < 150_000
 
 
 def test_status_cache_and_workflow_trigger():
