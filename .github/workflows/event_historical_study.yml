@@ -1,0 +1,99 @@
+name: ETH multi-year candidate study
+on:
+  pull_request:
+    branches: [main]
+    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', '.github/workflows/event_historical_study.yml']
+  push:
+    branches: [main]
+    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', '.github/workflows/event_historical_study.yml']
+  workflow_run:
+    workflows: ['ETH hourly event research']
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: '43 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+concurrency:
+  group: event-historical-${{ github.event.pull_request.head.repo.full_name == github.repository && 'main' || github.event.pull_request.number || 'main' }}
+  cancel-in-progress: false
+jobs:
+  study:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.id == github.event.repository.id) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-events.txt
+      - run: python -m pip install -r requirements-events.txt
+      - name: Locate trusted source and resumable candidate months
+        id: prior
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await require('./scripts/event_historical_artifacts.cjs')({github, context, core});
+      - name: Require complete historical source state
+        env:
+          SOURCE_RUN: ${{ steps.prior.outputs.source }}
+        run: test -n "$SOURCE_RUN"
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.prior.outputs.source }}
+          name: event-research-state
+          path: lake/signals
+      - uses: actions/download-artifact@v4
+        if: steps.prior.outputs.cache != ''
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.prior.outputs.cache }}
+          name: event-historical-state
+          path: lake/signals
+      - name: Evaluate all eligible months and horizons
+        id: study
+        run: python scripts/run_event_historical_study.py --budget-seconds 1500 --resume-budget
+      - name: Package only the complete report for hourly readers
+        if: steps.study.outputs.complete == 'true'
+        run: |
+          python scripts/audit_event_historical_study.py
+          python scripts/import_event_study.py lake/signals historical-public
+          python scripts/report_event_historical_study.py --output historical-public/results.md
+      - uses: actions/upload-artifact@v4
+        if: steps.study.outputs.complete == 'true'
+        with:
+          name: event-historical-report
+          path: historical-public/
+          retention-days: 90
+          compression-level: 9
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event-historical-state
+          path: |
+            lake/signals/historical_study/
+            lake/signals/historical_progress.json
+          retention-days: 7
+          compression-level: 9
+      - name: Record completion or the exact resume point
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path('lake/signals/historical_progress.json')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('Multi-year candidate research; separate from actual published forecasts.\n\n')
+              f.write(p.read_text() if p.exists() else 'No historical work completed; inspect the source step.')
+              report=pathlib.Path('historical-public/results.md')
+              if report.exists():f.write('\n\n'+report.read_text())
+          PY
