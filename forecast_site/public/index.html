@@ -3,9 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ethereum Price Forecasts &amp; Probabilities | ETH Forecast</title>
+  <title>Ethereum Price Forecast &amp; Accuracy · ETH Forecast</title>
   <meta name="description" content="Explore Ethereum (ETH) price forecasts from 6 hours to 30 days, with probabilities, price ranges, and a public record of predictions and outcomes.">
   <link rel="canonical" href="https://etherforecast.live/">
+  <!-- Owner verification tags belong here; use only codes from the owner's accounts. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ETH Forecast">
+  <meta property="og:title" content="Ethereum Price Forecast &amp; Accuracy · ETH Forecast">
+  <meta property="og:description" content="Explore ETH research forecasts from 6 hours to 30 days, with probabilities, price ranges and published results.">
+  <meta property="og:url" content="https://etherforecast.live/">
+  <meta property="og:image" content="https://etherforecast.live/social-preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="ETH Forecast — Ethereum outlook, probabilities, ranges and published results">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Ethereum Price Forecast &amp; Accuracy · ETH Forecast">
+  <meta name="twitter:description" content="Six forecast windows. Original timestamps, probabilities, price ranges and measured errors. Research beta.">
+  <meta name="twitter:image" content="https://etherforecast.live/social-preview.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -189,6 +203,8 @@
       font-size: 12px;
       line-height: 1.45;
     }
+    .copy-wallet { display:block; margin-top:12px; padding:10px 14px; border:1px solid var(--accent); border-radius:8px; background:transparent; color:var(--accent); font:inherit; cursor:pointer; min-height:44px; }
+    .copy-wallet:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
     .wallet-meta {
       color: var(--muted);
       font-size: 11px;
@@ -300,13 +316,13 @@
     <header>
       <div class="brand"><span class="mark"></span><span>ETH Forecast</span></div>
       <span class="pill" id="model-phase">Research beta</span>
-      <nav aria-label="Main navigation"><a href="#event-system">Forecast</a><a href="#performance">Performance</a><a href="#how-it-works">How to read it</a></nav>
+      <nav aria-label="Main navigation"><a href="#event-system">Forecast</a><a href="#performance">Performance</a><a href="#how-it-works">How to read it</a><a href="/outlook.html">Published snapshot</a><a href="/ko/" lang="ko">한국어</a><a href="#donation-panel">Support</a></nav>
     </header>
 
     <section class="hero">
       <div>
         <h1>Ethereum outlook.</h1>
-        <p class="hero-copy">Choose a forecast window. See the possible moves, the price range, and how the predictions have held up.</p>
+        <p class="hero-copy">Explore Ethereum forecasts from 6 hours to 30 days. See probabilities, price ranges, and how published predictions compare with actual outcomes.</p>
       </div>
       <aside class="quote">
         <div class="small">Live ETH/USD</div>
@@ -507,16 +523,19 @@
       funding, options, exchange-flow, and on-chain data coverage directly affects whether spike/crash conditions can be detected early.
     </div>
 
-    <section class="panel donation-panel" id="donation-panel" style="display:none;">
+    <section class="panel donation-panel" id="donation-panel">
       <div class="card-top">
         <div>
           <p class="eyebrow">Support</p>
-          <h2>Donation wallets</h2>
-          <p id="donation-note">Public wallet addresses only. Balances and transaction totals are not shown.</p>
+          <h2>Support free Ethereum research</h2>
+          <p>Voluntary support helps with data collection, hosting and model evaluation. Forecast access stays free; donations do not guarantee investment returns or forecast accuracy.</p>
+          <p id="donation-note">Choose the listed asset and network. Public wallet addresses only; balances and transaction totals are not shown.</p>
         </div>
-        <span class="pill" id="donation-milestone">loading</span>
+        <span class="pill" id="donation-milestone">Voluntary support</span>
       </div>
-      <div class="donation-grid" id="donation-wallets"></div>
+      <div class="donation-grid" id="donation-wallets"><p>Wallet details are loading. If they remain unavailable, please check again later.</p></div>
+      <p class="small" id="donation-copy-status" role="status" aria-live="polite"></p>
+      <p class="small" lang="ko">도움이 되었다면 무료 예측 운영을 후원해주세요. <a href="/ko/">한국어 이용 안내</a></p>
     </section>
 
     <footer>Last page refresh: <span id="footer-time">--</span></footer>
@@ -764,27 +783,40 @@ function renderDonations(donations) {
   if (!panel || !root) return;
   const wallets = Array.isArray(donations?.wallets) ? donations.wallets.filter((w) => w?.address) : [];
   if (!wallets.length) {
-    panel.style.display = "none";
+    root.innerHTML = "<p>Wallet details are temporarily unavailable. Please check again later.</p>";
     return;
   }
   const reached = Array.isArray(donations?.milestones_reached) ? donations.milestones_reached : [];
   $("donation-milestone").textContent = reached.length
     ? `milestone ${reached[reached.length - 1]}`
     : `next ${donations?.next_milestone || "--"}`;
-  $("donation-note").textContent = `Updated ${fmtDate(donations.generated_at_utc)}. Public addresses only; balances stay private.`;
+  $("donation-note").textContent = `Choose the listed asset and network. Addresses updated ${fmtDate(donations.generated_at_utc)}; balances stay private.`;
   root.innerHTML = wallets.map((wallet) => {
     const chain = escapeHtml(wallet.chain || "Wallet");
     const asset = escapeHtml(wallet.asset || "");
     const address = escapeHtml(wallet.address);
-    const url = escapeHtml(wallet.explorer_url || "#");
+    const rawUrl = typeof wallet.explorer_url === "string" ? wallet.explorer_url : "";
+    const url = escapeHtml(rawUrl.startsWith("https://") ? rawUrl : "#");
     return `
       <div class="wallet-card">
         <div class="wallet-meta">${chain} · ${asset}</div>
         <a href="${url}" target="_blank" rel="noopener noreferrer">${address}</a>
+        <button type="button" class="copy-wallet" data-address="${address}" aria-label="Copy ${chain} ${asset} address">Copy address</button>
       </div>
     `;
   }).join("");
   panel.style.display = "";
+  root.onclick = async (event) => {
+    const button = event.target.closest("button[data-address]");
+    if (!button || !root.contains(button)) return;
+    const status = $("donation-copy-status");
+    try {
+      await navigator.clipboard.writeText(button.dataset.address);
+      status.textContent = "Address copied. Use the asset and network shown on this card.";
+    } catch (_) {
+      status.textContent = "Copy was unavailable. Select and copy the address displayed above.";
+    }
+  };
 }
 
 function renderRun(latest, health) {
