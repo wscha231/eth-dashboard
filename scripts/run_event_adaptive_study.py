@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import shutil
 from pathlib import Path
 import sys
 
@@ -64,9 +65,10 @@ def markdown(data):
               '## 탐색적 비교 기준 통과 여부','', '| 기간 | 방법 | 가격 | 확률 | 범위 |', '|---|---|---|---|---|']
     for h,r in data['horizons'].items():
         for method, flags in r['head_evidence'].items():
+            if method == 'conservative': continue
             values = ['통과' if flags[k] else '입증 안 됨' for k in ('point','probability','interval')]
             lines.append(f"| {h}시간 | {names[method]} | {' | '.join(values)} |")
-    lines += ['', '각 항목은 기존 모델과 단순 기준선 모두에 대해, 후보-기준 손실의 95% 달력 블록 구간 상단이 0 미만인지 확인합니다. 30일 예측의 블록은 31일입니다. 여러 방법·기간을 비교한 탐색 결과이며 다중검정 전체의 유의성을 보장하지 않습니다.', '',
+    lines += ['', '각 항목은 기존 모델과 단순 기준선 모두에 대해, 후보-기준 손실의 95% 달력 블록 구간 상단이 0 미만인지 확인합니다. 보수 기준은 비교 기준선이므로 승격 판정에서 제외합니다. 30일 예측의 블록은 31일입니다. 여러 방법·기간을 비교한 탐색 결과이며 다중검정 전체의 유의성을 보장하지 않습니다.', '',
         '## 해석과 다음 단계','',
         '- 먼저 90개(짧은 기간) 또는 365개(14·30일)의 과거 만기 결과를 확보한 뒤 모든 방법을 같은 날짜에서 평가했습니다. 따라서 이전 전체 보고서보다 평가 시작이 늦고 표본 수가 적습니다.',
         '- 가격·확률·범위는 각각 별도의 목표입니다. 높은 중립 클래스 정확도나 적은 경보만으로 예측력이 좋아졌다고 판단하지 않습니다. 전체 JSON에 균형 정확도·상승/하락 재현율·오경보율·연도별·시장상태별 결과를 함께 보존합니다.',
@@ -80,11 +82,18 @@ def markdown(data):
 def main():
     p = argparse.ArgumentParser(description=__doc__); p.add_argument('--root',default='lake/signals')
     p.add_argument('--output',default='adaptive-public'); p.add_argument('--budget-seconds',type=int,default=300)
+    p.add_argument('--rows-output',help='Optional folder containing only this completed run\'s verified scored rows')
     a = p.parse_args(); data = run_review(a.root,budget_seconds=a.budget_seconds); verified = audit(a.root,data)
     output = Path(a.output); output.mkdir(parents=True,exist_ok=True)
     (output/'results.json').write_bytes((Path(a.root)/'adaptive_study.json').read_bytes())
     (output/'audit.json').write_text(json.dumps(verified,indent=2)+'\n')
     (output/'results.md').write_text(markdown(data))
+    if a.rows_output:
+        rows=Path(a.rows_output);rows.mkdir(parents=True,exist_ok=True)
+        for ref in data['files'].values():
+            source=Path(a.root)/ref['scored_rows_path'];target=rows/ref['scored_rows_path']
+            target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,target)
+        (rows/'manifest.json').write_text(json.dumps(data['files'],indent=2)+'\n')
     print(json.dumps({'status':verified['status'],'runtime_seconds':data['runtime_seconds']}))
 
 

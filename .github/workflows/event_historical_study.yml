@@ -2,10 +2,10 @@ name: ETH multi-year candidate study
 on:
   pull_request:
     branches: [main]
-    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', '.github/workflows/event_historical_study.yml']
+    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/adaptive_research.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', 'tests/test_adaptive_research.py', '.github/workflows/event_historical_study.yml']
   push:
     branches: [main]
-    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', '.github/workflows/event_historical_study.yml']
+    paths: ['signal_pipeline/historical_study.py', 'signal_pipeline/optimization.py', 'signal_pipeline/adaptive_research.py', 'signal_pipeline/data.py', 'signal_pipeline/models.py', 'signal_pipeline/protocol.py', 'scripts/*event*study.py', 'scripts/event_historical_artifacts.cjs', 'tests/test_event_historical_study.py', 'tests/test_adaptive_research.py', '.github/workflows/event_historical_study.yml']
   workflow_run:
     workflows: ['ETH hourly event research']
     types: [completed]
@@ -69,6 +69,26 @@ jobs:
           python scripts/audit_event_historical_study.py
           python scripts/import_event_study.py lake/signals historical-public
           python scripts/report_event_historical_study.py --output historical-public/results.md
+      - name: Review delayed-feedback improvements from completed historical rows
+        id: adaptive
+        if: steps.study.outputs.complete == 'true'
+        continue-on-error: true
+        timeout-minutes: 6
+        run: python scripts/run_event_adaptive_study.py --output adaptive-public --rows-output adaptive-rows --budget-seconds 300
+      - uses: actions/upload-artifact@v4
+        if: steps.adaptive.outcome == 'success'
+        with:
+          name: event-adaptive-report
+          path: adaptive-public/
+          retention-days: 90
+          compression-level: 9
+      - uses: actions/upload-artifact@v4
+        if: steps.adaptive.outcome == 'success'
+        with:
+          name: event-adaptive-rows
+          path: adaptive-rows/
+          retention-days: 7
+          compression-level: 9
       - uses: actions/upload-artifact@v4
         if: steps.study.outputs.complete == 'true'
         with:
@@ -96,4 +116,6 @@ jobs:
               f.write(p.read_text() if p.exists() else 'No historical work completed; inspect the source step.')
               report=pathlib.Path('historical-public/results.md')
               if report.exists():f.write('\n\n'+report.read_text())
+              adaptive=pathlib.Path('adaptive-public/results.md')
+              if adaptive.exists():f.write('\n\n'+adaptive.read_text())
           PY
