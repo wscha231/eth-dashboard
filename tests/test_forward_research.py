@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import sqlite3
 from urllib.error import HTTPError
+from unittest.mock import patch
 import zipfile
 
 import numpy as np
@@ -32,8 +33,18 @@ def archive(day, stream, bad=None):
         text = 'open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore\n'+text
     buff = io.BytesIO()
     with zipfile.ZipFile(buff, 'w', zipfile.ZIP_DEFLATED) as z:
-        z.writestr('bars.csv', text)
+        member = zipfile.ZipInfo('bars.csv', date_time=(2020, 1, 1, 0, 0, 0))
+        member.compress_type = zipfile.ZIP_DEFLATED
+        z.writestr(member, text)
     return buff.getvalue()
+
+
+def test_archive_fixture_checksum_does_not_depend_on_wall_clock():
+    with patch('zipfile.time.localtime', return_value=(2026, 9, 7, 12, 0, 0, 0, 250, -1)):
+        first = archive('2025-01-01', REQUIRED_STREAM_IDS[0])
+    with patch('zipfile.time.localtime', return_value=(2026, 9, 7, 12, 0, 4, 0, 250, -1)):
+        second = archive('2025-01-01', REQUIRED_STREAM_IDS[0])
+    assert first == second
 
 
 @pytest.mark.parametrize('stream', REQUIRED_STREAM_IDS)
