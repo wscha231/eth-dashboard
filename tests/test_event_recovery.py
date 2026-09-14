@@ -205,8 +205,8 @@ def test_cli_distinguishes_payload_delivery_from_forecast_readiness(tmp_path, mo
         assert ('Event site verified:' if require_ready else 'Event payload verified:') in output
 
 
-@pytest.mark.parametrize('hosting_blocked', [False, True])
-def test_publisher_preserves_receipts_before_failing_readiness(tmp_path, hosting_blocked):
+@pytest.mark.parametrize('payload_visible', [False, True])
+def test_publisher_preserves_receipts_before_failing_readiness(tmp_path, payload_visible):
     import os
     import sys
     binaries = tmp_path/'bin'; binaries.mkdir()
@@ -219,10 +219,9 @@ def test_publisher_preserves_receipts_before_failing_readiness(tmp_path, hosting
     (binaries/'git').write_text('#!/bin/sh\nexit 0\n')
     (binaries/'python').write_text(f'#!{sys.executable}\n' + '''import os,sys,pathlib
 args=sys.argv[1:]
-kind='search' if 'publish_search_assets.py' in args[0] else 'archive' if 'copy_event_evidence.py' in args[0] else 'receipts' if args==['-'] else 'readiness' if '--require-ready' in args else 'payload' if 'verify_event_site.py' in args[0] else 'export'
-if 'deployment_policy.py' in args[0]:kind='policy'
+kind='feed' if 'publish_event_feed.py' in args[0] else 'receipts' if args==['-'] else 'readiness' if '--require-ready' in args else 'payload' if 'verify_event_site.py' in args[0] else 'export'
 with open(os.environ['OUTLOOK_TEST_TRACE'],'a') as f:f.write(kind+'\\n')
-if kind=='policy' and '--require-enabled' in args and os.environ['HOSTING_BLOCKED']=='1':sys.exit(75)
+if kind=='payload' and os.environ['PAYLOAD_VISIBLE']=='0':sys.exit(1)
 if kind=='receipts':sys.stdin.read()
 if kind=='export':pathlib.Path(args[-1]).write_text('')
 if kind=='readiness':sys.exit(1)
@@ -233,9 +232,6 @@ if kind=='readiness':sys.exit(1)
     result = subprocess.run(['bash', str(ROOT/'scripts/publish_events.sh')], cwd=tmp_path, capture_output=True, text=True,
                             env={**os.environ, 'PATH': str(binaries)+os.pathsep+os.environ['PATH'],
                                  'RUNNER_TEMP': str(runner), 'OUTLOOK_TEST_TRACE': str(trace),
-                                 'HOSTING_BLOCKED': str(int(hosting_blocked))})
+                                 'PAYLOAD_VISIBLE': str(int(payload_visible))})
     assert result.returncode != 0
-    before_delivery = ['export', 'archive', 'search', 'policy', 'policy']
-    assert trace.read_text().splitlines() == before_delivery + ([] if hosting_blocked else ['payload', 'receipts', 'persisted', 'readiness'])
-    if hosting_blocked:
-        assert result.returncode == 75
+    assert trace.read_text().splitlines() == ['feed', 'payload'] + (['receipts', 'persisted', 'readiness'] if payload_visible else [])

@@ -36,6 +36,7 @@ ARTIFACTS = {
     "event-foundation-tirex2": ("foundation-tirex2", "event_research.yml"),
 }
 BRANCHES = {
+    "data/event-feed": ("public-feed", ["forecast_site/public"]),
     "data/event-ledger": ("event-ledger", ["lake/event-ledger", "lake/event-inputs"]),
     "data/daily-forecast": ("daily-data", ["lake/gold", "lake/raw/market", "lake/raw/vendor", "lake/reports",
                                            "forecast_site/predictions.db", "forecast_site/public"]),

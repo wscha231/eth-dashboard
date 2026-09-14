@@ -137,7 +137,7 @@ def render_snapshot(payload, now=None):
 </main></body></html>\n'''
 
 
-def publish(target, source=ROOT, stage=False):
+def publish(target, source=ROOT, stage=False, include_snapshot=True):
     target, source = Path(target).resolve(), Path(source).resolve()
     # Reject broken source before replacing even one currently published asset.
     subprocess.run([sys.executable, str(ROOT / "scripts/verify_site_privacy.py"),
@@ -155,8 +155,9 @@ def publish(target, source=ROOT, stage=False):
         payload = json.loads((public / "signals.json").read_text())
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
         payload = {}
-    (public / "outlook.html").write_text(render_snapshot(payload), encoding="utf-8")
-    paths = [f"forecast_site/public/{name}" for name in (*ASSETS, "outlook.html")]
+    if include_snapshot:
+        (public / "outlook.html").write_text(render_snapshot(payload), encoding="utf-8")
+    paths = [f"forecast_site/public/{name}" for name in (*ASSETS, *(("outlook.html",) if include_snapshot else ()))]
     paths.append("forecast_site/vercel.json")
     if stage:
         subprocess.run(["git", "-C", str(target), "add", "-f", "--", *paths], check=True)

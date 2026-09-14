@@ -88,6 +88,10 @@ def main():
     (output/'results.json').write_bytes((Path(a.root)/'adaptive_study.json').read_bytes())
     (output/'audit.json').write_text(json.dumps(verified,indent=2)+'\n')
     (output/'results.md').write_text(markdown(data))
+    from scripts.build_range_seed import build
+    from signal_pipeline.engine import atomic_json
+    seed=build(a.root)
+    atomic_json(output/'range_seed.json',seed)
     if a.rows_output:
         rows=Path(a.rows_output);rows.mkdir(parents=True,exist_ok=True)
         for ref in data['files'].values():

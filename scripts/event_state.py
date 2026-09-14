@@ -103,6 +103,14 @@ def snapshot(root, destination):
     if (root/'shadow/issued.db').exists():
         (destination/'shadow').mkdir(exist_ok=True)
         with sqlite3.connect(root/'shadow/issued.db') as src,sqlite3.connect(destination/'shadow/issued.db') as dst:src.backup(dst)
+    if (root/'range_shadow/issued.db').exists():
+        (destination/'range_shadow').mkdir(exist_ok=True)
+        with sqlite3.connect(root/'range_shadow/issued.db') as src,sqlite3.connect(destination/'range_shadow/issued.db') as dst:
+            src.backup(dst)
+            if dst.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('range ledger backup failed')
+    if (root/'range_seed.json').exists():shutil.copy2(root/'range_seed.json',destination/'range_seed.json')
+    if (root/'range_seed_run.txt').exists():shutil.copy2(root/'range_seed_run.txt',destination/'range_seed_run.txt')
+    if (root/'range_seeds').exists():shutil.copytree(root/'range_seeds',destination/'range_seeds',dirs_exist_ok=True)
     if not (destination/"issued.db").exists():raise ValueError("cannot save hourly state without ledger")
 
 

@@ -24,6 +24,15 @@ if shadow.exists():
     with sqlite3.connect(shadow) as source,sqlite3.connect(target.with_name('shadow_issued.db')) as destination:
         source.backup(destination)
         assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+range_ledger=pathlib.Path('lake/signals/range_shadow/issued.db')
+if range_ledger.exists():
+    with sqlite3.connect(range_ledger) as source,sqlite3.connect(target.with_name('range_issued.db')) as destination:
+        source.backup(destination)
+        assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+seed_source=pathlib.Path('lake/signals/range_seeds')
+if seed_source.exists():
+    import shutil
+    shutil.copytree(seed_source,target.parent/'range_seeds',dirs_exist_ok=True)
 PY
 python scripts/archive_event_inputs.py lake/signals "$RUNNER_TEMP/event-ledger/lake/event-inputs"
 python scripts/deployment_policy.py --target "$RUNNER_TEMP/event-ledger" --stage
