@@ -72,6 +72,29 @@ class StorageTests(unittest.TestCase):
         self.assertEqual((latest / 'signals.json').read_text(), '{"forecast":2}')
         self.assertEqual((prior / 'signals.json').read_text(), '{"forecast":1}')
 
+    def test_range_ledger_and_seed_versions_survive_drive_restore(self):
+        from scripts.event_state import snapshot
+        root = self.root / 'operational'; root.mkdir()
+        from signal_pipeline.data import connect
+        from signal_pipeline.ledger import connect as ledger_connect
+        connect(root).close(); ledger_connect(root).close()
+        (root / 'active.json').write_text('{}')
+        (root / 'range_shadow').mkdir()
+        with sqlite3.connect(root / 'range_shadow/issued.db') as con:
+            con.execute('CREATE TABLE audit (forecast_id TEXT)')
+            con.execute("INSERT INTO audit VALUES ('immutable-range-id')")
+        (root / 'range_seeds').mkdir()
+        (root / 'range_seeds/abc.json').write_text('{"seed_id":"abc"}')
+        (root / 'range_seed.json').write_text('{"seed_id":"abc"}')
+        snapshot(root, self.source)
+        self.save()
+        target = self.root / 'restored-range'
+        self.store.restore('event-hourly', target)
+        with sqlite3.connect(target / 'range_shadow/issued.db') as con:
+            self.assertEqual(con.execute('SELECT forecast_id FROM audit').fetchone()[0], 'immutable-range-id')
+            self.assertEqual(con.execute('PRAGMA integrity_check').fetchone()[0], 'ok')
+        self.assertEqual((target / 'range_seeds/abc.json').read_bytes(), (root / 'range_seed.json').read_bytes())
+
     def test_automation_receipt_identifies_exact_status_and_separate_streams(self):
         (self.source / 'data.json').write_text('{"raw_private_payload": 1}')
         self.save(stream='event-hourly')

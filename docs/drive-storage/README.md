@@ -97,3 +97,6 @@ No automatic expiry is not a guarantee of infinite capacity or account availabil
 Drive quota, revoked OAuth access, or External/Testing token expiry can interrupt writes.
 Monitor archive job failures and Drive capacity. Deleting a shared `ef1-blob-*` object
 can break multiple historical snapshots, so do not manually prune these objects.
+
+See [forecast integration](INTEGRATION.md) for the public data feed, short-range
+shadow ledger, seed history, guarded monitoring and preservation contract.

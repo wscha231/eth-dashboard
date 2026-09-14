@@ -235,6 +235,18 @@ def daily(root, *, horizons=DEFAULT_HORIZONS, now=None, clock=None):
         payload['evidence_archives']['shadow'] = export_archive(root,
             {str(h): [live_point(r) for r in shadow_records if r['horizon_seconds']==h*3600] for h in HORIZONS},
             kind='shadow', as_of=current.isoformat())
+        from .range_candidate import infer as infer_range, HORIZONS as RANGE_HORIZONS, POLICY as RANGE_POLICY
+        try:
+            range_current, range_records, range_errors = infer_range(root, current_records, shadow_current,
+                                                                    bars, now=now, clock=clock)
+        except Exception as exc:
+            range_current, range_records, range_errors = [], [], [{'reason':str(exc)[:300]}]
+        payload['range_candidate'] = {'policy':RANGE_POLICY, 'current':range_current, 'errors':range_errors,
+                                    'prospective':prospective_report(range_records),
+                                    'comparison':compare_published(records,range_records)}
+        payload['evidence_archives']['range_shadow'] = export_archive(root,
+            {str(h):[live_point(r) for r in range_records if r['horizon_seconds']==h*3600] for h in RANGE_HORIZONS},
+            kind='range_shadow',as_of=current.isoformat())
     study_path = root/'optimization.json'
     if study_path.exists():
         payload['optimization'] = json.loads(study_path.read_text())

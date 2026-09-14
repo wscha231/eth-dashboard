@@ -28,6 +28,14 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=0, s-maxage=30, must-revalidate"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "max-age=30"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
         }
       ]
     },
@@ -64,6 +72,14 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=0, s-maxage=60, must-revalidate"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "max-age=30"
+        },
+        {
+          "key": "Content-Type",
+          "value": "text/html; charset=utf-8"
         }
       ]
     },
@@ -101,6 +117,19 @@
           "value": "strict-origin-when-cross-origin"
         }
       ]
+    },
+    {
+      "source": "/signals_segments.csv",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/csv; charset=utf-8"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "max-age=30"
+        }
+      ]
     }
   ],
   "git": {
@@ -108,5 +137,27 @@
       "**": false,
       "data/daily-forecast": true
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/signals.json",
+      "destination": "https://raw.githubusercontent.com/wscha231/eth-dashboard/data/event-feed/forecast_site/public/signals.json"
+    },
+    {
+      "source": "/signals_replay.json",
+      "destination": "https://raw.githubusercontent.com/wscha231/eth-dashboard/data/event-feed/forecast_site/public/signals_replay.json"
+    },
+    {
+      "source": "/signals_segments.csv",
+      "destination": "https://raw.githubusercontent.com/wscha231/eth-dashboard/data/event-feed/forecast_site/public/signals_segments.csv"
+    },
+    {
+      "source": "/outlook.html",
+      "destination": "https://raw.githubusercontent.com/wscha231/eth-dashboard/data/event-feed/forecast_site/public/outlook.html"
+    },
+    {
+      "source": "/archive/:path*",
+      "destination": "https://raw.githubusercontent.com/wscha231/eth-dashboard/data/event-feed/forecast_site/public/archive/:path*"
+    }
+  ]
 }

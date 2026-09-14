@@ -125,6 +125,15 @@
     text(card,'p',`Live validation: ${liveAssessment(forward)}. ${forward?.resolved||0} settled forecasts; ${forward?.nonoverlap_resolved||0} non-overlapping windows.`,'notice');
     if(Number.isFinite(metric?.return_mae))text(card,'p',`Observed return error: ${(100*metric.return_mae).toFixed(2)} percentage points MAE; no-change baseline: ${(100*metric.no_change_mae).toFixed(2)}. Intended 80% range covered ${pct(metric.coverage80)} of settled outcomes. These small, overlapping samples do not establish future accuracy.`,'small');
     if(f.selected_model==='climatology')text(card,'p','This window currently uses past event frequency and historical return quantiles. It is not a market-responsive direction signal.','small');
+    const range=payload?.range_candidate?.current?.find(r=>r.horizon_seconds===f.horizon_seconds && r.incumbent_forecast_id===f.forecast_id);
+    if(range) {
+      const comparison=text(card,'details','');text(comparison,'summary','Experimental range comparison');
+      text(comparison,'p',`Candidate 80% range: ${money(range.price_quantiles[0])} – ${money(range.price_quantiles[2])}`);
+      text(comparison,'p','This separately recorded candidate changes only the range. The main estimate and probabilities remain above. Live superiority has not been established.','small');
+      const review=payload.range_candidate.comparison?.[selectedHorizon];
+      text(comparison,'p',`${review?.paired_rows||0} matched settled forecasts; ${review?.nonoverlap||0} non-overlapping windows. Issued: ${local(range.issued_at)}.`,'small');
+      if(review?.paired_rows)text(comparison,'p',`Range coverage: candidate ${pct(review.candidate.coverage80)}; original ${pct(review.incumbent.coverage80)}.`,'small');
+    }
   }
   function chart(id,labels,datasets,yLabel) {
     charts[id]?.destroy();delete charts[id];

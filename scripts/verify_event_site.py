@@ -112,7 +112,8 @@ def verify_archives(actual, suffix):
         for kind,ref in refs.items():
             if not ref:continue
             manifest=fetch_entry(ref)
-            if manifest['kind']!=kind or set(manifest['horizons'])!={'6','24','72','168','336','720'}:
+            required_horizons={'6','24','72'} if kind=='range_shadow' else {'6','24','72','168','336','720'}
+            if manifest['kind']!=kind or set(manifest['horizons'])!=required_horizons:
                 raise ValueError('incomplete archive horizons: '+kind+' '+str(sorted(manifest.get('horizons',{}))))
             for h,info in manifest['horizons'].items():
                 objects=list(pool.map(fetch_entry,info['shards']))
