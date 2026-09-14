@@ -6,6 +6,7 @@ from pathlib import Path
 import sqlite3
 import stat
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -82,6 +83,55 @@ class StorageTests(unittest.TestCase):
         result = self.save()
         self.assertEqual(result['reused_chunks'], 1)
         self.store.restore('event-hourly', self.root / 'restored')
+
+    def test_parallel_uploads_share_identical_chunks_and_propagate_failure(self):
+        class ConcurrentDrive(MemoryDrive):
+            def __init__(self, fail=False):
+                super().__init__()
+                self.lock, self.ready = threading.Lock(), threading.Event()
+                self.active, self.peak, self.calls = 0, 0, {}
+                self.fail = fail
+
+            def put(self, name, data, properties):
+                if not name.startswith('ef1-blob-'):
+                    return super().put(name, data, properties)
+                with self.lock:
+                    self.active += 1
+                    self.peak = max(self.peak, self.active)
+                    self.calls[name] = self.calls.get(name, 0) + 1
+                    if self.active == 4:
+                        self.ready.set()
+                try:
+                    if not self.ready.wait(3):
+                        raise AssertionError('Uploads did not overlap')
+                    with self.lock:
+                        if self.fail:
+                            self.fail = False
+                            raise storage.CheckError('worker upload failed')
+                        return super().put(name, data, properties)
+                finally:
+                    with self.lock:
+                        self.active -= 1
+
+        for i in range(12):
+            (self.source / f'{i:02d}.json').write_text(str(i // 2))
+        for fail in (False, True):
+            with self.subTest(fail=fail):
+                drive = ConcurrentDrive(fail)
+                store = storage.Store(drive)
+                if fail:
+                    with self.assertRaisesRegex(storage.CheckError, 'worker upload failed'):
+                        store.backup(self.source, 'event-hourly', 'parallel', '2026-09-14T01:00:00Z', {})
+                    self.assertIsNone(store.latest('event-hourly'))
+                else:
+                    result = store.backup(self.source, 'event-hourly', 'parallel', '2026-09-14T01:00:00Z', {})
+                    self.assertEqual(result['uploaded_chunks'], 6)
+                    self.assertEqual(result['reused_chunks'], 6)
+                    store.restore('event-hourly', self.root / 'parallel')
+                    for path in self.source.iterdir():
+                        self.assertEqual(path.read_bytes(), (self.root / 'parallel' / path.name).read_bytes())
+                self.assertEqual(drive.peak, 4)
+                self.assertTrue(all(n == 1 for n in drive.calls.values()))
 
     def test_sqlite_wal_is_preserved(self):
         path = self.source / 'issued.db'

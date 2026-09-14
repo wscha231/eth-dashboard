@@ -1,5 +1,6 @@
 """Immutable, deduplicated Drive snapshots. No deletion or model loading code."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import gzip
 import hashlib
@@ -12,6 +13,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import threading
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -25,6 +27,8 @@ API = "https://www.googleapis.com/drive/v3/files"
 CHUNK = 4 * 1024 * 1024
 MAX_TOTAL = 20 * 1024 ** 3
 MAX_FILES = 100000
+UPLOAD_WORKERS = 4
+UPLOAD_PENDING = 8
 STREAMS = {"event-hourly", "event-research", "event-research-partial", "historical-state", "historical-report",
            "adaptive-report", "adaptive-rows", "daily-data", "event-ledger",
            "hybrid-data", "forward-data", "legacy-model", "foundation-chronos2", "foundation-tirex2"}
@@ -74,6 +78,7 @@ class Drive:
             raise CheckError("Invalid Drive folder ID")
         self.token = None
         self.token_deadline = 0
+        self.token_lock = threading.Lock()
         self.index = {}
         self.refresh()
         folder = self.json("GET", API + "/" + self.folder + "?fields=mimeType,trashed,capabilities(canAddChildren)")
@@ -98,7 +103,9 @@ class Drive:
             raise CheckError("Unexpected Drive endpoint")
         for attempt in range(3 if method == "GET" else 1):
             if time.monotonic() >= self.token_deadline:
-                self.refresh()
+                with self.token_lock:
+                    if time.monotonic() >= self.token_deadline:
+                        self.refresh()
             req = Request(url, data=body, method=method,
                           headers={"Authorization": "Bearer " + self.token, "Content-Type": content_type})
             try:
@@ -191,7 +198,16 @@ class Store:
         root = Path(root).resolve()
         if not root.is_dir():
             raise CheckError("Snapshot source directory is missing")
-        with tempfile.TemporaryDirectory() as temporary:
+        pending = {}
+
+        def finish_one():
+            nonlocal uploaded, reused
+            key = next(iter(pending))
+            added = pending.pop(key).result()
+            uploaded += int(added)
+            reused += int(not added)
+
+        with tempfile.TemporaryDirectory() as temporary, ThreadPoolExecutor(max_workers=UPLOAD_WORKERS) as pool:
             for directory, dirs, names in os.walk(root):
                 for item in dirs:
                     if (Path(directory) / item).is_symlink():
@@ -222,9 +238,18 @@ class Store:
                             sha.update(chunk)
                             compressed = gzip.compress(chunk, mtime=0)
                             hash_value = digest(compressed)
-                            added = self.drive.put("ef1-blob-" + hash_value, compressed, {"ef_kind": "blob", "ef_schema": "1"})
-                            uploaded += int(added)
-                            reused += int(not added)
+                            blob = "ef1-blob-" + hash_value
+                            if blob in pending:
+                                # One request owns each content hash, even across different files.
+                                reused += 1
+                            elif blob in self.drive.index:
+                                self.drive.put(blob, compressed, {"ef_kind": "blob", "ef_schema": "1"})
+                                reused += 1
+                            else:
+                                pending[blob] = pool.submit(self.drive.put, blob, compressed,
+                                                            {"ef_kind": "blob", "ef_schema": "1"})
+                                if len(pending) >= UPLOAD_PENDING:
+                                    finish_one()
                             info["chunks"].append({"sha256": hash_value, "bytes": len(compressed), "raw_bytes": len(chunk)})
                             info["bytes"] += len(chunk)
                     info["sha256"] = sha.hexdigest()
@@ -233,6 +258,8 @@ class Store:
                         raise CheckError("Snapshot file count exceeds limit")
             if not files:
                 raise CheckError("Refusing an empty snapshot")
+            while pending:
+                finish_one()
             manifest = {"schema": 1, "repository": REPOSITORY, "stream": stream, "source_key": key,
                         "snapshot_at": at, "source": source, "files": files,
                         "captured_at": datetime.now(timezone.utc).isoformat(), "complete": True}
