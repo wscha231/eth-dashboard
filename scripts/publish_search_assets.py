@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "https://etherforecast.live"
@@ -138,6 +139,9 @@ def render_snapshot(payload, now=None):
 
 def publish(target, source=ROOT, stage=False):
     target, source = Path(target).resolve(), Path(source).resolve()
+    # Reject broken source before replacing even one currently published asset.
+    subprocess.run([sys.executable, str(ROOT / "scripts/verify_site_privacy.py"),
+                    "--local", "--public-dir", str(source / "forecast_site/public")], check=True)
     public = target / "forecast_site/public"
     for name in ASSETS:
         src, dst = source / "forecast_site/public" / name, public / name

@@ -293,6 +293,9 @@
     .empty-outlook { border-color:var(--warn); }
     [hidden] { display:none !important; }
     footer { font-size:12px; }
+    .privacy-notice { display:flex; flex-wrap:wrap; align-items:center; gap:10px 22px; padding:14px 18px; margin:0 0 22px; border:1px solid var(--line); border-radius:14px; }
+    .privacy-notice p { flex:1 1 360px; margin:0; font-size:13px; line-height:1.65; }
+    .privacy-notice a { color:var(--accent); font-size:14px; font-weight:700; text-underline-offset:4px; }
     @media (max-width:860px) {
       header { flex-direction:row; align-items:center; }
       .score-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -322,6 +325,11 @@
       <span class="pill" id="model-phase">Research beta</span>
       <nav aria-label="Main navigation"><a href="#event-system">Forecast</a><a href="#performance">Performance</a><a href="#how-it-works">How to read it</a><a href="/outlook.html">Published snapshot</a><a href="/ko/" lang="ko">한국어</a><a href="#donation-panel">Support</a></nav>
     </header>
+
+    <aside class="privacy-notice" id="privacy-notice" aria-label="Privacy and Google data use">
+      <p>EtherForecast (ETH Forecast) publishes Ethereum research forecasts and measured results. No Google account is needed to view them. Operator-only Google Drive backup and restore is being prepared.</p>
+      <a href="https://etherforecast.live/privacy.html" rel="privacy-policy">Privacy Policy · <span lang="ko">개인정보처리방침</span></a>
+    </aside>
 
     <section class="ef-service" aria-label="Forecast service status">
       <div class="ef-brand" id="ef-brand" data-state="checking" data-motion="paused" data-playback="paused" aria-hidden="true">

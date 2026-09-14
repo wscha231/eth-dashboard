@@ -32,7 +32,11 @@ def archive(day, stream, bad=None):
         text = 'open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore\n'+text
     buff = io.BytesIO()
     with zipfile.ZipFile(buff, 'w', zipfile.ZIP_DEFLATED) as z:
-        z.writestr('bars.csv', text)
+        # Payload and CHECKSUM requests rebuild this fixture separately. A ZIP
+        # wall-clock timestamp can change between them despite identical rows.
+        entry = zipfile.ZipInfo('bars.csv', date_time=(2025, 1, 1, 0, 0, 0))
+        entry.compress_type = zipfile.ZIP_DEFLATED
+        z.writestr(entry, text)
     return buff.getvalue()
 
 
