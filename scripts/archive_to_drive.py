@@ -20,7 +20,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.gdrive_store import (CheckError, Drive, MAX_FILES, MAX_TOTAL, NoRedirect,
-                                  REPOSITORY, Store, allowed, report, safe_path)
+                                  REPOSITORY, STREAMS, Store, allowed, canonical, digest, report, safe_path)
 
 ARTIFACTS = {
     "daily-source-state": ("daily-data", "daily_forecast.yml"),
@@ -235,11 +235,51 @@ def archive_artifact(store, github, artifact, temporary):
                          "role": "actual-issuance" if stream == "event-hourly" else "observed-and-issued" if stream == "daily-data" else "retrospective-research"})
 
 
+def automation_status(store, result, recovery, output):
+    """Small immutable read interface for connected scheduled assistants."""
+    output = Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    run_id = str(int(os.environ["GITHUB_RUN_ID"]))
+    attempt = str(int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")))
+    document = dict(result, schema=1, repository=REPOSITORY, run_id=run_id, attempt=attempt,
+                    generated_at=datetime.now(timezone.utc).isoformat(),
+                    source_run=os.environ.get("SOURCE_RUN") or None,
+                    recovery_drill=recovery, snapshots={})
+    if store is not None:
+        for stream in sorted(STREAMS):
+            name = store.latest(stream)
+            if not name:
+                continue
+            data = store.drive.get(name)
+            manifest = json.loads(data)
+            if manifest.get("complete") is not True or manifest.get("repository") != REPOSITORY or manifest.get("stream") != stream:
+                raise CheckError("Invalid manifest in automation catalog")
+            document["snapshots"][stream] = {
+                "name": name, "file_id": store.drive.index[name]["id"], "sha256": digest(data),
+                "snapshot_at": manifest["snapshot_at"], "source": manifest["source"],
+                "files": len(manifest["files"]),
+                "bytes": sum(info["bytes"] for info in manifest["files"].values())}
+    data = canonical(document)
+    (output / "status.json").write_bytes(data)
+    if store is None:
+        return None
+    name = f"ef1-status-{run_id}-{attempt}.json"
+    store.drive.put(name, data, {"ef_kind": "status", "ef_schema": "1"})
+    if store.drive.get(name) != data:
+        raise CheckError("Automation status readback mismatch")
+    receipt = {"run_id": run_id, "attempt": attempt, "file_id": store.drive.index[name]["id"],
+               "sha256": digest(data), "name": name}
+    (output / "receipt.json").write_bytes(canonical(receipt))
+    report({"automation_receipt": receipt})
+    return receipt
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-run", type=int)
     args = parser.parse_args()
     failed, saved = [], []
+    store, recovery = None, None
     started = time.monotonic()
     try:
         store, github = Store(Drive()), GitHub()
@@ -278,6 +318,14 @@ def main():
               "uploaded_chunks": sum(x.get("uploaded_chunks", 0) for x in saved),
               "reused_chunks": sum(x.get("reused_chunks", 0) for x in saved), "errors": failed,
               "retention": "No automatic expiry or deletion; subject to Drive capacity and account access"}
+    try:
+        automation_status(store, result, recovery, "drive-archive-status")
+    except Exception as exc:
+        failed.append({"source": "automation status", "error": str(exc) if isinstance(exc, CheckError) else type(exc).__name__})
+        result["status"] = "failure"
+        output = Path("drive-archive-status")
+        output.mkdir(exist_ok=True)
+        (output / "status.json").write_bytes(canonical(result))
     report(result)
     return 1 if failed else 0
 

@@ -68,3 +68,11 @@ jobs:
           else
             python scripts/archive_to_drive.py
           fi
+      - name: Preserve the small automation status even after an archive failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drive-archive-status-${{ github.run_id }}-${{ github.run_attempt }}
+          path: drive-archive-status/
+          retention-days: 30
+          if-no-files-found: warn
