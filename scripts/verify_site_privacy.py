@@ -48,6 +48,8 @@ def validate(homepage, policy):
     home, notice = Document(homepage), Document(policy)
     if not any(urljoin(BASE, href) == POLICY for href in home.links):
         raise ValueError("homepage privacy link missing from static HTML")
+    if "privacy-notice" not in home.ids:
+        raise ValueError("homepage top privacy notice missing")
     if notice.canonical != POLICY or "privacy-policy" not in notice.ids:
         raise ValueError("canonical privacy policy page missing")
     required = {"google-data", "sharing", "security", "retention", "deletion", "limited-use", "contact"}
@@ -71,14 +73,18 @@ def fetch_html(url):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--local", action="store_true", help="Validate source files without network access")
+    parser.add_argument("--public-dir", type=Path, default=ROOT / "forecast_site/public", help="Static bundle to validate and compare")
+    parser.add_argument("--attempts", type=int, default=8, help="Maximum live verification attempts")
     args = parser.parse_args()
-    public = ROOT / "forecast_site/public"
+    if args.attempts < 1:
+        parser.error("--attempts must be positive")
+    public = args.public_dir
     expected_policy = (public / "privacy.html").read_text(encoding="utf-8")
     validate((public / "index.html").read_text(encoding="utf-8"), expected_policy)
     if args.local:
         print("Privacy source verified: static homepage link and complete policy HTML")
         return
-    for attempt in range(8):
+    for attempt in range(args.attempts):
         try:
             home, policy = fetch_html(BASE), fetch_html(POLICY)
             validate(home, policy)
@@ -88,8 +94,8 @@ def main():
                   "url=" + POLICY, "checked_utc=" + datetime.now(timezone.utc).isoformat())
             return
         except (OSError, ValueError) as error:
-            print(f"Privacy verification attempt {attempt + 1}/8: {error}", flush=True)
-            if attempt == 7:
+            print(f"Privacy verification attempt {attempt + 1}/{args.attempts}: {error}", flush=True)
+            if attempt == args.attempts - 1:
                 raise SystemExit("Public privacy policy verification failed") from error
             time.sleep(15)
 

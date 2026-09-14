@@ -120,6 +120,7 @@ class SearchPublicationTests(unittest.TestCase):
         home = (ROOT / "forecast_site/public/index.html").read_text()
         policy = (ROOT / "forecast_site/public/privacy.html").read_text()
         for html, body in (
+            (home.replace('id="privacy-notice"', 'id="missing-notice"'), policy),
             (home.replace("https://etherforecast.live/privacy.html", "/missing-policy.html"), policy),
             (home, '<!doctype html><html><body>404: This page could not be found.</body></html>'),
             (home, policy.replace('id="google-data"', 'id="absent-section"')),
@@ -127,6 +128,20 @@ class SearchPublicationTests(unittest.TestCase):
         ):
             with self.assertRaises(ValueError):
                 privacy.validate(html, body)
+
+    def test_invalid_privacy_source_cannot_replace_existing_deployment(self):
+        with TemporaryDirectory() as temp:
+            source, target = Path(temp) / "source", Path(temp) / "target"
+            for root in (source, target):
+                (root / "forecast_site/public").mkdir(parents=True)
+            old_home = target / "forecast_site/public/index.html"
+            old_home.write_text("existing production homepage")
+            (source / "forecast_site/public/index.html").write_text("broken homepage")
+            (source / "forecast_site/public/privacy.html").write_text("404")
+            with self.assertRaises(subprocess.CalledProcessError):
+                search.publish(target, source=source)
+            self.assertEqual(old_home.read_text(), "existing production homepage")
+            self.assertFalse((target / "forecast_site/public/privacy.html").exists())
 
 
 if __name__ == "__main__":
