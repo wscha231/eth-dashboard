@@ -11,3 +11,5 @@ The current instruction explicitly requests all improvements and production publ
 7. Fetch public URLs after successful deployment, compare expected content, verify link navigation in browser. Record production evidence. Report website result separately from Google review status.
 
 Trade-off: retain existing long-form detailed policy while adding a compact readable summary; no new login, tracking, contact collection or prediction changes. Source-only edits are not considered deployment success.
+
+Validation repair: fix the existing archive test fixture's ZIP timestamp, which otherwise produces inconsistent checksums at wall-clock boundaries. No production forecasting or collector logic is changed.

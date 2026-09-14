@@ -16,4 +16,6 @@ https://support.google.com/cloud/answer/13807376?hl=en — public homepage, app 
 https://support.google.com/cloud/answer/13806988?hl=en — comprehensive disclosure of Google data access, use, storage and sharing.
 
 ## Limits
+PR validation found an existing wall-clock-sensitive fixture in tests/test_forward_research.py: archive() recreates ZIP bytes independently for payload and checksum requests, with an implicit current timestamp. Reproduced that identical CSV bytes with timestamps two seconds apart yield different SHA-256 values. Fix only the test ZIP metadata to a fixed timestamp; production collection and checksum validation remain intact.
+
 Google Cloud consent-screen configuration and review state were not inspected. Previous findings can remain until re-review; a website repair alone does not update reviewer status. No invented claim about the root cause of the earlier review.
