@@ -1,0 +1,48 @@
+name: Restore archived Drive data for research
+on:
+  workflow_dispatch:
+    inputs:
+      stream:
+        description: "Snapshot family (research states never replace actual issuance automatically)"
+        type: choice
+        options: [event-hourly, event-research, event-ledger, daily-data, historical-state, historical-report, adaptive-report, adaptive-rows, hybrid-data, forward-data]
+        default: event-hourly
+      as_of:
+        description: "Optional UTC cutoff, e.g. 2026-09-14T00:00:00Z; blank selects latest"
+        type: string
+        required: false
+permissions:
+  contents: read
+jobs:
+  restore:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Restore and verify every archived file before exposing it
+        env:
+          STREAM: ${{ inputs.stream }}
+          AS_OF: ${{ inputs.as_of }}
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          if [ -n "$AS_OF" ]; then
+            python scripts/gdrive_store.py restore --stream "$STREAM" --as-of "$AS_OF" --target restored-research
+          else
+            python scripts/gdrive_store.py restore --stream "$STREAM" --target restored-research
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drive-restored-${{ inputs.stream }}-${{ github.run_id }}
+          path: restored-research/
+          retention-days: 7
+          if-no-files-found: error
