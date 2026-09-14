@@ -1,4 +1,5 @@
 """Bounded Drive OAuth round-trip check; credentials never leave the runner."""
+import configparser
 import json
 import os
 import re
@@ -72,14 +73,43 @@ def mask(value, env):
         print("::add-mask::" + escaped)
 
 
+def credentials(env):
+    """Accept one plain-text rclone-format secret or the original four secrets."""
+    config = env.get("GDRIVE_RCLONE_CONFIG", "")
+    if not config and env.get("GDRIVE_REFRESH_TOKEN", "").lstrip().startswith("[gdrive]"):
+        config = env["GDRIVE_REFRESH_TOKEN"]
+    if not config:
+        return {key: env.get(key, "") for key in KEYS}
+    try:
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read_string(config)
+        section = parser["gdrive"]
+        if section.get("type") != "drive":
+            raise ValueError()
+        token = json.loads(section.get("token", "{}"))
+        if not isinstance(token, dict):
+            raise ValueError()
+        values = {KEYS[0]: section.get("client_id", ""), KEYS[1]: section.get("client_secret", ""),
+                  KEYS[2]: token.get("refresh_token", ""), KEYS[3]: section.get("root_folder_id", "")}
+        if not all(isinstance(value, str) for value in values.values()):
+            raise ValueError()
+        # Structured secrets need individual masking; never log access_token either.
+        for value in [*values.values(), token.get("access_token", "")]:
+            if isinstance(value, str) and value:
+                mask(value, env)
+        return values
+    except (configparser.Error, KeyError, ValueError, TypeError):
+        raise CheckError("Invalid single-secret config: use [gdrive], type=drive and a JSON token") from None
+
+
 def run(env=None, call=request):
     env = os.environ if env is None else env
     results = {stage: "SKIP" for stage in STAGES}
     stage, file_id, token = "Secrets", None, None
     try:
-        values = {}
+        values = credentials(env)
         for key in KEYS:
-            value = env.get(key, "")
+            value = values[key]
             if not value:
                 raise CheckError("Missing " + key)
             if (any(c.isspace() for c in value) or value.startswith(("{", '[', '"', "'", "HTTP/"))):
