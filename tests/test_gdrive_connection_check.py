@@ -45,6 +45,33 @@ class FakeDrive:
 
 
 class DriveCheckTests(unittest.TestCase):
+    def test_single_config_and_legacy_name(self):
+        config = ('[gdrive]\ntype = drive\nclient_id = ' + ENV['GDRIVE_CLIENT_ID']
+                  + '\nclient_secret = test-secret\nscope = drive.file\nroot_folder_id = test-folder'
+                  + '\ntoken = {"refresh_token":"test-refresh"}\n')
+        for key in ('GDRIVE_RCLONE_CONFIG', 'GDRIVE_REFRESH_TOKEN'):
+            with self.subTest(key=key):
+                results = check.run({key: config}, FakeDrive())
+                self.assertTrue(all(value == 'PASS' for value in results.values()), results)
+
+    def test_bad_config_never_exposes_contents_or_falls_back(self):
+        for config in ('[gdrive]\ntype=drive\ntoken=test-secret',
+                       '[gdrive]\ntype=drive\ntoken=[]',
+                       '[gdrive]\ntype=drive\nclient_id=x\nclient_id=test-secret'):
+            fake = FakeDrive()
+            results = check.run(dict(ENV, GDRIVE_RCLONE_CONFIG=config), fake)
+            self.assertTrue(results['Secrets'].startswith('FAIL'))
+            self.assertNotIn('test-secret', str(results))
+            self.assertFalse(fake.calls)
+
+    def test_config_requires_folder_instead_of_using_drive_root(self):
+        config = ('[gdrive]\ntype=drive\nclient_id=' + ENV['GDRIVE_CLIENT_ID']
+                  + '\nclient_secret=test-secret\ntoken={"refresh_token":"test-refresh"}')
+        fake = FakeDrive()
+        result = check.run({'GDRIVE_RCLONE_CONFIG': config}, fake)
+        self.assertIn('GDRIVE_FOLDER_ID', result['Secrets'])
+        self.assertFalse(fake.calls)
+
     def test_roundtrip_and_only_new_file_trashed(self):
         fake = FakeDrive()
         results = check.run(ENV, fake)
