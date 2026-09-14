@@ -12,7 +12,7 @@ from unittest.mock import patch
 import zipfile
 
 from scripts import gdrive_store as storage
-from scripts.archive_to_drive import extract_zip, trusted, archive_artifact
+from scripts.archive_to_drive import extract_zip, trusted, archive_artifact, automation_status
 from scripts.prepare_daily_drive_snapshot import prepare
 
 
@@ -29,7 +29,7 @@ class MemoryDrive:
         if self.fail_after is not None and self.writes >= self.fail_after:
             raise storage.CheckError('interrupted upload')
         self.data[name] = data
-        self.index[name] = {'name': name, 'md5Checksum': hashlib.md5(data).hexdigest(),
+        self.index[name] = {'id': 'fake-' + str(self.writes), 'name': name, 'md5Checksum': hashlib.md5(data).hexdigest(),
                             'size': str(len(data)), 'appProperties': properties}
         self.writes += 1
         return True
@@ -71,6 +71,33 @@ class StorageTests(unittest.TestCase):
         self.store.restore('event-hourly', prior, as_of='2026-09-14T01:30:00Z')
         self.assertEqual((latest / 'signals.json').read_text(), '{"forecast":2}')
         self.assertEqual((prior / 'signals.json').read_text(), '{"forecast":1}')
+
+    def test_automation_receipt_identifies_exact_status_and_separate_streams(self):
+        (self.source / 'data.json').write_text('{"raw_private_payload": 1}')
+        self.save(stream='event-hourly')
+        self.save(stream='event-research')
+        output = self.root / 'status'
+        with patch.dict('os.environ', {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '2', 'SOURCE_RUN': '100'}):
+            receipt = automation_status(self.store, {'status': 'failure', 'errors': [{'source': 'partial'}]},
+                                        {'restored': True, 'stream': 'event-hourly'}, output)
+        data = (output / 'status.json').read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(), receipt['sha256'])
+        self.assertEqual(self.drive.get(receipt['name']), data)
+        status = json.loads(data)
+        self.assertEqual(status['status'], 'failure')
+        self.assertEqual(status['source_run'], '100')
+        self.assertEqual(status['attempt'], '2')
+        self.assertTrue(status['recovery_drill']['restored'])
+        self.assertEqual(set(status['snapshots']), {'event-hourly', 'event-research'})
+        self.assertNotIn(b'raw_private_payload', data)
+
+    def test_automation_failure_can_be_read_without_drive(self):
+        output = self.root / 'status'
+        with patch.dict('os.environ', {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1'}):
+            receipt = automation_status(None, {'status': 'failure', 'errors': [{'source': 'archive'}]}, None, output)
+        self.assertIsNone(receipt)
+        self.assertFalse((output / 'receipt.json').exists())
+        self.assertEqual(json.loads((output / 'status.json').read_text())['status'], 'failure')
 
     def test_partial_upload_has_no_manifest_and_can_resume(self):
         (self.source / 'a.json').write_text('a')
