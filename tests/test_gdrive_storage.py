@@ -73,11 +73,7 @@ class StorageTests(unittest.TestCase):
         self.assertEqual((prior / 'signals.json').read_text(), '{"forecast":1}')
 
     def test_range_ledger_and_seed_versions_survive_drive_restore(self):
-        from scripts.event_state import snapshot
         root = self.root / 'operational'; root.mkdir()
-        from signal_pipeline.data import connect
-        from signal_pipeline.ledger import connect as ledger_connect
-        connect(root).close(); ledger_connect(root).close()
         (root / 'active.json').write_text('{}')
         (root / 'range_shadow').mkdir()
         with sqlite3.connect(root / 'range_shadow/issued.db') as con:
@@ -86,7 +82,7 @@ class StorageTests(unittest.TestCase):
         (root / 'range_seeds').mkdir()
         (root / 'range_seeds/abc.json').write_text('{"seed_id":"abc"}')
         (root / 'range_seed.json').write_text('{"seed_id":"abc"}')
-        snapshot(root, self.source)
+        self.source = root
         self.save()
         target = self.root / 'restored-range'
         self.store.restore('event-hourly', target)
