@@ -44,6 +44,8 @@ with Drive credentials. Data branches are fetched and archived at pinned commit 
 
 - Each regular data file is split into 4 MiB chunks, deterministically gzip-compressed,
   and stored once under `ef1-blob-<sha256>`. Unchanged chunks are reused across snapshots.
+- Uploads use at most four workers and eight pending chunks. Identical in-flight
+  chunks share one request; every worker must succeed before the manifest is committed.
 - Original logical file paths, full SHA256 checksums, chunk references and provenance
   are recorded in `ef1-manifest-<stream>-<source-key-hash>.json`.
 - The manifest is written last, after every referenced upload passes byte-size/MD5
