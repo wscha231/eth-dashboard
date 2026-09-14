@@ -83,12 +83,34 @@ jobs:
             }
             core.setOutput('backup',String(!dailyBackup || dailyBackup.created?.slice(0,10)!==today));
       - uses: actions/download-artifact@v4
+        id: hourly_download
+        continue-on-error: true
         if: steps.state.outputs.hourly != ''
         with:
           github-token: ${{ github.token }}
           run-id: ${{ steps.state.outputs.hourly }}
           name: ${{ steps.state.outputs.hourly_name }}
           path: lake/signals
+      - name: Recover committed Drive state when disposable artifacts are unavailable
+        if: steps.state.outputs.hourly == '' || steps.hourly_download.outcome != 'success'
+        continue-on-error: true
+        env:
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          python scripts/gdrive_store.py restore --stream event-hourly --target drive-hourly-recovery --optional
+          python - <<'PY'
+          import pathlib,shutil
+          source=pathlib.Path('drive-hourly-recovery')
+          if source.exists():
+              target=pathlib.Path('lake/signals')
+              if target.exists():shutil.rmtree(target)
+              target.parent.mkdir(parents=True,exist_ok=True)
+              source.replace(target)
+          PY
       - name: Check whether a new research state is available
         id: refresh
         env:
@@ -191,3 +213,15 @@ jobs:
           retention-days: 90
       - name: Publish event probabilities, price ranges and immutable results
         run: bash scripts/publish_events.sh
+      - name: Capture final issuance and delivery receipts even after a publication failure
+        id: final_snapshot
+        if: ${{ always() && (steps.inference.outcome == 'success' || steps.inference.outcome == 'failure') }}
+        run: python scripts/event_state.py snapshot lake/signals final-hourly-state
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.final_snapshot.outcome == 'success' }}
+        with:
+          name: event-final-state
+          path: final-hourly-state/
+          compression-level: 9
+          retention-days: 7
+          if-no-files-found: error

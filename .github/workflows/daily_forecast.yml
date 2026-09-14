@@ -37,8 +37,20 @@ jobs:
           cache-dependency-path: requirements-runtime.txt
       - run: python -m pip install -r requirements-runtime.txt
       - name: Restore durable sources and archived issued records
+        env:
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: |
-          git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+          if ! git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
+            python scripts/gdrive_store.py restore --stream daily-data --target drive-daily-recovery
+            mkdir -p lake forecast_site
+            cp -a drive-daily-recovery/lake/. lake/
+            cp -a drive-daily-recovery/forecast_site/. forecast_site/
+            exit 0
+          fi
           mkdir -p lake/gold forecast_site
           git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv > lake/gold/eth_master_daily.csv
           git show origin/data/daily-forecast:forecast_site/predictions.db > forecast_site/predictions.db
@@ -47,6 +59,7 @@ jobs:
           python scripts/daily_source_state.py restore origin/data/daily-forecast
           git show origin/data/daily-forecast:forecast_site/public/donations.json > forecast_site/public/donations.json || true
       - name: Incremental market collection
+        id: collection
         run: python eth_data_collector.py
       - name: Settle outstanding archived forecasts without issuing retired models
         run: |
@@ -82,3 +95,15 @@ jobs:
             git -C "$RUNNER_TEMP/market-site" commit -m "chore(data): refresh sources and settle retired forecasts"
             git -C "$RUNNER_TEMP/market-site" push origin HEAD:refs/heads/data/daily-forecast
           fi
+      - name: Preserve daily inputs and settled records independently of git publication
+        id: daily_snapshot
+        if: ${{ always() && (steps.collection.outcome == 'success' || steps.collection.outcome == 'failure') }}
+        run: python scripts/prepare_daily_drive_snapshot.py
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.daily_snapshot.outcome == 'success' }}
+        with:
+          name: daily-source-state
+          path: daily-drive-state/
+          compression-level: 9
+          retention-days: 7
+          if-no-files-found: error
