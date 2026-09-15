@@ -8,9 +8,11 @@ on:
       - scripts/collect_free_source_fallbacks.py
       - tests/test_free_source_fallbacks.py
       - tests/test_market_research_sources.py
+      - config/data_source_registry.json
       - .github/workflows/free_source_backfill.yml
   schedule:
     - cron: "10 1 * * *"
+    - cron: "10 13 * * *"
   workflow_dispatch:
 permissions:
   contents: write
