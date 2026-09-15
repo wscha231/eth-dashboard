@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "evidence_status": "REJECTED",
+  "generated_at_utc": "2026-08-31T00:57:19Z",
+  "decision": "Keep the offline evaluator only; do not integrate a daily shadow head.",
+  "data": {
+    "git_ref": "origin/data/daily-forecast",
+    "path": "lake/gold/eth_master_daily.csv",
+    "sha256": "de096121241a9af9e8d766219e10b2cc80f432acd45814d8790d18643faf7437",
+    "rows": 3216,
+    "start_date": "2017-11-09",
+    "end_date": "2026-08-29"
+  },
+  "evaluation": {
+    "oof_dates": 2795,
+    "outer_folds": 8,
+    "outer_blocks": [
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025",
+      "2026_partial"
+    ],
+    "purge_gap_days": 3,
+    "feature_cap": 64,
+    "calibration": "prior-only monotone sigmoid",
+    "alert_budget": "at most 3 false alert episodes per 90 OOF days",
+    "continuous_alert_renewal_days": 3,
+    "bootstrap_block_days": 7,
+    "paired_bootstrap_samples": 2000
+  },
+  "labels": {
+    "tail_up_primary": {
+      "definition": "three-day return >= 0.12",
+      "positive_rows": 135,
+      "event_episodes": 65,
+      "prevalence": 0.04830053667262969,
+      "models": {
+        "expanding_climatology": {
+          "average_precision": 0.051077078624262084,
+          "brier_score": 0.0471515369202102,
+          "brier_skill": 0.0,
+          "roc_auc": 0.5193831801726538,
+          "episode_recall": 0.0,
+          "episode_precision": null,
+          "false_alert_episodes_per_90_days": 0.0
+        },
+        "tail_pressure_logistic": {
+          "average_precision": 0.06055367613714866,
+          "brier_score": 0.047015743076401814,
+          "brier_skill": 0.002879945229318337,
+          "roc_auc": 0.4950153160679476,
+          "episode_recall": 0.3384615384615385,
+          "episode_precision": 0.164021164021164,
+          "false_alert_episodes_per_90_days": 5.087656529516995
+        },
+        "episode_logistic": {
+          "average_precision": 0.0732197220660722,
+          "brier_score": 0.04775903773197252,
+          "brier_skill": -0.012884008697114924,
+          "roc_auc": 0.553879142300195,
+          "episode_recall": 0.2,
+          "episode_precision": 0.25,
+          "false_alert_episodes_per_90_days": 1.4490161001788908
+        },
+        "catboost_tail": {
+          "average_precision": 0.05297013018370024,
+          "brier_score": 0.047546867085456294,
+          "brier_skill": -0.008384247705754966,
+          "roc_auc": 0.505889724310777,
+          "episode_recall": 0.27692307692307694,
+          "episode_precision": 0.16304347826086957,
+          "false_alert_episodes_per_90_days": 4.958855098389982
+        },
+        "lightgbm_tail": {
+          "average_precision": 0.0579149672333112,
+          "brier_score": 0.04774313793298482,
+          "brier_skill": -0.012546802318993855,
+          "roc_auc": 0.5200417710944027,
+          "episode_recall": 0.13846153846153847,
+          "episode_precision": 0.15053763440860216,
+          "false_alert_episodes_per_90_days": 2.5438282647584973
+        }
+      }
+    },
+    "tail_up_dynamic": {
+      "definition": "three-day return >= clip(2 * shifted trailing-30d volatility * sqrt(3), 0.10, 0.25)",
+      "positive_rows": 109,
+      "event_episodes": 55,
+      "prevalence": 0.038998211091234344,
+      "models": {
+        "expanding_climatology": {
+          "average_precision": 0.034310633909230816,
+          "brier_score": 0.037596226871374296,
+          "brier_skill": 0.0,
+          "roc_auc": 0.43235738146146857,
+          "episode_recall": 0.0,
+          "episode_precision": null,
+          "false_alert_episodes_per_90_days": 0.0
+        },
+        "tail_pressure_logistic": {
+          "average_precision": 0.0331046456718801,
+          "brier_score": 0.0386744428655376,
+          "brier_skill": -0.028678835188758356,
+          "roc_auc": 0.4309877243197825,
+          "episode_recall": 0.18181818181818182,
+          "episode_precision": 0.08661417322834646,
+          "false_alert_episodes_per_90_days": 3.735241502683363
+        },
+        "episode_logistic": {
+          "average_precision": 0.039614626295531884,
+          "brier_score": 0.043952598671787274,
+          "brier_skill": -0.16906940747430976,
+          "roc_auc": 0.4958876129710972,
+          "episode_recall": 0.2727272727272727,
+          "episode_precision": 0.17391304347826086,
+          "false_alert_episodes_per_90_days": 3.0590339892665472
+        },
+        "catboost_tail": {
+          "average_precision": 0.04653208563861819,
+          "brier_score": 0.03943721757965604,
+          "brier_skill": -0.04896743267829029,
+          "roc_auc": 0.4825804203925212,
+          "episode_recall": 0.2545454545454545,
+          "episode_precision": 0.1407035175879397,
+          "false_alert_episodes_per_90_days": 5.506261180679785
+        },
+        "lightgbm_tail": {
+          "average_precision": 0.043657420908160965,
+          "brier_score": 0.03910626124141353,
+          "brier_skill": -0.04016451904084484,
+          "roc_auc": 0.48577400998722564,
+          "episode_recall": 0.12727272727272726,
+          "episode_precision": 0.09523809523809523,
+          "false_alert_episodes_per_90_days": 3.0590339892665472
+        }
+      }
+    }
+  },
+  "winner": {
+    "model": "episode_logistic",
+    "primary_gate_checks": {
+      "average_precision_20pct_above_climatology": true,
+      "average_precision_not_below_reference": true,
+      "positive_brier_skill": false,
+      "episode_recall_at_least_35pct": false,
+      "false_alert_budget": true,
+      "bootstrap_probability_at_least_90pct": false,
+      "no_probability_inversion": true,
+      "no_gross_calendar_calibration_failure": true,
+      "dynamic_nonnegative_brier_skill": false,
+      "dynamic_recall_drop_within_10pp": true
+    },
+    "paired_baseline": "tail_pressure_logistic",
+    "paired_brier_improvement": -0.0007432946555707073,
+    "paired_brier_probability_improvement": 0.165,
+    "paired_average_precision_improvement": 0.012666045928923543,
+    "paired_average_precision_probability_improvement": 0.795
+  },
+  "known_august_2026_forensic_check": {
+    "positive_origins": [
+      "2026-08-16",
+      "2026-08-17",
+      "2026-08-18"
+    ],
+    "episode_logistic_alerted": false,
+    "catboost_tail_alerted": false,
+    "lightgbm_tail_alerted": false
+  },
+  "compute": {
+    "catboost_gate_a_runtime_seconds": 216.7348586670014,
+    "catboost_gate_b_runtime_seconds": 340.71922338900004,
+    "catboost_gate_b_peak_rss_mb": 468.33984375,
+    "lightgbm_gate_a_runtime_seconds": 96.45917039499909,
+    "lightgbm_gate_b_runtime_seconds": 198.27310020299956,
+    "lightgbm_gate_b_peak_rss_mb": 362.609375
+  }
+}
