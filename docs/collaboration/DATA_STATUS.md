@@ -1,69 +1,59 @@
-# DATA checkpoint — 2026-09-15
+# DATA checkpoint — 2026-09-16
 
-## Delivered, not promoted
-Code commit: `db61e37bab17ce89c2fd661589c72109c4ed6e23`.
-Branch: `data/release-feature-contract-20260915`, additive to main
-`e954a2534743e692a048d5b40738c4cbf3253938`. MODEL PR53 stays separate.
+## Core DATA release and merged research infrastructure
 
-Authoritative DATA research release: `eth-data-18525a7b61ee33af20467989`.
-Release SHA256: `921d8e150296ce1c9fc52ab699eb8b171870efe80ad2845f4674a2f057e7c7ef`.
-Archive SHA256: `6e40f8d8bd31788358f169849b55688cedd6346e580e55cb854592e9820176db`.
-Data cutoff: 2026-09-14 07:00 UTC; generated 2026-09-15 09:04:37.848003 UTC.
-These are pinned historical inputs, not a new live market update.
+DATA PR #54 and MODEL PR #53 are merged to `main`. The original authoritative DATA research release remains `eth-data-18525a7b61ee33af20467989` with release SHA256 `921d8e150296ce1c9fc52ab699eb8b171870efe80ad2845f4674a2f057e7c7ef`. It is a pinned historical research release, not a live-market promotion.
 
-Private Drive release (37,788,941 bytes):
-https://drive.google.com/file/d/1xK14XVNdTc4yN7v2w2Fj38TeUyIN_z9U/view?usp=drivesdk
+Original DATA verification remains valid: ETH 85,001 / BTC 84,986 hourly bars on an 85,039-hour common grid; 32 incumbent features reproduced exactly; 18 optional hourly research extensions; all six horizons reproduced archived source/target checks and metrics. The release remains `partial`, `reconstructed`, and rights-unreviewed for public redistribution. Predictive edge is not implied by data readiness.
 
-Original missing research handoff restored (1,745,003 bytes):
-https://drive.google.com/file/d/1oDIdu-PCHROi8qhy1AaMH_bsHLW7iM_M/view?usp=drivesdk
-SHA256: `802bdaeea4cbab6052e66e3a7210414967d0ca9cdcbe5fd62c0e4c500aac6faf`.
-Both remain in the existing private EtherForecast-Storage root. No sharing changes.
+## Actual free-source collection completed
 
-## Completed verification
-- 61 focused DATA tests passed locally (pytest 9.0.2).
-- Both Drive uploads downloaded again; complete SHA256 equality.
-- New DATA ZIP: 11 files, 10 manifest-pinned partitions verified, SQLite integrity OK.
-- Original handoff: all23 manifested files verified, not recreated from memory.
-- Input DB: ETH85,001 / BTC84,986 bars; common hourly grid85,039.
-  Missing38 /53; longest gaps5h /15h respectively. Missing source reasons remain unknown.
-- Incumbent32 features reproduced exactly through actual MODEL PR53 consumer.
-- New18 hourly extension columns share the same time grid; each has a receipt timestamp.
-- All6 horizons passed source/target and archived metric reproduction after Drive readback.
-- Candidate metric CSV is byte-identical to the prior MODEL delivery.
-- Source files unchanged; prospective authorization correctly rejected this research release.
+Merged PR #55 added the first free historical backfill path. Main workflow run `34958191975` completed successfully. It established:
 
-Local integration uses the actual MODEL delivery code plus a fingerprint-verified
-connector-read upstream function extract, not a full repository checkout. Full CI
-results must be verified separately on the PR, not inferred from local tests.
+- DefiLlama Ethereum chain TVL: 3,276 daily rows, 2017-09-27 through 2026-09-15.
+- DefiLlama Ethereum DEX volume: 2,875 daily rows, 2018-11-02 through 2026-09-15.
+- DefiLlama Ethereum stablecoin history: 3,213 daily rows / 2 columns, 2017-11-29 through 2026-09-15.
+- Direct Bybit backfill: HTTP error on the GitHub runner; do not treat Bybit as available there.
+- First monolithic FRED initial-release request: HTTP error; replaced by per-series collection below.
 
-## Important remaining limits
-quality=partial; vintage=reconstructed; rights=unreviewed_no_public_redistribution.
-This delivery verifies **its own** archive, not all original ef1 Drive archives.
-The original separately backed-up SQLite comparison remains open. Original historical
-publication/receipt vintages, live latency SLA and source rights are not invented.
+Merged PR #58 added resilient free-source fallbacks. Main workflow run `34990686756` completed successfully and pushed data commit `e275d960c3605dd6795746fb27eb6185a82a41e7` to `data/daily-forecast`.
 
-The upstream float rolling timestamp differs from an exact receipt maximum by up to
-128ns in either direction. Exact sidecar supplied; original formulas are unchanged.
-This tiny precision issue is not evidence explaining poor investment predictions.
+Actual fallback collection at 2026-09-15 UTC:
 
-No model training, performance improvement claim, promotion, production change,
-merge, site deployment, paid API use, source deletion or new continuous collector.
-Funding/OI/basis and macro/onchain genuine-history acquisition remain open.
-See `requests/eth_data_responses_20260915.jsonl` for per-request acceptance status.
+- Bitget mark/index basis history: 2,593 daily rows, 2019-08-10 through 2026-09-14. This is a free historical mark-versus-index basis proxy, not exchange-wide basis.
+- Bitget funding history: 91 daily aggregates, 2026-06-17 through 2026-09-15. Do not infer that older funding is unavailable everywhere; this is what the tested public endpoint returned through this collector.
+- Bitget OI: one daily ETH-unit snapshot on 2026-09-15. Historical OI is **not synthesized**; it accumulates prospectively from scheduled runs.
+- Combined Bitget research frame: 2,594 daily rows / 17 columns, 2019-08-10 through 2026-09-15.
+- FRED current-vintage history: 12,636 long-form observations across all ten requested series with no series-level errors. This is latest revised history and is **not** safe historical PIT evidence by itself.
+- FRED/ALFRED initial-release history: 6,369 long-form observations and a 3,545-day as-of state from 2017-01-01 through 2026-09-15 for the successfully reconstructed series. Date-only releases become eligible the next UTC day by policy.
+- Initial-release collection remains partial: `DFF`, `RRPONTSYD`, and `T10Y2Y` returned HTTP 400 on this route and are not silently replaced with revised historical values.
 
-## MODEL continuation
-Review the additive DATA commit on the MODEL branch without merging production.
-Restore the private release ZIP into a fresh directory and verify its SHA256.
-Use existing `model_lab.contracts.PinnedRelease/load_bars/consume_features` unchanged.
-Use `data_lab.release.load_feature_snapshot(..., family="extensions")` for optional
-new columns. Exclude `__available_at` columns from predictors. Historical receipt
-timestamps must not be moved into the past. Evaluate added features on matched
-origins using the existing target spec; keep original daily pilot separate.
+The successful initial-release as-of series are CPI, unemployment, M2, Fed balance sheet, TGA, SOFR, and HY OAS. HY OAS has PIT coverage in the constructed 2017+ table only from 2023-09-20; SOFR begins 2019-04-02; the other successful series have a carried PIT state from the 2017 research start after prior releases.
 
-```bash
-python -m data_lab verify --root RESTORED_DATA_RELEASE --sha256 921d8e150296ce1c9fc52ab699eb8b171870efe80ad2845f4674a2f057e7c7ef
-python -m model_lab.reproduce --release RESTORED_DATA_RELEASE/release.json --release-sha256 921d8e150296ce1c9fc52ab699eb8b171870efe80ad2845f4674a2f057e7c7ef --input-root RESTORED_DATA_RELEASE --output NEW_MODEL_OUTPUT
-```
+## Durable storage
 
-Return acceptance or precise additional DATA requests; do not mark predictive edge
-from data readiness. This shared document is not automatic cross-chat delivery.
+The new free-source fallback artifact contains five files and has SHA256 `5fc865a248fe202418c8e4d69bf15fd74a7600f25948ea175a0db101d4254ea6`. It is stored in the existing private Drive root as `DATA-free-source-fallback-state-20260916-5fc865a248fe.zip`, Drive file ID `1tdQ2LumbicpO9cVE7oIoPyrh7wXnzW7C`. The GitHub artifact and Drive re-download are both 280,090 bytes and their full SHA256 hashes match.
+
+`data/daily-forecast` is the hot research cache; Drive remains the durable copy. Historical backfills remain reconstructed research unless an original historical receipt/vintage is available.
+
+## Current readiness and next DATA work
+
+Available/useful now for feature research:
+
+1. Long ETH/BTC price and volume history.
+2. Long DefiLlama TVL, DEX volume and stablecoin history.
+3. Bitget mark/index basis back to 2019-08-10.
+4. Partial but causally safer FRED/ALFRED initial-release macro state for seven series.
+5. Short Bitget funding history and a prospectively accumulating OI snapshot series.
+6. Existing short Deribit funding/IV/options/futures snapshot caches.
+
+Still open:
+
+- Acquire or reconstruct PIT-safe `DFF`, `RRPONTSYD`, and `T10Y2Y` release histories without substituting revised hindsight values.
+- Find additional free historical OI/funding/liquidation sources; keep exchange/contract/unit identities separate.
+- Integrate validated Bitget research columns into the gold feature set only after coverage/unit/availability review.
+- Continue prospectively accumulating OI/options snapshots in Drive.
+- Add release-lag metadata and feature-family ablation evidence before MODEL promotion.
+- Review source licensing for any future commercial/public use.
+
+MODEL should treat these additions as research candidates and run matched-origin ablations by horizon. No new source is promoted solely because it has longer history.
