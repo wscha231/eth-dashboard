@@ -4,7 +4,10 @@ on:
     branches: [main]
     paths:
       - data_lab/free_source_fallbacks.py
+      - data_lab/market_research_sources.py
       - scripts/collect_free_source_fallbacks.py
+      - tests/test_free_source_fallbacks.py
+      - tests/test_market_research_sources.py
       - .github/workflows/free_source_backfill.yml
   schedule:
     - cron: "10 1 * * *"
@@ -33,8 +36,8 @@ jobs:
           if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
             python scripts/daily_source_state.py restore origin/data/daily-forecast
           fi
-      - name: Test fallback parsers
-        run: python -m pytest tests/test_free_source_fallbacks.py -q
+      - name: Test free-source parsers
+        run: python -m pytest tests/test_free_source_fallbacks.py tests/test_market_research_sources.py -q
       - name: Collect free fallback sources
         run: python scripts/collect_free_source_fallbacks.py --output-dir lake/raw/vendor --start-date 2017-01-01
       - name: Persist research caches
@@ -45,6 +48,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/daily-data/lake/raw/vendor" "$RUNNER_TEMP/daily-data/lake/reports"
           for f in \
             bitget_eth_free_features.csv \
+            deribit_eth_dvol_daily.csv \
+            hyperliquid_eth_free_features.csv \
             fred_current_vintage_long.csv \
             fred_initial_release_long.csv \
             fred_initial_asof_daily.csv; do
@@ -59,7 +64,7 @@ jobs:
       - name: Package collection receipt
         run: |
           mkdir -p free-source-state/lake/raw/vendor free-source-state/lake/reports
-          for f in bitget_eth_free_features.csv fred_current_vintage_long.csv fred_initial_release_long.csv fred_initial_asof_daily.csv; do
+          for f in bitget_eth_free_features.csv deribit_eth_dvol_daily.csv hyperliquid_eth_free_features.csv fred_current_vintage_long.csv fred_initial_release_long.csv fred_initial_asof_daily.csv; do
             if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" free-source-state/lake/raw/vendor/; fi
           done
           cp lake/reports/free_source_fallbacks.json free-source-state/lake/reports/

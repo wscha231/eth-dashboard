@@ -18,6 +18,12 @@ from data_lab.free_source_fallbacks import (
     collect_fred_current_long,
     collect_fred_initial_partial,
 )
+from data_lab.market_research_sources import (
+    build_hyperliquid_features,
+    collect_deribit_eth_dvol,
+    collect_hyperliquid_eth_funding,
+    collect_hyperliquid_eth_snapshot,
+)
 from scripts.collect_free_research_sources import append_long, load_csv, save_history
 
 
@@ -37,7 +43,7 @@ def main() -> None:
     start = utc(args.start_date).floor("D")
     end = utc(args.end_date or datetime.now(timezone.utc)).floor("D")
     report: dict = {
-        "schema": 1,
+        "schema": 2,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "requested_start": start.isoformat(),
         "requested_end": end.isoformat(),
@@ -70,6 +76,50 @@ def main() -> None:
         "status": "ok" if not merged_features.empty else "empty",
         "note": "OI is a daily snapshot accumulated prospectively; historical OI is not synthesized",
         **coverage(merged_features).__dict__,
+    }
+
+    try:
+        dvol = collect_deribit_eth_dvol(start, end + pd.Timedelta(days=1))
+        dvol_merged = save_history(out / "deribit_eth_dvol_daily.csv", dvol)
+        report["sources"]["deribit_eth_dvol"] = {
+            "status": "ok" if not dvol_merged.empty else "empty",
+            "note": "Deribit volatility-index history in native DVOL units; reconstructed research backfill",
+            **coverage(dvol_merged).__dict__,
+        }
+    except Exception as exc:
+        cached = load_csv(out / "deribit_eth_dvol_daily.csv")
+        report["sources"]["deribit_eth_dvol"] = {
+            "status": "warning_cached" if not cached.empty else "error",
+            "error": error_name(exc),
+            **coverage(cached).__dict__,
+        }
+
+    hyper_parts = {}
+    for name, fn in (
+        ("funding", lambda: collect_hyperliquid_eth_funding(start, end + pd.Timedelta(days=1))),
+        ("snapshot", lambda: collect_hyperliquid_eth_snapshot(end)),
+    ):
+        try:
+            frame = fn()
+            hyper_parts[name] = frame
+            report["sources"][f"hyperliquid_{name}"] = {
+                "status": "ok" if not frame.empty else "empty",
+                **coverage(frame).__dict__,
+            }
+        except Exception as exc:
+            hyper_parts[name] = pd.DataFrame()
+            report["sources"][f"hyperliquid_{name}"] = {"status": "error", "error": error_name(exc)}
+
+    hyper_features = build_hyperliquid_features(
+        hyper_parts.get("funding", pd.DataFrame()),
+        hyper_parts.get("snapshot", pd.DataFrame()),
+    )
+    hyper_path = out / "hyperliquid_eth_free_features.csv"
+    hyper_merged = save_history(hyper_path, hyper_features)
+    report["sources"]["hyperliquid_features"] = {
+        "status": "ok" if not hyper_merged.empty else "empty",
+        "note": "Funding is historical; OI/premium/mark context snapshots accumulate prospectively and are never backfilled synthetically",
+        **coverage(hyper_merged).__dict__,
     }
 
     fred_key = os.getenv("FRED_API_KEY", "").strip()
