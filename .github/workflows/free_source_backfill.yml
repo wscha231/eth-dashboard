@@ -9,6 +9,7 @@ on:
       - scripts/persist_data_branch_overlay.py
       - tests/test_free_source_fallbacks.py
       - tests/test_market_research_sources.py
+      - tests/test_incremental_reconciliation.py
       - tests/test_persist_data_branch_overlay.py
       - config/data_source_registry.json
       - .github/workflows/free_source_backfill.yml
@@ -40,9 +41,9 @@ jobs:
           if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
             python scripts/daily_source_state.py restore origin/data/daily-forecast
           fi
-      - name: Test free-source parsers and branch persistence
-        run: python -m pytest tests/test_free_source_fallbacks.py tests/test_market_research_sources.py tests/test_persist_data_branch_overlay.py -q
-      - name: Collect free fallback sources
+      - name: Test incremental source refresh and branch persistence
+        run: python -m pytest tests/test_free_source_fallbacks.py tests/test_market_research_sources.py tests/test_incremental_reconciliation.py tests/test_persist_data_branch_overlay.py -q
+      - name: Collect incremental free research sources
         run: python scripts/collect_free_source_fallbacks.py --output-dir lake/raw/vendor --start-date 2017-01-01
       - name: Persist research caches with retryable overlay
         run: |
