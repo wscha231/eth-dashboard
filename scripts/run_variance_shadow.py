@@ -7,14 +7,18 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from signal_pipeline.variance_shadow import run
+from signal_pipeline import variance_shadow
+from signal_pipeline.variance_shadow_refit import fit_checkpoint
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("lake/signals"))
     args = parser.parse_args()
-    result = run(args.root)
+    # Operational refits may use a source snapshot at most one completed hour behind
+    # wall time. The issuance path itself remains strict and still requires current-slot data.
+    variance_shadow.fit_checkpoint = fit_checkpoint
+    result = variance_shadow.run(args.root)
     print(json.dumps({
         "generated_at": result["generated_at"],
         "source_as_of": result["source_as_of"],
