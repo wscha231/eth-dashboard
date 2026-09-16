@@ -10,6 +10,9 @@ from pathlib import Path
 import pandas as pd
 
 
+SUPPLEMENT_NAME = "data_source_registry_existing_supplement.json"
+
+
 def _utc(value) -> pd.Timestamp:
     stamp = pd.Timestamp(value)
     if stamp.tzinfo is None:
@@ -18,9 +21,19 @@ def _utc(value) -> pd.Timestamp:
 
 
 def load_registry(path: str | Path) -> dict:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    registry_path = Path(path)
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
     if data.get("schema") != 1 or not isinstance(data.get("sources"), list):
         raise ValueError("invalid data source registry")
+
+    supplement_path = registry_path.with_name(SUPPLEMENT_NAME)
+    if supplement_path.exists():
+        supplement = json.loads(supplement_path.read_text(encoding="utf-8"))
+        if supplement.get("schema") != 1 or not isinstance(supplement.get("sources"), list):
+            raise ValueError("invalid data source registry supplement")
+        data["sources"] = [*data["sources"], *supplement["sources"]]
+        data["supplement"] = supplement_path.name
+
     ids = [str(row.get("id", "")) for row in data["sources"]]
     if any(not source_id for source_id in ids) or len(ids) != len(set(ids)):
         raise ValueError("registry source ids must be non-empty and unique")
@@ -134,6 +147,7 @@ def evaluate(registry: dict, root: Path, now: pd.Timestamp) -> dict:
         "counts": counts,
         "unregistered_files": unregistered,
         "policy": registry.get("policy", {}),
+        "registry_supplement": registry.get("supplement"),
         "sources": rows,
     }
 
