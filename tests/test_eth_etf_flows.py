@@ -1,5 +1,4 @@
 import gzip
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -20,6 +19,7 @@ from data_lab.eth_etf_flows import (
     sha256,
     validation_report,
 )
+from scripts.daily_source_state import allowed as public_daily_cache_allowed
 
 
 HTML = b"""<!doctype html><html><body>
@@ -129,3 +129,14 @@ def test_row_digest_changes_on_numeric_correction():
     before = row_digest(row)
     row["etha_usd_m"] += 0.1
     assert row_digest(row) != before
+
+
+def test_rights_unreviewed_etf_rows_are_drive_only_not_public_git_cache():
+    for name in (
+        "lake/raw/vendor/eth_etf_farside_daily.csv",
+        "lake/raw/vendor/eth_etf_farside_versions.csv",
+        "lake/raw/vendor/eth_etf_farside_fetch_receipts.csv",
+        "lake/raw/vendor/eth_etf_farside_daily.availability.csv",
+    ):
+        assert public_daily_cache_allowed(name) is False
+    assert public_daily_cache_allowed("lake/raw/vendor/bitget_eth_free_features.csv") is True
