@@ -2,13 +2,14 @@ name: Daily ETH market data
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/daily_forecast.yml", "eth_data_collector.py", "scripts/daily_source_state.py", "scripts/collect_free_research_sources.py", "scripts/materialize_pit_manual_features.py", "data_lab/free_sources.py"]
+    paths: [".github/workflows/daily_forecast.yml", "eth_data_collector.py", "scripts/daily_source_state.py", "scripts/collect_free_research_sources.py", "scripts/collect_eth_etf_flows.py", "scripts/materialize_pit_manual_features.py", "data_lab/free_sources.py", "data_lab/eth_etf_flows.py", "data_lab/eth_etf_farside_parser.py", "config/data_source_registry.json"]
   schedule:
     - cron: "37 0 * * *"
     - cron: "37 2 * * *"
   workflow_dispatch:
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: daily-forecast
   cancel-in-progress: false
@@ -58,6 +59,35 @@ jobs:
           git show origin/data/daily-forecast:lake/gold/eth_master_daily.availability.json > lake/gold/eth_master_daily.availability.json || rm -f lake/gold/eth_master_daily.availability.json
           python scripts/daily_source_state.py restore origin/data/daily-forecast
           git show origin/data/daily-forecast:forecast_site/public/donations.json > forecast_site/public/donations.json || true
+      - name: Restore private research-only ETF receipts from Drive
+        id: etf_restore
+        continue-on-error: true
+        env:
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          rm -rf drive-private-research
+          python scripts/gdrive_store.py restore --stream daily-data --target drive-private-research
+          source_dir="drive-private-research/lake/raw/vendor"
+          target_dir="lake/raw/vendor"
+          mkdir -p "$target_dir"
+          if [ -d "$source_dir" ]; then
+            for f in "$source_dir"/eth_etf_farside_*.csv; do
+              if [ -f "$f" ]; then cp -a "$f" "$target_dir/"; fi
+            done
+            if [ -d "$source_dir/receipts/eth_etf_farside" ]; then
+              mkdir -p "$target_dir/receipts"
+              cp -a "$source_dir/receipts/eth_etf_farside" "$target_dir/receipts/"
+            fi
+          fi
+      - name: Refresh private ETH ETF flow research source
+        id: etf_flow
+        continue-on-error: true
+        run: python scripts/collect_eth_etf_flows.py --output-dir lake/raw/vendor --report lake/reports/eth_etf_flows.json
       - name: Backfill and refresh free research sources
         id: free_sources
         continue-on-error: true
@@ -110,6 +140,7 @@ jobs:
           cp lake/reports/collector_summary.json lake/reports/collector_data_quality_audit.json "$RUNNER_TEMP/market-site/lake/reports/"
           if [ -f lake/reports/free_source_backfill.json ]; then cp lake/reports/free_source_backfill.json "$RUNNER_TEMP/market-site/lake/reports/"; fi
           if [ -f lake/reports/pit_manual_feature_receipt.json ]; then cp lake/reports/pit_manual_feature_receipt.json "$RUNNER_TEMP/market-site/lake/reports/"; fi
+          if [ -f lake/reports/eth_etf_flows.json ]; then cp lake/reports/eth_etf_flows.json "$RUNNER_TEMP/market-site/lake/reports/"; fi
           python scripts/daily_source_state.py persist "$RUNNER_TEMP/market-site"
           for report in collector_source_status.csv collector_learning_exclusion_report.csv; do
             if [ -f "lake/reports/$report" ]; then cp "lake/reports/$report" "$RUNNER_TEMP/market-site/lake/reports/"; fi
