@@ -1,0 +1,73 @@
+name: ETH ETF flow research source
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - data_lab/eth_etf_flows.py
+      - scripts/collect_eth_etf_flows.py
+      - scripts/daily_source_state.py
+      - tests/test_eth_etf_flows.py
+      - config/data_source_registry.json
+      - .github/workflows/eth_etf_flow_research.yml
+      - .github/workflows/daily_forecast.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eth-etf-flow-research-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-runtime.txt
+      - run: python -m pip install -r requirements-runtime.txt pytest
+      - name: Validate parser, PIT versions and public/private boundary
+        run: |
+          python -m pytest tests/test_eth_etf_flows.py tests/test_system_storage.py -q
+          git diff --check
+      - name: Fetch and validate current Farside research table
+        run: |
+          rm -rf lake/raw/vendor/receipts/eth_etf_farside \
+                 lake/raw/vendor/eth_etf_farside_*.csv \
+                 lake/reports/eth_etf_flows.json
+          python scripts/collect_eth_etf_flows.py
+          python - <<'PY'
+          import json, pathlib, pandas as pd
+          report=json.loads(pathlib.Path('lake/reports/eth_etf_flows.json').read_text())
+          frame=pd.read_csv('lake/raw/vendor/eth_etf_farside_daily.csv')
+          assert report['rights_status']=='unreviewed_no_public_redistribution'
+          assert report['production_use_approved'] is False
+          assert report['public_redistribution_approved'] is False
+          assert report['model_consumer_enabled'] is False
+          assert report['validation']['first_date']=='2024-07-23'
+          assert len(frame)==report['validation']['rows'] >= 400
+          assert frame['date'].is_unique
+          assert pathlib.Path(report['storage']['raw_receipts']).is_dir()
+          print(json.dumps({'rows':len(frame),'first':frame.date.iloc[0],'last':frame.date.iloc[-1],
+                            'raw_sha256':report['raw_sha256'],'rights':report['rights_status']},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eth-etf-flow-research-${{ github.run_id }}
+          path: |
+            lake/reports/eth_etf_flows.json
+            lake/raw/vendor/eth_etf_farside_daily.csv
+            lake/raw/vendor/eth_etf_farside_daily.availability.csv
+            lake/raw/vendor/eth_etf_farside_versions.csv
+            lake/raw/vendor/eth_etf_farside_fetch_receipts.csv
+          retention-days: 7
+          if-no-files-found: error
