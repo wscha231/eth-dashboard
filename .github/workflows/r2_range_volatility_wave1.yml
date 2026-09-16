@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "research/model/r2_range_volatility_wave1.py"
+      - "scripts/run_r2_range_volatility_wave1.py"
       - "tests/test_r2_range_volatility_wave1.py"
       - ".github/workflows/r2_range_volatility_wave1.yml"
   workflow_dispatch:
@@ -67,7 +68,7 @@ jobs:
       - name: Run frozen 6h 24h 72h R2 gate
         run: |
           rm -rf research/results/r2_range_volatility_wave1
-          python research/model/r2_range_volatility_wave1.py \
+          python scripts/run_r2_range_volatility_wave1.py \
             --root lake/signals \
             --output research/results/r2_range_volatility_wave1
           cat research/results/r2_range_volatility_wave1/REPORT.md >> "$GITHUB_STEP_SUMMARY"
