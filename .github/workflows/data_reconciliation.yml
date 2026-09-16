@@ -1,0 +1,65 @@
+name: DATA weekly monthly reconciliation
+on:
+  schedule:
+    - cron: "37 4 * * 0"
+    - cron: "53 4 1 * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: data-reconciliation
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-runtime.txt
+      - run: python -m pip install -r requirements-runtime.txt pytest
+      - name: Restore accumulated hot research caches
+        run: |
+          if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
+            python scripts/daily_source_state.py restore origin/data/daily-forecast
+          fi
+      - name: Test full-reconciliation and retry-safe persistence
+        run: python -m pytest tests/test_incremental_reconciliation.py tests/test_free_source_fallbacks.py tests/test_market_research_sources.py tests/test_data_refresh_status.py tests/test_persist_data_branch_overlay.py -q
+      - name: Reconcile full free historical sources
+        run: python scripts/collect_free_source_fallbacks.py --output-dir lake/raw/vendor --start-date 2017-01-01 --full-reconcile
+      - name: Audit reconciled source freshness and registry coverage
+        run: python scripts/data_refresh_status.py --fail-on-critical-stale
+      - name: Persist reconciled sources and audit with retryable overlay
+        run: |
+          python scripts/persist_data_branch_overlay.py \
+            --message "chore(data): reconcile free research history" \
+            --file lake/raw/vendor/bitget_eth_free_features.csv \
+            --file lake/raw/vendor/deribit_eth_dvol_daily.csv \
+            --file lake/raw/vendor/hyperliquid_eth_free_features.csv \
+            --file lake/raw/vendor/fred_current_vintage_long.csv \
+            --file lake/raw/vendor/fred_initial_release_long.csv \
+            --file lake/raw/vendor/fred_initial_asof_daily.csv \
+            --file lake/reports/free_source_fallbacks.json \
+            --file lake/reports/data_refresh_status.json \
+            --file lake/reports/data_refresh_status.csv
+      - name: Package reconciliation receipt
+        run: |
+          mkdir -p reconciliation-state/lake/raw/vendor reconciliation-state/lake/reports
+          for f in bitget_eth_free_features.csv deribit_eth_dvol_daily.csv hyperliquid_eth_free_features.csv fred_current_vintage_long.csv fred_initial_release_long.csv fred_initial_asof_daily.csv; do
+            if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" reconciliation-state/lake/raw/vendor/; fi
+          done
+          for f in free_source_fallbacks.json data_refresh_status.json data_refresh_status.csv; do
+            if [ -s "lake/reports/$f" ]; then cp "lake/reports/$f" reconciliation-state/lake/reports/; fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: data-reconciliation-state
+          path: reconciliation-state/
+          compression-level: 9
+          retention-days: 30
+          if-no-files-found: error
