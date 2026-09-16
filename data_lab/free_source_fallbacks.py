@@ -158,8 +158,14 @@ def collect_fred_current_long(api_key: str, start: Any, end: Any, series: dict[s
     return pd.DataFrame(rows), errors
 
 
-def collect_fred_initial_partial(api_key: str, series: dict[str, str] | None = None, get_json: Callable[..., Any] = request_json) -> tuple[pd.DataFrame, dict[str, Any]]:
+def collect_fred_initial_partial(
+    api_key: str,
+    series: dict[str, str] | None = None,
+    get_json: Callable[..., Any] = request_json,
+    realtime_start: Any | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     series = series or DEFAULT_FRED_INITIAL_SERIES
+    realtime = utc(realtime_start).date().isoformat() if realtime_start is not None else "1776-07-04"
     rows: list[dict[str, Any]] = []
     errors: dict[str, Any] = {}
     for series_id, alias in series.items():
@@ -169,7 +175,7 @@ def collect_fred_initial_partial(api_key: str, series: dict[str, str] | None = N
                 "api_key": api_key,
                 "file_type": "json",
                 "output_type": 4,
-                "realtime_start": "1776-07-04",
+                "realtime_start": realtime,
                 "limit": 100000,
                 "sort_order": "asc",
             })

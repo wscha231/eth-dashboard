@@ -134,8 +134,14 @@ def collect_hyperliquid_eth_funding(
     *,
     post_json: Callable[..., Any] = request_json_post,
     max_pages: int = 200,
+    page_sleep_seconds: float = 0.35,
 ) -> pd.DataFrame:
-    """Collect ETH perpetual funding history from Hyperliquid's public info API."""
+    """Collect ETH perpetual funding history from Hyperliquid's public info API.
+
+    Routine incremental refreshes normally need only a few pages. Full historical
+    reconciliation is deliberately paced between pages to reduce public API rate
+    pressure without changing source values.
+    """
     start_t, end_t = utc(start), utc(end)
     if start_t > end_t:
         raise ValueError("start must not exceed end")
@@ -162,6 +168,8 @@ def collect_hyperliquid_eth_funding(
         if last_time >= end_ms or len(batch) < 500:
             break
         cursor = last_time + 1
+        if page_sleep_seconds > 0:
+            time.sleep(float(page_sleep_seconds))
     else:
         raise ValueError("Hyperliquid funding pagination exceeded safety limit")
 
