@@ -2,7 +2,7 @@ name: Daily ETH market data
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/daily_forecast.yml", "eth_data_collector.py", "scripts/daily_source_state.py", "scripts/collect_free_research_sources.py", "data_lab/free_sources.py"]
+    paths: [".github/workflows/daily_forecast.yml", "eth_data_collector.py", "scripts/daily_source_state.py", "scripts/collect_free_research_sources.py", "scripts/materialize_pit_manual_features.py", "data_lab/free_sources.py"]
   schedule:
     - cron: "37 0 * * *"
     - cron: "37 2 * * *"
@@ -62,12 +62,33 @@ jobs:
         id: free_sources
         continue-on-error: true
         run: python scripts/collect_free_research_sources.py --output-dir lake/raw/vendor --start-date 2017-01-01
+      - name: Materialize PIT-safe daily manual features
+        id: pit_manual
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw="lake/raw/vendor/bybit_eth_free_features.csv"
+          sidecar="lake/raw/vendor/bybit_eth_free_features.availability.csv"
+          safe="lake/gold/pit_manual/bybit_eth_free_features.csv"
+          receipt="lake/reports/pit_manual_feature_receipt.json"
+          rm -f "$safe" "$receipt"
+          if [ -s "$raw" ]; then
+            if [ ! -s "$sidecar" ]; then
+              echo "::warning::Bybit event-date features exist without an availability sidecar; excluding them from the model-facing daily master"
+            else
+              python scripts/materialize_pit_manual_features.py \
+                --input "$raw" \
+                --availability "$sidecar" \
+                --output "$safe" \
+                --receipt "$receipt"
+            fi
+          fi
       - name: Incremental market collection
         id: collection
         shell: bash
         run: |
           extras=()
-          for f in lake/raw/vendor/bybit_eth_free_features.csv lake/raw/vendor/fred_initial_asof_daily.csv; do
+          for f in lake/gold/pit_manual/bybit_eth_free_features.csv lake/raw/vendor/fred_initial_asof_daily.csv; do
             if [ -s "$f" ]; then extras+=("$f"); fi
           done
           python eth_data_collector.py --manual-features-csv "${extras[@]}"
@@ -88,6 +109,7 @@ jobs:
           cp lake/gold/eth_master_daily.csv lake/gold/eth_provisional_daily.csv lake/gold/eth_master_daily.availability.json "$RUNNER_TEMP/market-site/lake/gold/"
           cp lake/reports/collector_summary.json lake/reports/collector_data_quality_audit.json "$RUNNER_TEMP/market-site/lake/reports/"
           if [ -f lake/reports/free_source_backfill.json ]; then cp lake/reports/free_source_backfill.json "$RUNNER_TEMP/market-site/lake/reports/"; fi
+          if [ -f lake/reports/pit_manual_feature_receipt.json ]; then cp lake/reports/pit_manual_feature_receipt.json "$RUNNER_TEMP/market-site/lake/reports/"; fi
           python scripts/daily_source_state.py persist "$RUNNER_TEMP/market-site"
           for report in collector_source_status.csv collector_learning_exclusion_report.csv; do
             if [ -f "lake/reports/$report" ]; then cp "lake/reports/$report" "$RUNNER_TEMP/market-site/lake/reports/"; fi
@@ -95,6 +117,7 @@ jobs:
           for report in eth_master_schema.csv external_feature_summary.csv; do
             if [ -f "lake/gold/$report" ]; then cp "lake/gold/$report" "$RUNNER_TEMP/market-site/lake/gold/"; fi
           done
+          if [ -d lake/gold/pit_manual ]; then cp -a lake/gold/pit_manual "$RUNNER_TEMP/market-site/lake/gold/"; fi
           cp forecast_site/predictions.db "$RUNNER_TEMP/market-site/forecast_site/predictions.db"
           cp forecast_site/public/latest.json forecast_site/public/accuracy.json forecast_site/public/history.json forecast_site/public/issued_history.json forecast_site/public/health.json "$RUNNER_TEMP/market-site/forecast_site/public/"
           if [ -s forecast_site/public/donations.json ]; then cp forecast_site/public/donations.json "$RUNNER_TEMP/market-site/forecast_site/public/"; fi
