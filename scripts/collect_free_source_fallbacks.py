@@ -24,7 +24,7 @@ from data_lab.market_research_sources import (
     collect_hyperliquid_eth_funding,
     collect_hyperliquid_eth_snapshot,
 )
-from scripts.collect_free_research_sources import append_long, load_csv, save_history
+from scripts.collect_free_research_sources import append_long, load_csv
 
 ROLLING_WARMUP_DAYS = 30
 DERIVATIVE_OVERLAP_DAYS = 60
@@ -34,6 +34,32 @@ FRED_OVERLAP_DAYS = 180
 def error_name(exc: Exception) -> str:
     code = getattr(exc, "code", None)
     return f"HTTP {code}" if code is not None else type(exc).__name__
+
+
+def save_feature_history(path: Path, new: pd.DataFrame) -> pd.DataFrame:
+    """Merge feature rows without allowing partial-source NaNs to erase cache.
+
+    New non-null values win. When one source in a combined feature frame fails,
+    old non-null values for the same date/column remain intact.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    old = load_csv(path)
+    if (new is None or new.empty) and old.empty:
+        return pd.DataFrame()
+    if new is None or new.empty:
+        return old
+    new = new.copy()
+    new.index = pd.to_datetime(new.index, utc=True)
+    new = new[~new.index.duplicated(keep="last")].sort_index()
+    if old.empty:
+        merged = new
+    else:
+        old.index = pd.to_datetime(old.index, utc=True)
+        old = old[~old.index.duplicated(keep="last")].sort_index()
+        merged = new.combine_first(old).sort_index()
+    merged.index.name = "date"
+    merged.to_csv(path, index_label="date")
+    return merged
 
 
 def cached_tail_start(
@@ -150,7 +176,7 @@ def main() -> None:
     bitget_update = trim_incremental_warmup(
         bitget_features, bitget_start, start, full_reconcile=args.full_reconcile
     )
-    merged_features = save_history(bitget_path, bitget_update)
+    merged_features = save_feature_history(bitget_path, bitget_update)
     report["sources"]["bitget_features"] = {
         "status": "ok" if not merged_features.empty else "empty",
         "fetch_start": bitget_start.isoformat(),
@@ -170,7 +196,7 @@ def main() -> None:
         dvol_update = trim_incremental_warmup(
             dvol, dvol_start, start, full_reconcile=args.full_reconcile
         )
-        dvol_merged = save_history(dvol_path, dvol_update)
+        dvol_merged = save_feature_history(dvol_path, dvol_update)
         report["sources"]["deribit_eth_dvol"] = {
             "status": "ok" if not dvol_merged.empty else "empty",
             "fetch_start": dvol_start.isoformat(),
@@ -221,7 +247,7 @@ def main() -> None:
     hyper_update = trim_incremental_warmup(
         hyper_features, hyper_start, start, full_reconcile=args.full_reconcile
     )
-    hyper_merged = save_history(hyper_path, hyper_update)
+    hyper_merged = save_feature_history(hyper_path, hyper_update)
     report["sources"]["hyperliquid_features"] = {
         "status": "ok" if not hyper_merged.empty else "empty",
         "fetch_start": hyper_start.isoformat(),
