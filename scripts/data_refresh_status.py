@@ -6,7 +6,6 @@ import argparse
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-import sys
 
 import pandas as pd
 
@@ -25,6 +24,9 @@ def load_registry(path: str | Path) -> dict:
     ids = [str(row.get("id", "")) for row in data["sources"]]
     if any(not source_id for source_id in ids) or len(ids) != len(set(ids)):
         raise ValueError("registry source ids must be non-empty and unique")
+    paths = [str(row["path"]) for row in data["sources"] if row.get("path")]
+    if len(paths) != len(set(paths)):
+        raise ValueError("registry file paths must be unique")
     return data
 
 
@@ -50,6 +52,21 @@ def latest_timestamp(path: Path, configured_column: str | None) -> pd.Timestamp 
         if not parsed.empty:
             return _utc(parsed.max())
     return None
+
+
+def discover_unregistered_files(root: Path, registry: dict) -> list[str]:
+    registered = {str(row["path"]) for row in registry["sources"] if row.get("path")}
+    discovered: set[str] = set()
+    for relative_dir in ("lake/raw/market", "lake/raw/vendor"):
+        folder = root / relative_dir
+        if not folder.exists():
+            continue
+        for path in folder.glob("*.csv"):
+            if path.is_file() and not path.is_symlink():
+                relative = path.relative_to(root).as_posix()
+                if relative not in registered:
+                    discovered.add(relative)
+    return sorted(discovered)
 
 
 def evaluate_source(root: Path, source: dict, now: pd.Timestamp) -> dict:
@@ -108,12 +125,14 @@ def evaluate(registry: dict, root: Path, now: pd.Timestamp) -> dict:
     for row in rows:
         counts[row["status"]] = counts.get(row["status"], 0) + 1
     hard_failures = [row["id"] for row in rows if row.get("hard_failure")]
+    unregistered = discover_unregistered_files(root, registry)
     return {
         "schema": 1,
         "generated_at_utc": now.isoformat(),
         "status": "failure" if hard_failures else "ok",
         "hard_failures": hard_failures,
         "counts": counts,
+        "unregistered_files": unregistered,
         "policy": registry.get("policy", {}),
         "sources": rows,
     }
@@ -140,7 +159,12 @@ def main() -> None:
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     pd.DataFrame(report["sources"]).to_csv(csv_path, index=False)
-    print(json.dumps({"status": report["status"], "counts": report["counts"], "hard_failures": report["hard_failures"]}, sort_keys=True))
+    print(json.dumps({
+        "status": report["status"],
+        "counts": report["counts"],
+        "hard_failures": report["hard_failures"],
+        "unregistered_files": report["unregistered_files"],
+    }, sort_keys=True))
 
     if args.fail_on_critical_stale and report["hard_failures"]:
         raise SystemExit(2)
