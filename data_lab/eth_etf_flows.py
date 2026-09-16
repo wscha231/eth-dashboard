@@ -134,9 +134,12 @@ def parse_farside_html(raw: bytes) -> pd.DataFrame:
         if not cells:
             continue
         try:
-            date = pd.to_datetime(cells[0], format="%d %b %Y", utc=True, errors="raise").floor("D")
+            date = pd.to_datetime(cells[0], format="%d %b %Y", utc=True, errors="raise")
         except (ValueError, TypeError):
             continue
+        if pd.isna(date):
+            continue
+        date = date.floor("D")
         expected = len(TICKERS) + 2
         if len(cells) != expected:
             raise ValueError(f"dated ETF row has {len(cells)} cells; expected {expected}")
