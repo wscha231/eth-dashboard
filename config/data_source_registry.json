@@ -269,17 +269,23 @@
     {
       "id": "eth_etf_flows",
       "family": "institutional_flows",
-      "state": "planned",
+      "state": "active",
       "critical": false,
-      "path": null,
-      "timestamp_column": null,
+      "path": "lake/raw/vendor/eth_etf_farside_daily.csv",
+      "timestamp_column": "date",
       "cadence_minutes": 1440,
       "soft_stale_hours": 72,
       "hard_stale_hours": 168,
-      "workflow": null,
-      "pit_status": "not_collected",
+      "workflow": "daily_forecast.yml",
+      "pit_status": "reconstructed_d_plus_1_12utc_then_actual_receipt_versions",
       "storage_stream": "daily-data",
-      "role": "ETF/institutional flow research"
+      "role": "ETH ETF/institutional flow research only",
+      "source_contract": "eth_etf_flow_source_contract_v1_1",
+      "rights_status": "unreviewed_no_public_redistribution",
+      "public_redistribution_approved": false,
+      "production_use_approved": false,
+      "model_consumer_enabled": false,
+      "public_git_persistence": false
     }
   ]
 }
