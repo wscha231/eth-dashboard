@@ -29,7 +29,7 @@ Every four hours:
 4. re-index the observation to the actual UTC receipt hour instead of the calendar day;
 5. append to venue-specific 4h snapshot CSVs without synthesizing old history;
 6. persist to `data/daily-forecast`;
-7. upload a short-lived GitHub artifact that the Drive archive workflow consumes.
+7. upload a short-lived GitHub artifact and trigger the existing Drive archive workflow.
 
 This creates useful prospective OI/current-context history for the 6h/1d research horizons without repeatedly redownloading multi-year backfills.
 
@@ -56,12 +56,12 @@ Warnings remain visible without stopping all research collection.
 
 ## 5. Drive durability
 
-Extend the existing Drive archive:
+Reuse the already tested `daily-data` Drive stream rather than introducing a second overlapping source-data stream.
 
-- add `research-source-data` to allowed streams;
-- archive `free-source-fallback-state` and `fast-derivative-state` artifacts to that stream;
-- trigger Drive archival directly after `Free ETH research source backfill` and `Fast ETH derivative snapshots` complete;
-- keep the six-hour branch sweep as a second line of defense.
+- `data/daily-forecast` remains the hot source-data branch and is already mapped to `daily-data` by `archive_to_drive.py`.
+- Add workflow-run triggers after `Free ETH research source backfill`, `Fast ETH derivative snapshots`, and the freshness guard so the updated branch is archived promptly.
+- Keep the independent six-hour Drive sweep as a second line of defense.
+- Keep short-lived workflow artifacts as execution receipts; durable recovery remains the content-addressed branch snapshot in Drive.
 
 No existing Drive snapshots are deleted or overwritten.
 
@@ -69,11 +69,11 @@ No existing Drive snapshots are deleted or overwritten.
 
 The cadence registry defines:
 
-- daily refresh: ordinary incremental collection;
-- weekly reconciliation: overlap/gap audit, stale-source review and recent-history refetch;
-- monthly deep audit: complete coverage/manifest/hash/PIT/licensing review and restore drill.
+- ordinary incremental/full refresh throughout each day;
+- weekly Sunday review of overlap/gaps, stale-source status and acquisition priorities;
+- monthly deep review of coverage, manifests/hashes, PIT/revision semantics, licensing and restore integrity.
 
-The first implementation creates the schedule metadata and freshness reporting. Existing full-history collectors already provide reconciliation capability; follow-up sources can be added to the same registry without changing the contract.
+The automated collectors and six-hour freshness report provide the evidence for these maintenance reviews. Follow-up sources are added to the same registry rather than getting ad-hoc schedules or storage layouts.
 
 ## 7. Tests and promotion boundaries
 
@@ -84,6 +84,6 @@ Tests cover:
 - planned sources not causing failures;
 - missing critical sources causing a hard failure;
 - fast snapshots preserving receipt-hour timestamps;
-- Drive stream allowlist and artifact mapping.
+- the existing Drive storage self-tests after archive-trigger changes.
 
 No forecast model, model champion, public prediction, trading behavior or site output is promoted by this change.
