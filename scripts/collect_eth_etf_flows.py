@@ -17,6 +17,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from data_lab.eth_etf_farside_parser import parse_farside_html
 from data_lab.eth_etf_flows import (
     CONTRACT_VERSION,
     FARSIDE_URL,
@@ -31,7 +32,6 @@ from data_lab.eth_etf_flows import (
     fetch_html,
     latest_snapshot,
     load_versions,
-    parse_farside_html,
     sha256,
     validation_report,
 )
