@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from research.model_lab.exogenous_family_screen import (
     FamilySpec,
