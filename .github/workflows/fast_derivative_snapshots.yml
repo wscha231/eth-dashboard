@@ -1,0 +1,71 @@
+name: Fast ETH derivative snapshots
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/collect_fast_derivative_snapshots.py
+      - tests/test_fast_derivative_snapshots.py
+      - .github/workflows/fast_derivative_snapshots.yml
+  schedule:
+    - cron: "23 3,7,11,15,19,23 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: fast-derivative-snapshots
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-runtime.txt
+      - run: python -m pip install -r requirements-runtime.txt pytest
+      - name: Restore accumulated vendor caches
+        run: |
+          if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
+            python scripts/daily_source_state.py restore origin/data/daily-forecast
+          fi
+      - name: Test fast snapshot collector
+        run: python -m pytest tests/test_fast_derivative_snapshots.py -q
+      - name: Collect receipt-timestamped derivative context
+        run: python scripts/collect_fast_derivative_snapshots.py --output-dir lake/raw/vendor
+      - name: Persist prospective context without rewriting historical data
+        run: |
+          git config user.name "eth-forecast-bot"
+          git config user.email "eth-forecast-bot@users.noreply.github.com"
+          git worktree add --detach "$RUNNER_TEMP/daily-data" origin/data/daily-forecast
+          mkdir -p "$RUNNER_TEMP/daily-data/lake/raw/vendor" "$RUNNER_TEMP/daily-data/lake/reports"
+          for f in bitget_eth_context_4h.csv hyperliquid_eth_context_4h.csv; do
+            if [ -s "lake/raw/vendor/$f" ]; then
+              cp "lake/raw/vendor/$f" "$RUNNER_TEMP/daily-data/lake/raw/vendor/$f"
+              git -C "$RUNNER_TEMP/daily-data" add -f "lake/raw/vendor/$f"
+            fi
+          done
+          if [ -s lake/reports/fast_derivative_snapshot.json ]; then
+            cp lake/reports/fast_derivative_snapshot.json "$RUNNER_TEMP/daily-data/lake/reports/fast_derivative_snapshot.json"
+            git -C "$RUNNER_TEMP/daily-data" add -f lake/reports/fast_derivative_snapshot.json
+          fi
+          if ! git -C "$RUNNER_TEMP/daily-data" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/daily-data" commit -m "chore(data): append fast derivative context"
+            git -C "$RUNNER_TEMP/daily-data" push origin HEAD:refs/heads/data/daily-forecast
+          fi
+      - name: Package fast derivative receipt
+        run: |
+          mkdir -p fast-derivative-state/lake/raw/vendor fast-derivative-state/lake/reports
+          for f in bitget_eth_context_4h.csv hyperliquid_eth_context_4h.csv; do
+            if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" fast-derivative-state/lake/raw/vendor/; fi
+          done
+          cp lake/reports/fast_derivative_snapshot.json fast-derivative-state/lake/reports/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fast-derivative-state
+          path: fast-derivative-state/
+          compression-level: 9
+          retention-days: 7
+          if-no-files-found: error
