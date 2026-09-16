@@ -52,12 +52,13 @@ jobs:
             cp -a drive-daily-recovery/forecast_site/. forecast_site/
             exit 0
           fi
-          mkdir -p lake/gold forecast_site
+          mkdir -p lake/gold lake/reports forecast_site
           git show origin/data/daily-forecast:lake/gold/eth_master_daily.csv > lake/gold/eth_master_daily.csv
           git show origin/data/daily-forecast:forecast_site/predictions.db > forecast_site/predictions.db
           git show origin/data/daily-forecast:lake/gold/eth_provisional_daily.csv > lake/gold/eth_provisional_daily.csv || rm -f lake/gold/eth_provisional_daily.csv
           git show origin/data/daily-forecast:lake/gold/eth_master_daily.availability.json > lake/gold/eth_master_daily.availability.json || rm -f lake/gold/eth_master_daily.availability.json
           python scripts/daily_source_state.py restore origin/data/daily-forecast
+          git show origin/data/daily-forecast:lake/reports/eth_etf_flows.json > lake/reports/eth_etf_flows.json || rm -f lake/reports/eth_etf_flows.json
           git show origin/data/daily-forecast:forecast_site/public/donations.json > forecast_site/public/donations.json || true
       - name: Restore private research-only ETF receipts from Drive
         id: etf_restore
@@ -87,7 +88,16 @@ jobs:
       - name: Refresh private ETH ETF flow research source
         id: etf_flow
         continue-on-error: true
-        run: python scripts/collect_eth_etf_flows.py --output-dir lake/raw/vendor --report lake/reports/eth_etf_flows.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="lake/reports/eth_etf_flows.json"
+          versions="lake/raw/vendor/eth_etf_farside_versions.csv"
+          if [ -s "$marker" ] && [ ! -s "$versions" ]; then
+            echo "::error::ETF collection history exists but the private version ledger was not restored; refusing to re-bootstrap historical availability"
+            exit 1
+          fi
+          python scripts/collect_eth_etf_flows.py --output-dir lake/raw/vendor --report "$marker"
       - name: Backfill and refresh free research sources
         id: free_sources
         continue-on-error: true
