@@ -42,10 +42,15 @@ jobs:
           git worktree add --detach "$RUNNER_TEMP/daily-data" origin/data/daily-forecast
           mkdir -p "$RUNNER_TEMP/daily-data/lake/raw/vendor" "$RUNNER_TEMP/daily-data/lake/reports"
           for f in bitget_eth_context_4h.csv hyperliquid_eth_context_4h.csv; do
-            if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" "$RUNNER_TEMP/daily-data/lake/raw/vendor/$f"; fi
+            if [ -s "lake/raw/vendor/$f" ]; then
+              cp "lake/raw/vendor/$f" "$RUNNER_TEMP/daily-data/lake/raw/vendor/$f"
+              git -C "$RUNNER_TEMP/daily-data" add -f "lake/raw/vendor/$f"
+            fi
           done
-          cp lake/reports/fast_derivative_snapshot.json "$RUNNER_TEMP/daily-data/lake/reports/fast_derivative_snapshot.json"
-          git -C "$RUNNER_TEMP/daily-data" add -f lake/raw/vendor/bitget_eth_context_4h.csv lake/raw/vendor/hyperliquid_eth_context_4h.csv lake/reports/fast_derivative_snapshot.json
+          if [ -s lake/reports/fast_derivative_snapshot.json ]; then
+            cp lake/reports/fast_derivative_snapshot.json "$RUNNER_TEMP/daily-data/lake/reports/fast_derivative_snapshot.json"
+            git -C "$RUNNER_TEMP/daily-data" add -f lake/reports/fast_derivative_snapshot.json
+          fi
           if ! git -C "$RUNNER_TEMP/daily-data" diff --cached --quiet; then
             git -C "$RUNNER_TEMP/daily-data" commit -m "chore(data): append fast derivative context"
             git -C "$RUNNER_TEMP/daily-data" push origin HEAD:refs/heads/data/daily-forecast
