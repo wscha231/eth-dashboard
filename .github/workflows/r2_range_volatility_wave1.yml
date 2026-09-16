@@ -1,0 +1,80 @@
+name: R2 range volatility wave1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "research/model/r2_range_volatility_wave1.py"
+      - "tests/test_r2_range_volatility_wave1.py"
+      - ".github/workflows/r2_range_volatility_wave1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: r2-range-volatility-wave1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-events.txt
+
+      - name: Install research dependencies
+        run: python -m pip install -r requirements-events.txt pytest
+
+      - name: Validate frozen R2 policy and metrics
+        run: |
+          python -m pytest tests/test_r2_range_volatility_wave1.py tests/test_v2_contract.py tests/test_v2_adapter.py -q
+          git diff --check
+
+      - name: Find latest compatible event research state
+        id: previous
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-research-state',per_page:100});
+            const allowed=['main','model/v2-offline-replay-20260916'];
+            const artifact=data.artifacts.find(a=>!a.expired && a.workflow_run?.head_repository_id===context.payload.repository.id && allowed.includes(a.workflow_run?.head_branch));
+            if(!artifact)core.setFailed('No compatible event-research-state artifact found');
+            else {
+              core.setOutput('run',String(artifact.workflow_run.id));
+              core.setOutput('artifact_id',String(artifact.id));
+            }
+
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.previous.outputs.run }}
+          name: event-research-state
+          path: lake/signals
+
+      - name: Run frozen 6h 24h 72h R2 gate
+        run: |
+          rm -rf research/results/r2_range_volatility_wave1
+          python research/model/r2_range_volatility_wave1.py \
+            --root lake/signals \
+            --output research/results/r2_range_volatility_wave1
+          cat research/results/r2_range_volatility_wave1/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r2-range-volatility-wave1-${{ github.run_id }}
+          path: research/results/r2_range_volatility_wave1/
+          retention-days: 30
