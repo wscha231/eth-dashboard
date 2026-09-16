@@ -90,7 +90,7 @@ def test_bundle_rejects_future_availability():
 
 
 def test_bundle_preserves_frozen_h_plus_one_endpoint():
-    with pytest.raises(ValueError, match="h\+1"):
+    with pytest.raises(ValueError, match=r"h\+1"):
         valid_bundle(target_end="2026-09-17T10:00:00+00:00")
 
 
