@@ -6,7 +6,9 @@ on:
       - config/data_source_registry.json
       - config/data_source_registry_existing_supplement.json
       - scripts/data_refresh_status.py
+      - scripts/persist_data_branch_overlay.py
       - tests/test_data_refresh_status.py
+      - tests/test_persist_data_branch_overlay.py
       - .github/workflows/data_refresh_guard.yml
   schedule:
     - cron: "41 5,11,17,23 * * *"
@@ -14,7 +16,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: data-daily-forecast-writer
+  group: data-refresh-guard
   cancel-in-progress: false
 jobs:
   audit:
@@ -33,25 +35,17 @@ jobs:
           if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
             python scripts/daily_source_state.py restore origin/data/daily-forecast
           fi
-      - name: Test freshness policy
-        run: python -m pytest tests/test_data_refresh_status.py -q
+      - name: Test freshness policy and branch persistence
+        run: python -m pytest tests/test_data_refresh_status.py tests/test_persist_data_branch_overlay.py -q
       - name: Evaluate source freshness
         run: python scripts/data_refresh_status.py --fail-on-critical-stale
-      - name: Persist refresh status on hot data branch
+      - name: Persist refresh status with retryable overlay
         if: always()
         run: |
-          git config user.name "eth-forecast-bot"
-          git config user.email "eth-forecast-bot@users.noreply.github.com"
-          git worktree add --detach "$RUNNER_TEMP/daily-data" origin/data/daily-forecast
-          mkdir -p "$RUNNER_TEMP/daily-data/lake/reports"
-          for f in data_refresh_status.json data_refresh_status.csv; do
-            if [ -s "lake/reports/$f" ]; then cp "lake/reports/$f" "$RUNNER_TEMP/daily-data/lake/reports/$f"; fi
-          done
-          git -C "$RUNNER_TEMP/daily-data" add -f lake/reports/data_refresh_status.json lake/reports/data_refresh_status.csv || true
-          if ! git -C "$RUNNER_TEMP/daily-data" diff --cached --quiet; then
-            git -C "$RUNNER_TEMP/daily-data" commit -m "chore(data): update source freshness status"
-            git -C "$RUNNER_TEMP/daily-data" push origin HEAD:refs/heads/data/daily-forecast
-          fi
+          python scripts/persist_data_branch_overlay.py \
+            --message "chore(data): update source freshness status" \
+            --file lake/reports/data_refresh_status.json \
+            --file lake/reports/data_refresh_status.csv
       - uses: actions/upload-artifact@v4
         if: always()
         with:

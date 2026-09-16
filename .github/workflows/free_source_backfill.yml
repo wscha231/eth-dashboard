@@ -6,8 +6,10 @@ on:
       - data_lab/free_source_fallbacks.py
       - data_lab/market_research_sources.py
       - scripts/collect_free_source_fallbacks.py
+      - scripts/persist_data_branch_overlay.py
       - tests/test_free_source_fallbacks.py
       - tests/test_market_research_sources.py
+      - tests/test_persist_data_branch_overlay.py
       - config/data_source_registry.json
       - .github/workflows/free_source_backfill.yml
   schedule:
@@ -17,7 +19,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: data-daily-forecast-writer
+  group: free-source-backfill
   cancel-in-progress: false
 jobs:
   collect:
@@ -38,31 +40,21 @@ jobs:
           if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
             python scripts/daily_source_state.py restore origin/data/daily-forecast
           fi
-      - name: Test free-source parsers
-        run: python -m pytest tests/test_free_source_fallbacks.py tests/test_market_research_sources.py -q
+      - name: Test free-source parsers and branch persistence
+        run: python -m pytest tests/test_free_source_fallbacks.py tests/test_market_research_sources.py tests/test_persist_data_branch_overlay.py -q
       - name: Collect free fallback sources
         run: python scripts/collect_free_source_fallbacks.py --output-dir lake/raw/vendor --start-date 2017-01-01
-      - name: Persist research caches
+      - name: Persist research caches with retryable overlay
         run: |
-          git config user.name "eth-forecast-bot"
-          git config user.email "eth-forecast-bot@users.noreply.github.com"
-          git worktree add --detach "$RUNNER_TEMP/daily-data" origin/data/daily-forecast
-          mkdir -p "$RUNNER_TEMP/daily-data/lake/raw/vendor" "$RUNNER_TEMP/daily-data/lake/reports"
-          for f in \
-            bitget_eth_free_features.csv \
-            deribit_eth_dvol_daily.csv \
-            hyperliquid_eth_free_features.csv \
-            fred_current_vintage_long.csv \
-            fred_initial_release_long.csv \
-            fred_initial_asof_daily.csv; do
-            if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" "$RUNNER_TEMP/daily-data/lake/raw/vendor/$f"; fi
-          done
-          cp lake/reports/free_source_fallbacks.json "$RUNNER_TEMP/daily-data/lake/reports/free_source_fallbacks.json"
-          git -C "$RUNNER_TEMP/daily-data" add -f lake/raw/vendor lake/reports/free_source_fallbacks.json
-          if ! git -C "$RUNNER_TEMP/daily-data" diff --cached --quiet; then
-            git -C "$RUNNER_TEMP/daily-data" commit -m "chore(data): refresh free fallback research sources"
-            git -C "$RUNNER_TEMP/daily-data" push origin HEAD:refs/heads/data/daily-forecast
-          fi
+          python scripts/persist_data_branch_overlay.py \
+            --message "chore(data): refresh free fallback research sources" \
+            --file lake/raw/vendor/bitget_eth_free_features.csv \
+            --file lake/raw/vendor/deribit_eth_dvol_daily.csv \
+            --file lake/raw/vendor/hyperliquid_eth_free_features.csv \
+            --file lake/raw/vendor/fred_current_vintage_long.csv \
+            --file lake/raw/vendor/fred_initial_release_long.csv \
+            --file lake/raw/vendor/fred_initial_asof_daily.csv \
+            --file lake/reports/free_source_fallbacks.json
       - name: Package collection receipt
         run: |
           mkdir -p free-source-state/lake/raw/vendor free-source-state/lake/reports
