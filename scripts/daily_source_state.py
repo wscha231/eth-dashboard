@@ -1,15 +1,22 @@
-"""Allowlisted normalized daily caches survive disposable runner restarts."""
+"""Allowlisted normalized daily caches survive disposable runner restarts.
+
+Rights-unreviewed third-party research can be archived privately in the existing
+Drive daily-data stream, but must not be copied onto the public data branch.
+"""
 import argparse
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
+
+PRIVATE_DRIVE_ONLY_PREFIXES = ("eth_etf_farside_",)
 
 
 def allowed(name):
     path = PurePosixPath(name)
     return (not path.is_absolute() and ".." not in path.parts and
             len(path.parts) == 4 and path.parts[:2] == ("lake", "raw") and
-            path.parts[2] in ("market", "vendor") and path.suffix == ".csv")
+            path.parts[2] in ("market", "vendor") and path.suffix == ".csv" and
+            not any(path.name.startswith(prefix) for prefix in PRIVATE_DRIVE_ONLY_PREFIXES))
 
 
 def persist(root, target):
