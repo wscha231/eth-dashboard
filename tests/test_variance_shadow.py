@@ -123,5 +123,5 @@ def test_prospective_report_counts_nonoverlap_separately():
 def test_validate_record_preserves_h_plus_one_boundary():
     value = record(6)
     value["target_end"] = "2026-09-16T06:00:00+00:00"
-    with pytest.raises(ValueError, match="h\+1"):
+    with pytest.raises(ValueError, match=r"h\+1"):
         validate_record(value, now="2026-09-16T00:17:00+00:00")
