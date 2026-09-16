@@ -6,6 +6,7 @@ from data_lab.free_source_fallbacks import collect_fred_initial_partial
 from scripts.collect_free_source_fallbacks import (
     cached_tail_start,
     long_tail_start,
+    save_feature_history,
     trim_incremental_warmup,
 )
 
@@ -53,6 +54,25 @@ def test_trim_incremental_warmup_preserves_only_recomputed_tail():
     )
     assert trimmed.index.min() == pd.Timestamp("2026-01-31", tz="UTC")
     assert trimmed.index.max() == idx.max()
+
+
+def test_partial_feature_update_does_not_erase_cached_columns(tmp_path):
+    path = tmp_path / "features.csv"
+    pd.DataFrame(
+        {
+            "date": ["2026-09-16T00:00:00Z"],
+            "funding": [0.001],
+            "oi": [10.0],
+        }
+    ).to_csv(path, index=False)
+    new = pd.DataFrame(
+        {"funding": [float("nan")], "oi": [12.0]},
+        index=pd.DatetimeIndex(["2026-09-16T00:00:00Z"], name="date"),
+    )
+    merged = save_feature_history(path, new)
+    row = merged.loc[pd.Timestamp("2026-09-16T00:00:00Z")]
+    assert row["funding"] == 0.001
+    assert row["oi"] == 12.0
 
 
 def test_fred_initial_partial_propagates_recent_realtime_start():
