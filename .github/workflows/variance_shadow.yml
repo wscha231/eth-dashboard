@@ -84,6 +84,32 @@ jobs:
           name: ${{ steps.source.outputs.name }}
           path: lake/signals
 
+      - name: Locate latest trusted long research history
+        id: research
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-research-state',per_page:100});
+            for (const artifact of data.artifacts) {
+              if (artifact.expired || artifact.workflow_run?.head_branch!=='main' || artifact.workflow_run?.head_repository_id!==context.payload.repository.id) continue;
+              const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:artifact.workflow_run.id});
+              if (run.path!=='.github/workflows/event_research.yml' || run.event==='pull_request' || run.conclusion!=='success') continue;
+              core.setOutput('run',String(run.id));
+              core.setOutput('artifact_id',String(artifact.id));
+              return;
+            }
+            core.setFailed('No trusted successful main event research history is available');
+
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.research.outputs.run }}
+          name: event-research-state
+          path: lake/variance-research
+
+      - name: Merge long research observations without replacing issued records
+        run: python scripts/event_state.py merge lake/variance-research lake/signals
+
       - name: Restore prior variance-only ledger and checkpoints
         run: |
           if git ls-remote --exit-code --heads origin data/event-ledger > /dev/null; then
