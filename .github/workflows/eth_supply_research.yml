@@ -4,9 +4,13 @@ on:
     branches: [main]
     paths:
       - data_lab/eth_supply.py
+      - data_lab/eth_staking.py
       - scripts/collect_eth_supply.py
+      - scripts/collect_eth_staking.py
       - tests/test_eth_supply.py
+      - tests/test_eth_staking.py
       - research/r3_eth_supply_v1_20260917/**
+      - research/r3_eth_staking_v1_20260917/**
       - .github/workflows/eth_supply_research.yml
       - scripts/archive_r3_research_to_drive.py
       - .github/workflows/r3_research_drive_archive.yml
@@ -14,9 +18,13 @@ on:
     branches: [main]
     paths:
       - data_lab/eth_supply.py
+      - data_lab/eth_staking.py
       - scripts/collect_eth_supply.py
+      - scripts/collect_eth_staking.py
       - tests/test_eth_supply.py
+      - tests/test_eth_staking.py
       - research/r3_eth_supply_v1_20260917/**
+      - research/r3_eth_staking_v1_20260917/**
       - .github/workflows/eth_supply_research.yml
       - scripts/archive_r3_research_to_drive.py
       - .github/workflows/r3_research_drive_archive.yml
@@ -39,8 +47,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Test tracked/live parsing, accounting and receipt rules
-        run: python -m unittest discover -s tests -p 'test_eth_supply.py' -v
+      - name: Test supply and staking receipt contracts
+        run: |
+          python -m unittest discover -s tests -p 'test_eth_supply.py' -v
+          python -m unittest discover -s tests -p 'test_eth_staking.py' -v
       - name: Find previous successful ETH supply research state
         id: previous
         uses: actions/github-script@v7
@@ -63,7 +73,9 @@ jobs:
           path: lake/research/eth_supply
       - name: Collect prospective tracked and live ETH supply receipts
         run: python scripts/collect_eth_supply.py --root lake/research/eth_supply
-      - name: Verify rights, PIT and exact accounting gates
+      - name: Normalize staking and validator state from the exact shared live receipt
+        run: python scripts/collect_eth_staking.py --root lake/research/eth_supply
+      - name: Verify supply rights, PIT and exact accounting gates
         run: |
           python - <<'PY'
           from decimal import Decimal
@@ -90,12 +102,41 @@ jobs:
           assert Decimal(str(d['live_total_supply_eth'])) > 0
           print(json.dumps({k:d[k] for k in (
               'history_mode','tracked_receipt_rows','live_receipt_rows',
-              'tracked_from_slot','tracked_to_slot','tracked_from_time_utc','tracked_to_time_utc',
               'tracked_execution_burn_component_error_wei','live_execution_burn_component_error_wei',
-              'tracked_identity_error_wei','live_identity_error_wei',
-              'live_total_supply_eth','live_accounting_epoch')},sort_keys=True))
+              'tracked_identity_error_wei','live_identity_error_wei','live_total_supply_eth')},sort_keys=True))
           PY
-      - name: Upload immutable ETH supply research state
+      - name: Verify staking rights, PIT and shared-receipt gates
+        run: |
+          python - <<'PY'
+          from decimal import Decimal
+          import json,pathlib
+          base=pathlib.Path('lake/research/eth_supply')
+          d=json.loads((base/'staking_report.json').read_text())
+          supply=json.loads((base/'report.json').read_text())
+          row=json.loads([x for x in (base/'eth_staking_live_receipts.jsonl').read_text().splitlines() if x][-1])
+          live=json.loads([x for x in (base/'eth_supply_live_receipts.jsonl').read_text().splitlines() if x][-1])
+          assert d['status']=='research_only_rights_unreviewed'
+          assert d['public_redistribution']=='blocked_pending_rights_review'
+          assert d['model_use'].startswith('blocked_')
+          assert d['site_use']=='blocked'
+          assert d['history_mode']=='prospective_receipts_only'
+          assert int(d['live_receipt_rows']) >= 1
+          assert d['raw_sha256']==supply['live_sha256']==live['raw_sha256']==row['raw_sha256']
+          assert row['received_at']==live['received_at']
+          assert row['available_at']==live['available_at']==live['received_at']
+          assert int(d['source_revision'])==int(live['source_revision'])
+          assert int(d['active_validators']) > 0
+          assert Decimal(str(d['active_balance_eth'])) > 0
+          assert Decimal(str(d['effective_balance_eth'])) > 0
+          assert int(d['pending_deposits_validators']) >= 0
+          assert int(d['scheduled_activations_validators']) >= 0
+          assert int(d['scheduled_exits_validators']) >= 0
+          print(json.dumps({k:d[k] for k in (
+              'live_receipt_rows','active_validators','active_balance_eth','effective_balance_eth',
+              'pending_deposits_validators','scheduled_activations_validators','scheduled_exits_validators',
+              'pending_partial_withdrawals_requests','pending_consolidations_requests','staking_as_of_max')},sort_keys=True))
+          PY
+      - name: Upload immutable ETH supply and staking research state
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -104,24 +145,25 @@ jobs:
           compression-level: 9
           retention-days: 30
           if-no-files-found: error
-      - name: Summarize supply gate
+      - name: Summarize supply and staking gate
         if: always()
         run: |
           python - <<'PY'
           import json,os,pathlib
-          p=pathlib.Path('lake/research/eth_supply/report.json')
+          base=pathlib.Path('lake/research/eth_supply')
+          supply=base/'report.json'; staking=base/'staking_report.json'
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
               f.write('## R3 P0-2 ETH supply research\n\n')
-              if not p.exists():
-                  f.write('No valid source report was produced. MODEL/site promotion is forbidden.\n')
-              else:
-                  d=json.loads(p.read_text())
-                  for key in (
-                      'status','history_mode','tracked_receipt_rows','live_receipt_rows',
-                      'tracked_from_time_utc','tracked_to_time_utc',
-                      'tracked_execution_burn_component_error_wei','live_execution_burn_component_error_wei',
-                      'tracked_identity_error_wei','live_identity_error_wei',
-                      'live_total_supply_eth','license_status'):
+              if supply.exists():
+                  d=json.loads(supply.read_text())
+                  for key in ('status','history_mode','tracked_receipt_rows','live_receipt_rows','tracked_identity_error_wei','live_identity_error_wei','live_total_supply_eth','license_status'):
                       f.write(f'- {key}: `{d.get(key)}`\n')
-                  f.write('\nOnly prospective receipts are eligible. Historical MODEL use remains blocked pending self-derived replay.\n')
+              else:f.write('No valid supply report. MODEL/site promotion is forbidden.\n')
+              f.write('\n## R3 P0-3 ETH staking / validator research\n\n')
+              if staking.exists():
+                  d=json.loads(staking.read_text())
+                  for key in ('status','history_mode','live_receipt_rows','active_validators','active_balance_eth','pending_deposits_validators','scheduled_activations_validators','scheduled_exits_validators','license_status'):
+                      f.write(f'- {key}: `{d.get(key)}`\n')
+              else:f.write('No valid staking report. MODEL/site promotion is forbidden.\n')
+              f.write('\nBoth families remain prospective research only; rights/model/site use remain blocked.\n')
           PY
