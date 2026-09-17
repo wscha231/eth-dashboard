@@ -34,9 +34,17 @@ class R3DriveArchiveTests(unittest.TestCase):
                 r3.R3_ARTIFACTS['fast-derivative-state'],
                 ('derivative-fast-research', 'fast_derivative_snapshots.yml'),
             )
-            self.assertNotEqual(
-                r3.R3_ARTIFACTS['derivative-history-research-state'][0],
-                r3.R3_ARTIFACTS['fast-derivative-state'][0],
+            self.assertEqual(
+                r3.R3_ARTIFACTS['derivative-public-seed-state'],
+                ('derivative-public-seed', 'derivative_private_archive_seed.yml'),
+            )
+            self.assertEqual(
+                len({
+                    r3.R3_ARTIFACTS['derivative-history-research-state'][0],
+                    r3.R3_ARTIFACTS['fast-derivative-state'][0],
+                    r3.R3_ARTIFACTS['derivative-public-seed-state'][0],
+                }),
+                3,
             )
             self.assertTrue(original_streams <= storage.STREAMS)
             for name, mapping in original_artifacts.items():
@@ -67,6 +75,27 @@ class R3DriveArchiveTests(unittest.TestCase):
         self.assertIn('name: fast-derivative-state', text)
         self.assertIn('retention-days: 30', text)
 
+    def test_public_derivative_seed_seals_all_current_cleanup_targets(self):
+        text = Path('.github/workflows/derivative_private_archive_seed.yml').read_text(encoding='utf-8')
+        expected = {
+            'bitget_eth_context_4h.csv',
+            'bitget_eth_free_features.csv',
+            'hyperliquid_eth_context_4h.csv',
+            'hyperliquid_eth_free_features.csv',
+            'deribit_eth_dvol_daily.csv',
+            'deribit_eth_funding_daily.csv',
+            'deribit_eth_future_snapshot_daily.csv',
+            'deribit_eth_historical_volatility.csv',
+            'deribit_eth_option_snapshot_daily.csv',
+        }
+        for name in expected:
+            self.assertIn(name, text)
+        self.assertIn("if len(rows) != 9", text)
+        self.assertIn("'source_branch':'data/daily-forecast'", text)
+        self.assertIn("'public_redistribution':'blocked'", text)
+        self.assertIn('name: derivative-public-seed-state', text)
+        self.assertIn('retention-days: 30', text)
+
     def test_r3_archiver_can_be_invoked_exactly_like_workflow(self):
         completed = subprocess.run(
             [sys.executable, "scripts/archive_r3_research_to_drive.py", "--help"],
@@ -87,6 +116,7 @@ class R3DriveArchiveTests(unittest.TestCase):
         self.assertIn('ETH execution network research', text)
         self.assertIn('Free ETH research source backfill', text)
         self.assertIn('Fast ETH derivative snapshots', text)
+        self.assertIn('Derivative private archive seed', text)
         self.assertIn('cron: "23,53 * * * *"', text)
         self.assertIn('latest trusted R3 artifact not already covered', text)
         self.assertIn("group: gdrive-archive-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}", text)
