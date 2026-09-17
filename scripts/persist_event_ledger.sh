@@ -14,7 +14,7 @@ if [ ! -d "$RUNNER_TEMP/event-ledger" ]; then
 fi
 mkdir -p "$RUNNER_TEMP/event-ledger/lake/event-ledger"
 python - <<'PY'
-import os,sqlite3,pathlib
+import os,sqlite3,pathlib,shutil
 target=pathlib.Path(os.environ['RUNNER_TEMP'])/'event-ledger/lake/event-ledger/issued.db'
 with sqlite3.connect('lake/signals/issued.db') as source,sqlite3.connect(target) as destination:
     source.backup(destination)
@@ -31,8 +31,20 @@ if range_ledger.exists():
         assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
 seed_source=pathlib.Path('lake/signals/range_seeds')
 if seed_source.exists():
-    import shutil
     shutil.copytree(seed_source,target.parent/'range_seeds',dirs_exist_ok=True)
+
+dense_source=pathlib.Path('lake/signals/variance_shadow_dense')
+if dense_source.exists():
+    dense_target=target.parent/'variance-shadow-dense'
+    dense_target.mkdir(parents=True,exist_ok=True)
+    dense_ledger=dense_source/'issued.db'
+    if dense_ledger.exists():
+        with sqlite3.connect(dense_ledger) as source,sqlite3.connect(dense_target/'issued.db') as destination:
+            source.backup(destination)
+            assert destination.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+    for name in ('report.json','public.json'):
+        path=dense_source/name
+        if path.exists():shutil.copy2(path,dense_target/name)
 PY
 python scripts/archive_event_inputs.py lake/signals "$RUNNER_TEMP/event-ledger/lake/event-inputs"
 python scripts/deployment_policy.py --target "$RUNNER_TEMP/event-ledger" --stage
