@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "contract_id": "eth_etf_flows_v1_20260917",
+  "family": "institutional_flows",
+  "instrument_context": "US spot Ethereum ETFs",
+  "primary_history_source": {
+    "name": "Farside Investors",
+    "url": "https://farside.co.uk/ethereum-etf-flow-all-data/",
+    "unit": "USD millions",
+    "expected_funds": ["ETHA", "ETHB", "FETH", "ETHW", "TETH", "ETHV", "QETH", "EZET", "ETHE", "ETH"],
+    "reported_total_column": "Total",
+    "dash_semantics": "missing_or_not_reported_never_coerced_to_zero",
+    "parentheses_semantics": "negative_flow",
+    "rights_status": "unreviewed_no_public_redistribution",
+    "historical_vintage_mode": "reconstructed_backfill",
+    "prospective_vintage_mode": "prospective_receipt_or_correction"
+  },
+  "availability": {
+    "historical_assumption": "source_date_plus_1_day_00_00_UTC",
+    "prospective_rule": "max(actual_received_at, source_date_plus_1_day_00_00_UTC)",
+    "reason": "conservative daily eligibility; historical publication timestamps are not reconstructed",
+    "historical_assumption_is_not_observed_vintage": true
+  },
+  "storage": {
+    "public_git_data_branch": false,
+    "drive_stream": "etf-research",
+    "raw_receipts": "raw/*.html.gz",
+    "revisions": "eth_etf_flow_revisions.csv.gz",
+    "latest_view": "eth_etf_flows_daily.csv",
+    "quality_report": "report.json"
+  },
+  "official_cross_checks": {
+    "status": "prospective_audit_planned",
+    "sources": ["SEC EDGAR fund filings", "issuer product/holdings pages where machine-readable and terms permit"],
+    "note": "official filings are authoritative audit evidence but are not assumed to provide a complete daily flow history"
+  },
+  "model_use": {
+    "approved": false,
+    "requirements_before_use": ["collector_live_success", "Drive_readback", "coverage_report", "PIT_review", "rights_review_or_research_only_boundary", "preregistered_ablation"]
+  }
+}
