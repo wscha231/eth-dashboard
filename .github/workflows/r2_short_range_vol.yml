@@ -1,0 +1,70 @@
+name: R2 short range volatility
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "research/events/r2_range_volatility.py"
+      - "tests/test_r2_range_volatility.py"
+      - ".github/workflows/r2_short_range_vol.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+concurrency:
+  group: r2-short-range-vol-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-events.txt
+      - run: python -m pip install -r requirements-events.txt pytest
+      - run: python -m pytest tests/test_r2_range_volatility.py -q
+      - name: Find latest successful main event research state
+        id: source
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-research-state',per_page:100});
+            const artifact=data.artifacts.find(a=>!a.expired && a.workflow_run?.head_repository_id===context.payload.repository.id && a.workflow_run?.head_branch==='main');
+            if(!artifact) core.setFailed('no durable main event-research-state artifact available');
+            else {
+              core.setOutput('run',artifact.workflow_run.id);
+              core.setOutput('artifact',artifact.id);
+            }
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run }}
+          name: event-research-state
+          path: lake/signals
+      - name: Run frozen R2 short gate
+        run: python research/events/r2_range_volatility.py --root lake/signals --output r2_short_range_volatility.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r2-short-range-volatility
+          path: r2_short_range_volatility.json
+          retention-days: 30
+      - name: Summarize gate
+        run: |
+          python - <<'PY'
+          import json,os
+          d=json.load(open('r2_short_range_volatility.json'))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('R2 short-horizon range / volatility (retrospective research only)\n\n')
+              for h,v in d['horizons'].items():
+                  f.write(f"- {h}h: {v['status']}; variance gate winner={v['variance_gate_winner']}\n")
+                  for name,s in v['summary'].items():
+                      f.write(f"  - {name}: QLIKE={s['mean_qlike']:.6f}, skill={s['mean_qlike_skill_vs_persistence']:.2%}, blocks={s['blocks_improved']}/3, coverage={s['mean_coverage80']:.2%}, WIS={s['mean_wis80']:.6f}\n")
+          PY
