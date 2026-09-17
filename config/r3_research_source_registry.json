@@ -178,6 +178,26 @@
       "historical_alpha_eligibility": "blocked_pending_deribit_written_approval_and_pit_audit",
       "prospective_alpha_eligibility": "blocked_pending_deribit_written_approval_private_storage_and_preregistered_gate",
       "storage_exposure": "legacy_public_data_branch_plus_actions_artifact_requires_review"
+    },
+    {
+      "id": "r3_p1_eth_execution_network",
+      "family": "blob_fees_network_use",
+      "collection_state": "blocked_missing_authorized_rpc",
+      "workflow": "eth_execution_network_research.yml",
+      "artifact": "eth-execution-network-research-state",
+      "drive_stream": "eth-execution-network-research",
+      "source_contract": "research/r3_eth_execution_network_v1_20260918/source_contract.md",
+      "history_mode": "bootstrap_reconstructed_then_prospective_finalized_receipts",
+      "availability_policy": "all rows use actual EtherForecast receipt time; bootstrap block timestamps are never backdated into available_at",
+      "pit_status": "collector_ready_transport_blocked",
+      "rights_status": "authorized_or_self_hosted_rpc_required",
+      "public_redistribution": "blocked",
+      "model_use": "blocked_pending_authorized_rpc_prospective_continuity_and_preregistered_gate",
+      "site_use": "blocked",
+      "paid_product_use": "blocked",
+      "historical_alpha_eligibility": "blocked_bootstrap_not_historical_pit",
+      "prospective_alpha_eligibility": "blocked_until_authorized_transport_continuity_and_preregistered_gate",
+      "storage_exposure": "private_actions_artifact_and_drive_only_when_enabled_no_public_data_branch"
     }
   ]
 }
