@@ -19,6 +19,14 @@ on:
       - scripts/persist_variance_ledger.sh
       - tests/test_variance_shadow.py
       - .github/workflows/variance_shadow.yml
+  # A same-push event forecast and variance run share one operational lock. GitHub
+  # keeps only one pending run per concurrency group, so also enqueue the variance
+  # pass after a successful hourly forecast. This guarantees eventual persistence
+  # without allowing concurrent pushes to the shared event-ledger branch.
+  workflow_run:
+    workflows: ["Hourly ETH event forecast"]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
@@ -36,6 +44,7 @@ concurrency:
 
 jobs:
   shadow:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 18
     env:
@@ -131,6 +140,7 @@ jobs:
           test -s lake/signals/variance_shadow/active.json
           test -s lake/signals/variance_shadow/issued.db
           test -s lake/signals/variance_shadow/report.json
+          test -s lake/signals/variance_shadow/public.json
           cat lake/signals/variance_shadow/report.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Preserve immutable variance audit branch
