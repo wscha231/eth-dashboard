@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from research.model.full_horizon_v2_backtest import evaluate
+from research.model.full_horizon_v2_backtest_replay import evaluate
 
 
 def main() -> None:
@@ -24,6 +24,7 @@ def main() -> None:
         "promotion": result["promotion"],
         "horizons": {
             h: {
+                "origins": row["origins"],
                 "center": row["center"]["passed"],
                 "volatility": row["volatility"]["passed"],
                 "distribution": row["distribution"]["passed"],
