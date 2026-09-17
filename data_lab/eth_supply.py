@@ -26,6 +26,8 @@ MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 FETCH_ERRORS = (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError)
 WEI_PER_ETH = Decimal(10) ** 18
 
+# The public schema separates execution burn from consensus penalties and other
+# proven destruction. Do not collapse these fields into one synthetic value.
 TRACKED_FIELDS = (
     "issuanceWei",
     "burnWei",
@@ -35,6 +37,8 @@ TRACKED_FIELDS = (
     "otherExecutionBurnWei",
     "netWei",
 )
+TRACKED_EQUATION = "net=issuance-burn-consensus_penalties-other_execution_burn"
+LIVE_EQUATION = "net=issuance-execution_burn-consensus_penalties"
 
 
 def _receipt_iso(value: Any | None) -> str:
@@ -53,11 +57,31 @@ def _receipt_iso(value: Any | None) -> str:
     return dt.isoformat()
 
 
+def _integer(value: Any, *, signed: bool = False) -> int | None:
+    if value is None or value == "":
+        return None
+    text = str(value)
+    pattern = r"-?(?:0|[1-9]\d*)" if signed else r"(?:0|[1-9]\d*)"
+    if not re.fullmatch(pattern, text):
+        raise ValueError(f"invalid {'signed ' if signed else ''}integer value")
+    return int(text)
+
+
 def _unix_iso(value: Any) -> str:
     integer = _integer(value)
     if integer is None:
         return ""
     return datetime.fromtimestamp(integer, tz=timezone.utc).isoformat()
+
+
+def _eth(value: int | None) -> str:
+    if value is None:
+        return ""
+    return format(Decimal(value) / WEI_PER_ETH, "f")
+
+
+def _snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def _selected_headers(response) -> dict[str, str]:
@@ -116,26 +140,6 @@ def fetch_json(
     raise last
 
 
-def _integer(value: Any, *, signed: bool = False) -> int | None:
-    if value is None or value == "":
-        return None
-    text = str(value)
-    pattern = r"-?(?:0|[1-9]\d*)" if signed else r"(?:0|[1-9]\d*)"
-    if not re.fullmatch(pattern, text):
-        raise ValueError(f"invalid {'signed ' if signed else ''}integer value")
-    return int(text)
-
-
-def _eth(value: int | None) -> str:
-    if value is None:
-        return ""
-    return format(Decimal(value) / WEI_PER_ETH, "f")
-
-
-def _snake(name: str) -> str:
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
-
-
 def _data_value(node: Any, *, signed: bool = False) -> tuple[int | None, str, str, str]:
     if not isinstance(node, dict):
         return None, "unavailable", "unknown", ""
@@ -146,8 +150,6 @@ def _data_value(node: Any, *, signed: bool = False) -> tuple[int | None, str, st
 def parse_tracked(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("schemaVersion") != 1 or payload.get("range") != "retained":
         raise ValueError("unexpected ethsupply tracked schema")
-    revision = int(payload["revision"])
-    generated_at = _unix_iso(payload["generatedAt"])
     summary = payload.get("summary")
     if not isinstance(summary, dict):
         raise ValueError("ethsupply tracked summary missing")
@@ -157,8 +159,8 @@ def parse_tracked(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("invalid tracked slot range")
 
     row: dict[str, Any] = {
-        "source_revision": revision,
-        "source_generated_at": generated_at,
+        "source_revision": int(payload["revision"]),
+        "source_generated_at": _unix_iso(payload["generatedAt"]),
         "from_slot": from_slot,
         "to_slot": to_slot,
         "from_timestamp": _integer(summary.get("fromTimestamp")),
@@ -170,7 +172,9 @@ def parse_tracked(payload: dict[str, Any]) -> dict[str, Any]:
         "finalized_to_slot": "" if payload.get("finalizedToSlot") is None else int(payload["finalizedToSlot"]),
         "live_tail_slots": "" if payload.get("liveTailSlots") is None else int(payload["liveTailSlots"]),
         "warnings": len(payload.get("warnings") or []),
+        "accounting_equation": TRACKED_EQUATION,
     }
+
     values: dict[str, int | None] = {}
     for field in TRACKED_FIELDS:
         parsed = _integer(summary.get(field), signed=field == "netWei")
@@ -178,38 +182,70 @@ def parse_tracked(payload: dict[str, Any]) -> dict[str, Any]:
         snake = _snake(field)
         row[snake] = "" if parsed is None else str(parsed)
         row[snake.removesuffix("_wei") + "_eth"] = _eth(parsed)
-    issuance, burn, net = values["issuanceWei"], values["burnWei"], values["netWei"]
-    row["identity_error_wei"] = "" if None in {issuance, burn, net} else str(net - (issuance - burn))
+
+    issuance = values["issuanceWei"]
+    execution_burn = values["burnWei"]
+    base_burn = values["baseFeeBurnWei"]
+    blob_burn = values["blobBaseFeeBurnWei"]
+    consensus_penalties = values["consensusPenaltiesWei"]
+    other_execution_burn = values["otherExecutionBurnWei"]
+    net = values["netWei"]
+
+    execution_parts = {execution_burn, base_burn, blob_burn}
+    row["execution_burn_component_error_wei"] = (
+        "" if None in execution_parts else str(execution_burn - base_burn - blob_burn)
+    )
+    identity_parts = {issuance, execution_burn, consensus_penalties, other_execution_burn, net}
+    row["identity_error_wei"] = (
+        ""
+        if None in identity_parts
+        else str(net - (issuance - execution_burn - consensus_penalties - other_execution_burn))
+    )
+    row["full_destroyed_wei"] = (
+        ""
+        if None in {execution_burn, consensus_penalties, other_execution_burn}
+        else str(execution_burn + consensus_penalties + other_execution_burn)
+    )
     return row
 
 
 def parse_live(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("schemaVersion") != 1 or payload.get("chainId") != 1:
         raise ValueError("unexpected ethsupply live schema")
-    revision = int(payload["revision"])
-    generated_at = _unix_iso(payload["generatedAt"])
     supply = payload.get("supply") or {}
     accounting = payload.get("accounting") or {}
     issuance = accounting.get("issuance") or {}
     burn = accounting.get("burn") or {}
+    consensus = burn.get("consensus") or {}
 
     total_wei, total_status, total_kind, total_asof = _data_value(supply.get("totalWei"))
     finalized_wei, finalized_status, finalized_kind, finalized_asof = _data_value(supply.get("finalizedTotalWei"))
     issuance_wei, issuance_status, issuance_kind, issuance_asof = _data_value(issuance.get("totalWei"))
-    burn_wei, burn_status, burn_kind, burn_asof = _data_value(burn.get("totalWei"))
+    execution_burn_wei, burn_status, burn_kind, burn_asof = _data_value(burn.get("totalWei"))
+    base_burn_wei, _, _, _ = _data_value(burn.get("baseFeeWei"))
+    blob_burn_wei, _, _, _ = _data_value(burn.get("blobBaseFeeWei"))
+    other_execution_wei, _, _, _ = _data_value(burn.get("otherExecutionWei"))
+    penalties_wei, penalties_status, penalties_kind, penalties_asof = _data_value(consensus.get("totalWei"))
     net_wei, net_status, net_kind, net_asof = _data_value(accounting.get("netWei"), signed=True)
     if total_wei is None:
         raise ValueError("live total supply is unavailable")
+
+    execution_component_error = ""
+    if None not in {execution_burn_wei, base_burn_wei, blob_burn_wei, other_execution_wei}:
+        execution_component_error = str(
+            execution_burn_wei - base_burn_wei - blob_burn_wei - other_execution_wei
+        )
+
     identity_error = ""
-    if issuance_wei is not None and burn_wei is not None and net_wei is not None:
-        identity_error = str(net_wei - (issuance_wei - burn_wei))
+    if None not in {issuance_wei, execution_burn_wei, penalties_wei, net_wei}:
+        identity_error = str(net_wei - (issuance_wei - execution_burn_wei - penalties_wei))
 
     head = payload.get("head") or {}
     finalized = payload.get("finalized") or {}
     as_of = supply.get("asOf") or {}
     return {
-        "source_revision": revision,
-        "source_generated_at": generated_at,
+        "source_revision": int(payload["revision"]),
+        "source_generated_at": _unix_iso(payload["generatedAt"]),
         "head_block": head.get("block"),
         "head_slot": head.get("slot"),
         "head_timestamp": head.get("timestamp"),
@@ -235,21 +271,28 @@ def parse_live(payload: dict[str, Any]) -> dict[str, Any]:
         "accounting_interval": str(accounting.get("interval") or ""),
         "accounting_epoch": accounting.get("epoch"),
         "accounting_target_epoch": accounting.get("targetEpoch"),
+        "accounting_equation": LIVE_EQUATION,
         "issuance_wei": "" if issuance_wei is None else str(issuance_wei),
         "issuance_eth": _eth(issuance_wei),
         "issuance_status": issuance_status,
         "issuance_kind": issuance_kind,
         "issuance_asof": issuance_asof,
-        "burn_wei": "" if burn_wei is None else str(burn_wei),
-        "burn_eth": _eth(burn_wei),
+        "burn_wei": "" if execution_burn_wei is None else str(execution_burn_wei),
+        "burn_eth": _eth(execution_burn_wei),
         "burn_status": burn_status,
         "burn_kind": burn_kind,
         "burn_asof": burn_asof,
+        "consensus_penalties_wei": "" if penalties_wei is None else str(penalties_wei),
+        "consensus_penalties_eth": _eth(penalties_wei),
+        "consensus_penalties_status": penalties_status,
+        "consensus_penalties_kind": penalties_kind,
+        "consensus_penalties_asof": penalties_asof,
         "net_wei": "" if net_wei is None else str(net_wei),
         "net_eth": _eth(net_wei),
         "net_status": net_status,
         "net_kind": net_kind,
         "net_asof": net_asof,
+        "execution_burn_component_error_wei": execution_component_error,
         "identity_error_wei": identity_error,
     }
 
@@ -258,12 +301,22 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() and path.stat().st_size else {}
 
 
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                rows.append(json.loads(line))
+    return rows
+
+
 def _append_jsonl(path: Path, row: dict[str, Any]) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
-    with path.open("r", encoding="utf-8") as handle:
-        return sum(1 for line in handle if line.strip())
+    return len(_read_jsonl(path))
 
 
 def _write_receipt_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -282,17 +335,6 @@ def _write_receipt_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if line.strip():
-                rows.append(json.loads(line))
-    return rows
-
-
 def write_state(root: str | Path, *, receipt_time: Any | None = None) -> dict[str, Any]:
     base = Path(root)
     raw_dir = base / "raw"
@@ -301,7 +343,6 @@ def write_state(root: str | Path, *, receipt_time: Any | None = None) -> dict[st
 
     tracked_payload, tracked_raw, tracked_headers = fetch_json(TRACKED_URL)
     live_payload, live_raw, live_headers = fetch_json(LIVE_URL)
-
     tracked_hash = tracked_headers["sha256"]
     live_hash = live_headers["sha256"]
     (raw_dir / "ethsupply_tracked_latest.json").write_bytes(tracked_raw)
@@ -336,8 +377,6 @@ def write_state(root: str | Path, *, receipt_time: Any | None = None) -> dict[st
     }
     tracked_count = _append_jsonl(tracked_path, tracked_receipt)
     live_count = _append_jsonl(live_path, live_receipt)
-
-    # Human-inspectable current receipt tables; JSONL remains the append-only source of truth.
     _write_receipt_csv(base / "eth_supply_tracked_receipts.csv", _read_jsonl(tracked_path))
     _write_receipt_csv(base / "eth_supply_live_receipts.csv", _read_jsonl(live_path))
 
@@ -355,7 +394,7 @@ def write_state(root: str | Path, *, receipt_time: Any | None = None) -> dict[st
     state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
     report = {
-        "schema": 3,
+        "schema": 4,
         "generated_at_utc": receipt,
         "status": "research_only_rights_unreviewed",
         "source_id": SOURCE_ID,
@@ -369,6 +408,8 @@ def write_state(root: str | Path, *, receipt_time: Any | None = None) -> dict[st
         "history_mode": "prospective_receipts_only",
         "historical_backfill": "not_eligible_requires_self_derived_geth_consensus_replay",
         "available_at_policy": "actual EtherForecast collector receipt only",
+        "tracked_accounting_equation": TRACKED_EQUATION,
+        "live_accounting_equation": LIVE_EQUATION,
         "tracked_sha256": tracked_hash,
         "live_sha256": live_hash,
         "source_tracked_revision": tracked["source_revision"],
@@ -379,7 +420,9 @@ def write_state(root: str | Path, *, receipt_time: Any | None = None) -> dict[st
         "tracked_to_slot": tracked["to_slot"],
         "tracked_from_time_utc": tracked["from_time_utc"],
         "tracked_to_time_utc": tracked["to_time_utc"],
+        "tracked_execution_burn_component_error_wei": tracked["execution_burn_component_error_wei"],
         "tracked_identity_error_wei": tracked["identity_error_wei"],
+        "live_execution_burn_component_error_wei": live["execution_burn_component_error_wei"],
         "live_identity_error_wei": live["identity_error_wei"],
         "live_total_supply_eth": live["total_supply_eth"],
         "live_accounting_epoch": live["accounting_epoch"],
