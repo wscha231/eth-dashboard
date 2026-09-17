@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from scripts.audit_r3_research_sources import audit
+from scripts.audit_r3_research_sources import _valid_research_state, audit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +27,17 @@ def test_repository_r3_registry_is_research_only_and_fail_closed():
         "r3_p1_deribit_eth_dvol_history",
         "r3_p1_eth_execution_network",
     }
+
+
+def test_explicit_blocked_reasons_are_valid_but_arbitrary_states_are_not():
+    assert _valid_research_state("research_active")
+    assert _valid_research_state("research_paused")
+    assert _valid_research_state("blocked")
+    assert _valid_research_state("blocked_missing_authorized_rpc")
+    assert _valid_research_state("blocked_rpc_rights_not_attested")
+    assert not _valid_research_state("collector_ready")
+    assert not _valid_research_state("unblocked")
+    assert not _valid_research_state("")
 
 
 def test_prospective_only_sources_remain_historically_blocked():
