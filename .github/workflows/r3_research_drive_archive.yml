@@ -1,0 +1,72 @@
+name: R3 research Google Drive archive
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/archive_r3_research_to_drive.py
+      - .github/workflows/r3_research_drive_archive.yml
+      - tests/test_r3_drive_archive.py
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/archive_r3_research_to_drive.py
+      - .github/workflows/r3_research_drive_archive.yml
+      - tests/test_r3_drive_archive.py
+  workflow_run:
+    workflows: ["ETH ETF flow research", "ETH supply research"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: gdrive-archive-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s tests -p 'test_r3_drive_archive.py' -v
+  archive:
+    needs: self-test
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event != 'pull_request')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Preserve R3 research receipts in the existing immutable Drive store
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ github.event.workflow_run.id }}
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          if [ -n "$SOURCE_RUN" ]; then
+            python scripts/archive_r3_research_to_drive.py --source-run "$SOURCE_RUN"
+          else
+            python scripts/archive_r3_research_to_drive.py
+          fi
+      - name: Preserve small archive status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r3-drive-archive-status-${{ github.run_id }}-${{ github.run_attempt }}
+          path: drive-archive-status/
+          retention-days: 30
+          if-no-files-found: warn
