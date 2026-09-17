@@ -24,6 +24,9 @@ R3_STREAMS = {
     # across independent workflows could make a newer run hide another source.
     "derivative-history-research",
     "derivative-fast-research",
+    # One pre-cleanup snapshot seals every currently public derivative cache,
+    # including legacy Deribit files produced outside the two P1 collectors.
+    "derivative-public-seed",
 }
 R3_ARTIFACTS = {
     "eth-etf-flow-state": ("eth-etf-research", "eth_etf_flows.yml"),
@@ -41,6 +44,10 @@ R3_ARTIFACTS = {
     "fast-derivative-state": (
         "derivative-fast-research",
         "fast_derivative_snapshots.yml",
+    ),
+    "derivative-public-seed-state": (
+        "derivative-public-seed",
+        "derivative_private_archive_seed.yml",
     ),
 }
 
