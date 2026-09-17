@@ -8,7 +8,7 @@ from research.model.har_rv_clock_robustness import (
     fit_indices,
     gate_clock,
     prospective_timing,
-    test_indices,
+    test_indices as evaluation_indices,
 )
 
 
@@ -50,7 +50,7 @@ def test_training_stays_midnight_but_test_covers_all_clock_hours():
         "2026-01-01T00:00:00Z",
         "2026-01-03T00:00:00Z",
     )
-    test = test_indices(
+    test = evaluation_indices(
         features,
         targets,
         "2026-01-01T00:00:00Z",
