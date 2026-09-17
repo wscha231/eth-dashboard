@@ -2,6 +2,16 @@
 """Register R3 research artifacts with the existing immutable Drive archive."""
 from __future__ import annotations
 
+from pathlib import Path
+import sys
+
+# When this file is invoked as `python scripts/archive_r3_research_to_drive.py`,
+# Python places `scripts/` rather than the repository root on sys.path. Add the
+# checkout root explicitly before importing the package-style `scripts.*` modules.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from scripts import gdrive_store as storage
 
 R3_STREAMS = {"eth-etf-research", "eth-supply-research"}
