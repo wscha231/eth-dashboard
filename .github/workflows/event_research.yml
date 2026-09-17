@@ -46,7 +46,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-events.txt
       - run: python -m pip install -r requirements-events.txt pytest
-      - run: python -m pytest tests/test_event_pipeline.py tests/test_event_segments.py tests/test_event_diagnostics.py tests/test_event_optimization.py tests/test_v2_contract.py tests/test_v2_adapter.py tests/test_v2_replay.py tests/test_r2_range_volatility.py -q
+      - run: python -m pytest tests/test_event_pipeline.py tests/test_event_segments.py tests/test_event_diagnostics.py tests/test_event_optimization.py tests/test_v2_contract.py tests/test_v2_adapter.py tests/test_v2_replay.py -q
       - name: Find previous successful research state
         id: previous
         uses: actions/github-script@v7
@@ -77,8 +77,6 @@ jobs:
         id: v2_replay
         continue-on-error: true
         run: python scripts/export_v2_replay.py --root lake/signals --output lake/signals/v2_replay.json
-      - name: Run R2 short-horizon range and volatility gate
-        run: python research/events/r2_range_volatility.py --root lake/signals --output lake/signals/r2_short_range_volatility.json
       - name: Checkpoint databases consistently
         if: always()
         run: |
@@ -101,19 +99,19 @@ jobs:
           import json,os,pathlib
           p=pathlib.Path('lake/signals/replay.json')
           v2=pathlib.Path('lake/signals/v2_replay.md')
-          r2=pathlib.Path('lake/signals/r2_short_range_volatility.json')
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
               if p.exists():
                   d=json.loads(p.read_text());f.write('Hourly event research (retrospective, not live evidence)\n\n')
                   for h,v in d['horizons'].items():
                       f.write(f"- {h}h: {v.get('common_origins',0)} common origins\n")
+                      print(json.dumps({'horizon':h,'common_origins':v.get('common_origins',0),'models':v['models'],'paired_event_brier':v.get('paired_event_brier')}),flush=True)
                   f.write('\n'+json.dumps(d['runtime']))
                   f.write('\n\nCutoff audit: '+d.get('cutoff_audit',{}).get('status','not available'))
               else:f.write('No complete replay published. Inspect source status and retained checkpoints.\n')
-              if v2.exists(): f.write('\n\n---\n\n'+v2.read_text())
-              if r2.exists():
-                  d=json.loads(r2.read_text());f.write('\n\n---\n\nR2 short range/volatility\n\n')
-                  for h,v in d['horizons'].items(): f.write(f"- {h}h: {v['status']} winner={v['variance_gate_winner']}\n")
+              if v2.exists():
+                  f.write('\n\n---\n\n'+v2.read_text())
+              else:
+                  f.write('\n\nForecastBundleV2 R1 replay was not produced; inspect the dedicated export step.\n')
           PY
   foundations:
     needs: replay
