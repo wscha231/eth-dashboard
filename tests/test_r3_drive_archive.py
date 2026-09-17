@@ -25,6 +25,18 @@ class R3DriveArchiveTests(unittest.TestCase):
                 r3.R3_ARTIFACTS['eth-execution-network-research-state'],
                 ('eth-execution-network-research', 'eth_execution_network_research.yml'),
             )
+            self.assertEqual(
+                r3.R3_ARTIFACTS['free-source-fallback-state'],
+                ('derivative-history-research', 'free_source_backfill.yml'),
+            )
+            self.assertEqual(
+                r3.R3_ARTIFACTS['fast-derivative-state'],
+                ('derivative-fast-research', 'fast_derivative_snapshots.yml'),
+            )
+            self.assertNotEqual(
+                r3.R3_ARTIFACTS['free-source-fallback-state'][0],
+                r3.R3_ARTIFACTS['fast-derivative-state'][0],
+            )
             self.assertTrue(original_streams <= storage.STREAMS)
             for name, mapping in original_artifacts.items():
                 self.assertEqual(archive.ARTIFACTS[name], mapping)
@@ -52,6 +64,8 @@ class R3DriveArchiveTests(unittest.TestCase):
         self.assertIn('ETH supply research', text)
         self.assertIn('ETH liquidation research', text)
         self.assertIn('ETH execution network research', text)
+        self.assertIn('Free ETH research source backfill', text)
+        self.assertIn('Fast ETH derivative snapshots', text)
         self.assertIn('cron: "23,53 * * * *"', text)
         self.assertIn('latest trusted R3 artifact not already covered', text)
         self.assertIn("group: gdrive-archive-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}", text)
