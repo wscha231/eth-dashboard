@@ -60,7 +60,7 @@ def wis80(y,q10,q50,q90):
 
 
 def _targets(bars, features, h):
-    eth=bars.loc[bars.product.eq("ETH-USD")].set_index("close_time").reindex(features.index)
+    eth=bars.loc[bars["product"].eq("ETH-USD")].set_index("close_time").reindex(features.index)
     lr=np.log(eth.close).diff()
     rv=lr.pow(2).rolling(h,min_periods=h).sum().shift(-(h+1))
     endpoint=np.log(eth.close.shift(-(h+1))/features.reference_price)
@@ -72,7 +72,7 @@ def _targets(bars, features, h):
 
 
 def _ewma_variance(bars, features, span=168):
-    eth=bars.loc[bars.product.eq("ETH-USD")].set_index("close_time").reindex(features.index)
+    eth=bars.loc[bars["product"].eq("ETH-USD")].set_index("close_time").reindex(features.index)
     r=np.log(eth.close).diff()
     return r.pow(2).ewm(span=span,adjust=False,min_periods=span).mean()
 
