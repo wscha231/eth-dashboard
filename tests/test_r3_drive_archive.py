@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 import unittest
 
 from scripts import archive_to_drive as archive
@@ -23,6 +25,18 @@ class R3DriveArchiveTests(unittest.TestCase):
             storage.STREAMS.update(original_streams)
             archive.ARTIFACTS.clear()
             archive.ARTIFACTS.update(original_artifacts)
+
+    def test_r3_archiver_can_be_invoked_exactly_like_workflow(self):
+        completed = subprocess.run(
+            [sys.executable, "scripts/archive_r3_research_to_drive.py", "--help"],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--source-run", completed.stdout)
 
     def test_r3_drive_workflow_tracks_both_research_workflows_and_isolates_pr_concurrency(self):
         text = Path('.github/workflows/r3_research_drive_archive.yml').read_text(encoding='utf-8')
