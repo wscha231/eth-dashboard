@@ -33,7 +33,7 @@ permissions:
   pull-requests: read
 concurrency:
   group: eth-supply-research-${{ github.event.pull_request.number || 'main' }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   collect:
     runs-on: ubuntu-latest
