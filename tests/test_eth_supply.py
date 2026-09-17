@@ -8,6 +8,10 @@ from unittest.mock import patch
 from data_lab import eth_supply
 
 
+def data_value(value, generated):
+    return {"value": str(value), "status": "exact", "kind": "derived", "asOf": generated - 300, "sources": []}
+
+
 def tracked_payload(revision=8, generated=1789617600):
     return {
         "schemaVersion": 1,
@@ -25,9 +29,9 @@ def tracked_payload(revision=8, generated=1789617600):
             "burnWei": "300000000000000000000",
             "baseFeeBurnWei": "270000000000000000000",
             "blobBaseFeeBurnWei": "30000000000000000000",
-            "consensusPenaltiesWei": "0",
-            "otherExecutionBurnWei": "0",
-            "netWei": "4700000000000000000000",
+            "consensusPenaltiesWei": "50000000000000000000",
+            "otherExecutionBurnWei": "20000000000000000000",
+            "netWei": "4630000000000000000000",
             "gasTargetTotal": "1",
             "offsetBaseFeeWei": "0",
         },
@@ -54,30 +58,43 @@ def live_payload(revision=9, generated=1789617600):
             "interval": "finalized_epoch",
             "epoch": 500000,
             "targetEpoch": 500000,
-            "issuance": {"totalWei": {"value": "1200000000000000000", "status": "exact", "kind": "observed", "asOf": generated - 300, "sources": []}},
-            "burn": {"totalWei": {"value": "200000000000000000", "status": "exact", "kind": "observed", "asOf": generated - 300, "sources": []}},
-            "netWei": {"value": "1000000000000000000", "status": "exact", "kind": "derived", "asOf": generated - 300, "sources": []},
+            "issuance": {"totalWei": data_value("1200000000000000000", generated)},
+            "burn": {
+                "totalWei": data_value("200000000000000000", generated),
+                "baseFeeWei": data_value("180000000000000000", generated),
+                "blobBaseFeeWei": data_value("10000000000000000", generated),
+                "otherExecutionWei": data_value("10000000000000000", generated),
+                "consensus": {"totalWei": data_value("50000000000000000", generated)},
+            },
+            "netWei": data_value("950000000000000000", generated),
         },
     }
 
 
 class EthSupplyTests(unittest.TestCase):
-    def test_tracked_parses_retained_accounting_and_native_identity(self):
+    def test_tracked_parses_full_protocol_accounting_identity(self):
         row = eth_supply.parse_tracked(tracked_payload())
         self.assertEqual(row["from_slot"], 1000)
         self.assertEqual(row["to_slot"], 2000)
         self.assertEqual(row["issuance_eth"], "5000")
         self.assertEqual(row["burn_eth"], "300")
-        self.assertEqual(row["net_eth"], "4700")
+        self.assertEqual(row["consensus_penalties_eth"], "50")
+        self.assertEqual(row["other_execution_burn_eth"], "20")
+        self.assertEqual(row["net_eth"], "4630")
+        self.assertEqual(row["execution_burn_component_error_wei"], "0")
         self.assertEqual(row["identity_error_wei"], "0")
+        self.assertEqual(row["accounting_equation"], eth_supply.TRACKED_EQUATION)
 
-    def test_live_parses_supply_accounting_and_identity(self):
+    def test_live_parses_consensus_penalty_separately_from_execution_burn(self):
         row = eth_supply.parse_live(live_payload())
         self.assertEqual(row["total_supply_eth"], "122005400")
         self.assertEqual(row["issuance_eth"], "1.2")
         self.assertEqual(row["burn_eth"], "0.2")
-        self.assertEqual(row["net_eth"], "1")
+        self.assertEqual(row["consensus_penalties_eth"], "0.05")
+        self.assertEqual(row["net_eth"], "0.95")
+        self.assertEqual(row["execution_burn_component_error_wei"], "0")
         self.assertEqual(row["identity_error_wei"], "0")
+        self.assertEqual(row["accounting_equation"], eth_supply.LIVE_EQUATION)
         self.assertEqual(row["total_supply_status"], "exact")
 
     def test_write_state_is_prospective_append_only_and_research_blocked(self):
@@ -99,6 +116,8 @@ class EthSupplyTests(unittest.TestCase):
             self.assertEqual(first["status"], "research_only_rights_unreviewed")
             self.assertEqual(first["public_redistribution"], "blocked_pending_rights_review")
             self.assertTrue(first["model_use"].startswith("blocked_"))
+            self.assertEqual(first["tracked_execution_burn_component_error_wei"], "0")
+            self.assertEqual(first["live_execution_burn_component_error_wei"], "0")
             self.assertEqual(first["tracked_identity_error_wei"], "0")
             self.assertEqual(first["live_identity_error_wei"], "0")
             self.assertEqual(second["tracked_receipt_rows"], 2)
@@ -119,9 +138,16 @@ class EthSupplyTests(unittest.TestCase):
 
     def test_nonzero_identity_is_preserved_for_gate_not_silently_fixed(self):
         payload = tracked_payload()
-        payload["summary"]["netWei"] = "4700000000000000000001"
+        payload["summary"]["netWei"] = "4630000000000000000001"
         row = eth_supply.parse_tracked(payload)
         self.assertEqual(row["identity_error_wei"], "1")
+
+    def test_execution_burn_component_error_is_preserved(self):
+        payload = live_payload()
+        payload["accounting"]["burn"]["totalWei"]["value"] = "200000000000000001"
+        row = eth_supply.parse_live(payload)
+        self.assertEqual(row["execution_burn_component_error_wei"], "1")
+        self.assertEqual(row["identity_error_wei"], "-1")
 
 
 if __name__ == "__main__":
