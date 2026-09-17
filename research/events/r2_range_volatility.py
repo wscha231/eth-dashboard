@@ -7,6 +7,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import pandas as pd
@@ -75,7 +80,7 @@ def _ewma_variance(bars, features, span=168):
 def _indices(features, target, start, end, boundary=None):
     idx=features.index
     ready=(features[["eth_vol_24","eth_vol_168","eth_vol_720"]].notna().all(axis=1)&target.rv.gt(0)&target.endpoint_return.notna())
-    ready &= idx.hour.eq(0) if hasattr(idx.hour,"eq") else (idx.hour==0)
+    ready &= (idx.hour == 0)
     ready &= (idx>=start)&(idx<end)
     if boundary is not None:
         ready &= target.target_end < boundary-pd.Timedelta(hours=1)
