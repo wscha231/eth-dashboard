@@ -16,6 +16,12 @@ on:
     workflows: ["ETH ETF flow research", "ETH supply research", "ETH liquidation research"]
     types: [completed]
     branches: [main]
+  # workflow_run events can finish close together. GitHub concurrency keeps at
+  # most one pending run, so a pending source-specific archive can be replaced.
+  # This reconciliation scan is intentionally source-agnostic and archives any
+  # latest trusted R3 artifact not already covered by the Drive watermark.
+  schedule:
+    - cron: "23,53 * * * *"
   workflow_dispatch:
 permissions:
   contents: read
