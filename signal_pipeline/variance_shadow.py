@@ -1,8 +1,10 @@
-"""Prospective HAR-RV variance shadow for R2-passed 6h/24h/72h heads.
+"""Prospective HAR-RV variance shadow for all six retrospectively passed horizons.
 
-This module is deliberately isolated from public forecast issuance. It fits only the
-pre-registered R2 HAR-RV specification, issues variance-only shadow records, settles the
-same frozen h-bar realized-variance target, and never promotes a model automatically.
+The 2026-09-17 frozen full-horizon audit found no validated Center or Distribution
+head, while the fixed HAR-RV variance specification passed the #56 QLIKE gate at
+6h/24h/72h/7d/14d/30d.  This module therefore issues variance-scale research
+records only.  It never converts the scale into a validated price target/range and
+never promotes a model automatically.
 """
 from __future__ import annotations
 
@@ -19,12 +21,21 @@ from sklearn.preprocessing import StandardScaler
 
 from .data import build_features, read_bars, utc
 
-VERSION = "har_rv_variance_shadow_v1"
-HORIZONS = (6, 24, 72)
+VERSION = "har_rv_variance_shadow_v2_all_horizons"
+HORIZONS = (6, 24, 72, 168, 336, 720)
 VOL_COLUMNS = ("eth_vol_24", "eth_vol_168", "eth_vol_720")
+HISTORICAL_QLIKE_SKILL = {
+    "6": 0.15815773303961922,
+    "24": 0.14973600691307887,
+    "72": 0.15664228369191302,
+    "168": 0.16753448857276632,
+    "336": 0.14513620832223129,
+    "720": 0.09807811164664737,
+}
 POLICY = {
     "version": VERSION,
-    "historical_gate": "r2_range_volatility_wave1_20260916",
+    "historical_gate": "full_horizon_v2_backtest_20260917_run_35188058829",
+    "historical_data_as_of": "2026-09-17T03:00:00+00:00",
     "horizons_hours": list(HORIZONS),
     "target_spec": "model_lab_hourly_endpoint_v1:path_realized_variance_h_bars",
     "train_days": 730,
@@ -36,8 +47,9 @@ POLICY = {
     "model": "StandardScaler + Ridge(alpha=10) on log(realized_variance_total/h)",
     "calibration": "prior calibration mean actual/predicted variance ratio",
     "baseline": "h * trailing_720h hourly sample variance",
-    "prospective_min_nonoverlap": {"6": 120, "24": 60, "72": 40},
+    "prospective_min_nonoverlap": {"6": 120, "24": 60, "72": 40, "168": 26, "336": 18, "720": 12},
     "promotion": "shadow_only; manual review after frozen prospective minima",
+    "public_claim": "volatility scale only; not a validated target price or 80% predictive interval",
 }
 
 
@@ -82,7 +94,6 @@ def connect(state: Path):
 
 
 def _target_frame(bars: pd.DataFrame, features: pd.DataFrame, horizon: int) -> pd.DataFrame:
-    # Reuse the exact target implementation that R2 Wave 1 gated.
     from model_lab.contracts import target_frame
     return target_frame(bars, features, horizon)
 
@@ -191,7 +202,10 @@ def obtain_checkpoint(root: Path, state: Path, horizon: int, *, now=None) -> dic
     if entry:
         path = Path(state) / "models" / entry["file"]
         if path.is_file() and file_hash(path) == entry.get("sha256"):
-            checkpoint = validate_checkpoint(json.loads(path.read_text()), horizon)
+            try:
+                checkpoint = validate_checkpoint(json.loads(path.read_text()), horizon)
+            except ValueError:
+                checkpoint = None  # v1 checkpoints are preserved on disk but v2 refits cleanly.
     if checkpoint and now < utc(checkpoint["fit_time"]) + pd.Timedelta(days=POLICY["refit_days"]):
         return checkpoint
 
@@ -265,7 +279,12 @@ def issue(state: Path, record: dict, *, now=None) -> dict:
                "role": "variance_shadow_research", "promotion": "none"}
     with connect(state) as con:
         con.execute("BEGIN IMMEDIATE")
-        prior = con.execute("SELECT payload FROM forecasts WHERE forecast_id=?", (forecast_id,)).fetchone()
+        # During the v1 -> v2 transition, never issue two records for the same
+        # origin/horizon.  Earlier v1 evidence stays authoritative for that origin.
+        prior = con.execute(
+            "SELECT payload FROM forecasts WHERE slot=? AND horizon_hours=? ORDER BY issued_at LIMIT 1",
+            (record["slot"], record["horizon_hours"]),
+        ).fetchone()
         if prior:
             return json.loads(prior[0])
         con.execute("INSERT INTO forecasts VALUES (?,?,?,?,?,?,?)",
@@ -292,6 +311,8 @@ def settle(state: Path, bars: pd.DataFrame, *, now=None) -> int:
         for forecast_id, raw in rows:
             forecast = json.loads(raw)
             horizon = int(forecast["horizon_hours"])
+            if horizon not in targets:
+                continue
             slot = utc(forecast["slot"])
             if slot not in targets[horizon].index:
                 continue
@@ -333,10 +354,17 @@ def history(state: Path) -> list[dict]:
             for f, o, revision, evaluated in rows]
 
 
+def _dedupe_origins(records: list[dict], horizon: int) -> list[dict]:
+    chosen = {}
+    for row in sorted([r for r in records if int(r["horizon_hours"]) == horizon], key=lambda r: (utc(r["slot"]), utc(r["issued_at"]))):
+        chosen.setdefault(row["slot"], row)
+    return list(chosen.values())
+
+
 def prospective_report(records: list[dict]) -> dict:
     report = {}
     for horizon in HORIZONS:
-        issued = sorted([r for r in records if r["horizon_hours"] == horizon], key=lambda r: utc(r["slot"]))
+        issued = _dedupe_origins(records, horizon)
         resolved = [r for r in issued if r.get("outcome")]
         independent = []
         previous_end = None
@@ -365,6 +393,49 @@ def prospective_report(records: list[dict]) -> dict:
             "promotion": "shadow_only",
         }
     return report
+
+
+def public_payload(records: list[dict], report: dict) -> dict:
+    horizons = {}
+    for horizon in HORIZONS:
+        issued = _dedupe_origins(records, horizon)
+        latest = issued[-1] if issued else None
+        p = report["prospective"][str(horizon)]
+        row = {
+            "horizon_hours": horizon,
+            "historical_qlike_improvement": HISTORICAL_QLIKE_SKILL[str(horizon)],
+            "historical_gate": "pass",
+            "prospective": p,
+            "status": "shadow_only",
+        }
+        if latest:
+            sigma = float(latest["predicted_endpoint_sigma"])
+            persistence = float(latest["persistence_endpoint_sigma"])
+            reference = float(latest["reference_price"])
+            row.update({
+                "forecast_id": latest["forecast_id"],
+                "slot": latest["slot"],
+                "issued_at": latest["issued_at"],
+                "target_end": latest["target_end"],
+                "reference_price": reference,
+                "predicted_endpoint_sigma": sigma,
+                "persistence_endpoint_sigma": persistence,
+                "one_sigma_move_pct": sigma,
+                "one_sigma_move_usd": reference * sigma,
+                "scale_vs_persistence": sigma / persistence if persistence > 0 else None,
+                "model_version": latest["model_version"],
+            })
+        horizons[str(horizon)] = row
+    return {
+        "schema": 1,
+        "version": VERSION,
+        "generated_at": report["generated_at"],
+        "source_as_of": report["source_as_of"],
+        "status": "research_shadow",
+        "claim": POLICY["public_claim"],
+        "historical_data_as_of": POLICY["historical_data_as_of"],
+        "horizons": horizons,
+    }
 
 
 def run(root: Path, *, now=None) -> dict:
@@ -409,7 +480,7 @@ def run(root: Path, *, now=None) -> dict:
 
     records = history(state)
     report = {
-        "schema": 1,
+        "schema": 2,
         "policy": POLICY,
         "generated_at": current.isoformat(),
         "source_as_of": bars.groupby("product").close_time.max().min().isoformat(),
@@ -418,7 +489,9 @@ def run(root: Path, *, now=None) -> dict:
                             for r in issued],
         "errors": errors,
         "prospective": prospective_report(records),
-        "claims": "prospective variance shadow only; historical gate passed but production promotion remains disabled",
+        "historical_qlike_improvement": HISTORICAL_QLIKE_SKILL,
+        "claims": "all-horizon prospective variance shadow; no validated Center/Distribution; production promotion remains disabled",
     }
     atomic_json(state / "report.json", report)
+    atomic_json(state / "public.json", public_payload(records, report))
     return report

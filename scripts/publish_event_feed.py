@@ -10,6 +10,7 @@ from scripts.copy_event_evidence import copy_evidence
 from scripts.deployment_policy import configure, cooldown
 from scripts.export_event_segments import export
 from scripts.publish_search_assets import publish as publish_assets, render_snapshot
+from scripts.publish_v2_assets import publish as publish_v2_assets
 
 FEED_BRANCH='data/event-feed'
 SITE_BRANCH='data/daily-forecast'
@@ -55,6 +56,7 @@ def publish(root, runner, source=None):
     feed_sha=commit(feed,FEED_BRANCH,'chore(data): publish immutable ETH feed without a site build')
     site=worktree(SITE_BRANCH,runner/'event-site',SITE_BRANCH)
     publish_assets(site,source=source,stage=True,include_snapshot=False)
+    publish_v2_assets(site,source=source,stage=True)
     configure(site,source=source,stage=True)
     # Remove obsolete static copies so routing cannot silently serve old values.
     for name in (*DYNAMIC,'archive'):

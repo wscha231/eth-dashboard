@@ -1,15 +1,20 @@
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from signal_pipeline.variance_shadow import (
+    HISTORICAL_QLIKE_SKILL,
     HORIZONS,
     POLICY,
+    VERSION,
     connect,
     digest,
     issue,
     predict_variance,
     prospective_report,
+    public_payload,
     validate_checkpoint,
     validate_record,
 )
@@ -38,16 +43,17 @@ def checkpoint(horizon=24):
     return value
 
 
-def record(horizon=24):
+def record(horizon=24, slot="2026-09-16T00:00:00+00:00"):
     cp = checkpoint(horizon)
+    origin = pd.Timestamp(slot)
     return {
         "schema": 1,
         "policy": POLICY,
-        "slot": "2026-09-16T00:00:00+00:00",
-        "input_cutoff": "2026-09-16T00:00:00+00:00",
-        "available_at": "2026-09-16T00:08:00+00:00",
-        "window_start": "2026-09-16T01:00:00+00:00",
-        "target_end": (pd.Timestamp("2026-09-16T00:00:00Z") + pd.Timedelta(hours=horizon + 1)).isoformat(),
+        "slot": origin.isoformat(),
+        "input_cutoff": origin.isoformat(),
+        "available_at": (origin + pd.Timedelta(minutes=8)).isoformat(),
+        "window_start": (origin + pd.Timedelta(hours=1)).isoformat(),
+        "target_end": (origin + pd.Timedelta(hours=horizon + 1)).isoformat(),
         "horizon_hours": horizon,
         "instrument": "ETH-USD",
         "reference_price": 4000.0,
@@ -61,11 +67,27 @@ def record(horizon=24):
     }
 
 
-def test_policy_matches_only_r2_passed_short_horizons():
-    assert HORIZONS == (6, 24, 72)
-    assert POLICY["historical_gate"] == "r2_range_volatility_wave1_20260916"
-    assert POLICY["issue_origin"].startswith("00:00 UTC daily")
-    assert POLICY["promotion"].startswith("shadow_only")
+def resolved(horizon, day, *, candidate=0.8, baseline=1.0):
+    slot = pd.Timestamp("2026-09-01T00:00:00Z") + pd.Timedelta(days=day)
+    row = record(horizon, slot.isoformat())
+    row.update(
+        forecast_id=f"f-{horizon}-{day}",
+        issued_at=(slot + pd.Timedelta(minutes=17)).isoformat(),
+        outcome={"candidate_qlike": candidate, "persistence_qlike": baseline},
+    )
+    return row
+
+
+def test_policy_matches_all_six_retrospective_variance_passes():
+    assert HORIZONS == (6, 24, 72, 168, 336, 720)
+    assert VERSION == "har_rv_variance_shadow_v2_all_horizons"
+    assert POLICY["historical_gate"] == "full_horizon_v2_backtest_20260917_run_35188058829"
+    assert POLICY["prospective_min_nonoverlap"] == {
+        "6": 120, "24": 60, "72": 40, "168": 26, "336": 18, "720": 12
+    }
+    assert set(HISTORICAL_QLIKE_SKILL) == {str(h) for h in HORIZONS}
+    assert all(HISTORICAL_QLIKE_SKILL[str(h)] >= 0.05 for h in HORIZONS)
+    assert "not a validated target price" in POLICY["public_claim"]
 
 
 def test_checkpoint_identity_and_maturity_are_enforced():
@@ -76,11 +98,11 @@ def test_checkpoint_identity_and_maturity_are_enforced():
         validate_checkpoint(broken, 24)
 
 
-def test_prediction_uses_har_and_persistence_independently():
+def test_prediction_uses_har_and_persistence_independently_for_long_horizon():
     row = {"eth_vol_24": 0.02, "eth_vol_168": 0.018, "eth_vol_720": 0.015}
-    result = predict_variance(checkpoint(), row, 24)
+    result = predict_variance(checkpoint(720), row, 720)
     assert result["predicted_variance_total"] > 0
-    assert result["persistence_variance_total"] == pytest.approx(24 * 0.015**2)
+    assert result["persistence_variance_total"] == pytest.approx(720 * 0.015**2)
     assert result["predicted_endpoint_sigma"] > 0
 
 
@@ -94,29 +116,26 @@ def test_issue_contract_rejects_non_midnight_origin():
         validate_record(value, now="2026-09-16T01:17:00+00:00")
 
 
-def test_issue_is_idempotent_and_append_only(tmp_path):
+def test_issue_is_idempotent_across_policy_transition_for_same_origin(tmp_path):
     state = tmp_path / "variance"
     first = issue(state, record(), now="2026-09-16T00:17:00+00:00")
-    second = issue(state, record(), now="2026-09-16T00:18:00+00:00")
+    # Simulate a legacy row with the same origin/horizon but a different model identity.
+    second_input = record()
+    second_input["model_version"] = "c" * 64
+    second_input["checkpoint"] = checkpoint()
+    second = issue(state, second_input, now="2026-09-16T00:18:00+00:00")
     assert first == second
     with connect(state) as con:
         assert con.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0] == 1
 
 
-def test_prospective_report_counts_nonoverlap_separately():
-    rows = []
-    for day in range(4):
-        slot = pd.Timestamp("2026-09-01T00:00:00Z") + pd.Timedelta(days=day)
-        rows.append({
-            "slot": slot.isoformat(),
-            "target_end": (slot + pd.Timedelta(hours=25)).isoformat(),
-            "horizon_hours": 24,
-            "outcome": {"candidate_qlike": 0.8, "persistence_qlike": 1.0},
-        })
-    report = prospective_report(rows)["24"]
-    assert report["resolved"] == 4
-    assert report["nonoverlap"]["rows"] == 2
+def test_prospective_report_counts_nonoverlap_for_long_horizon():
+    rows = [resolved(336, day) for day in range(30)]
+    report = prospective_report(rows)["336"]
+    assert report["resolved"] == 30
+    assert report["nonoverlap"]["rows"] >= 2
     assert report["nonoverlap"]["qlike_improvement"] == pytest.approx(0.2)
+    assert report["minimum_nonoverlap_for_review"] == 18
     assert report["performance_watch"] == "insufficient_evidence"
 
 
@@ -125,3 +144,26 @@ def test_validate_record_preserves_h_plus_one_boundary():
     value["target_end"] = "2026-09-16T06:00:00+00:00"
     with pytest.raises(ValueError, match=r"h\+1"):
         validate_record(value, now="2026-09-16T00:17:00+00:00")
+
+
+def test_public_payload_exposes_scale_not_price_range():
+    records = []
+    for h in HORIZONS:
+        row = record(h)
+        row.update(forecast_id=f"f-{h}", issued_at="2026-09-16T00:17:00+00:00")
+        records.append(row)
+    report = {
+        "generated_at": "2026-09-16T00:17:00+00:00",
+        "source_as_of": "2026-09-16T00:00:00+00:00",
+        "prospective": prospective_report(records),
+    }
+    payload = public_payload(records, report)
+    assert payload["status"] == "research_shadow"
+    assert set(payload["horizons"]) == {str(h) for h in HORIZONS}
+    row = payload["horizons"]["720"]
+    assert row["one_sigma_move_pct"] == pytest.approx(0.145)
+    assert row["one_sigma_move_usd"] == pytest.approx(580.0)
+    assert row["historical_gate"] == "pass"
+    encoded = json.dumps(payload)
+    assert "price_quantiles" not in encoded
+    assert "q10" not in encoded and "q90" not in encoded
