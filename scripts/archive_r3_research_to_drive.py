@@ -14,10 +14,11 @@ if str(ROOT) not in sys.path:
 
 from scripts import gdrive_store as storage
 
-R3_STREAMS = {"eth-etf-research", "eth-supply-research"}
+R3_STREAMS = {"eth-etf-research", "eth-supply-research", "eth-liquidation-research"}
 R3_ARTIFACTS = {
     "eth-etf-flow-state": ("eth-etf-research", "eth_etf_flows.yml"),
     "eth-supply-research-state": ("eth-supply-research", "eth_supply_research.yml"),
+    "eth-liquidation-research-state": ("eth-liquidation-research", "eth_liquidation_research.yml"),
 }
 
 
