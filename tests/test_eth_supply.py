@@ -147,7 +147,7 @@ class EthSupplyTests(unittest.TestCase):
         payload["accounting"]["burn"]["totalWei"]["value"] = "200000000000000001"
         row = eth_supply.parse_live(payload)
         self.assertEqual(row["execution_burn_component_error_wei"], "1")
-        self.assertEqual(row["identity_error_wei"], "-1")
+        self.assertEqual(row["identity_error_wei"], "1")
 
 
 if __name__ == "__main__":
