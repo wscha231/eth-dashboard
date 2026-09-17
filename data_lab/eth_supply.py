@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timezone
 from decimal import Decimal
 import hashlib
@@ -12,32 +13,19 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-import pandas as pd
-
 BASE_URL = "https://ethsupply.fyi"
-HISTORY_RANGE = "30d"
-HISTORY_URL = BASE_URL + f"/api/history?range={HISTORY_RANGE}"
 TRACKED_URL = BASE_URL + "/api/tracked"
 LIVE_URL = BASE_URL + "/api/live"
 SOURCE_ID = "ethsupply_fyi"
 SOURCE_NAME = "Ethereum Supply / ethsupply.fyi"
 LICENSE_STATUS = "rights_unreviewed_public_api"
 PUBLIC_REDISTRIBUTION = "blocked_pending_rights_review"
-MODEL_USE = "blocked_until_rights_pit_coverage_and_independent_reproduction_pass"
+MODEL_USE = "blocked_until_rights_prospective_continuity_and_self_derived_history_pass"
 SITE_USE = "blocked"
-MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 FETCH_ERRORS = (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError)
 WEI_PER_ETH = Decimal(10) ** 18
 
-HISTORY_FIELDS = (
-    "supplyWei",
-    "issuanceWei",
-    "burnWei",
-    "baseFeeBurnWei",
-    "blobBaseFeeBurnWei",
-    "consensusPenaltiesWei",
-    "otherExecutionBurnWei",
-)
 TRACKED_FIELDS = (
     "issuanceWei",
     "burnWei",
@@ -49,23 +37,39 @@ TRACKED_FIELDS = (
 )
 
 
-def utc(value: Any) -> pd.Timestamp:
-    stamp = pd.Timestamp(value)
-    if pd.isna(stamp):
-        raise ValueError("finite timestamp required")
-    return stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")
+def _receipt_iso(value: Any | None) -> str:
+    if value is None:
+        dt = datetime.now(timezone.utc)
+    elif isinstance(value, datetime):
+        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone(timezone.utc)
+    elif isinstance(value, str):
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone(timezone.utc)
+    else:
+        raise TypeError("receipt_time must be datetime, ISO string, or None")
+    return dt.isoformat()
+
+
+def _unix_iso(value: Any) -> str:
+    integer = _integer(value)
+    if integer is None:
+        return ""
+    return datetime.fromtimestamp(integer, tz=timezone.utc).isoformat()
 
 
 def _selected_headers(response) -> dict[str, str]:
     wanted = {"etag", "x-supply-sha256", "x-supply-generated-at", "x-supply-revision"}
-    return {k.lower(): v for k, v in response.headers.items() if k.lower() in wanted}
+    return {key.lower(): value for key, value in response.headers.items() if key.lower() in wanted}
 
 
 def _validate_final_url(value: str) -> None:
     parsed = urlparse(value)
     if parsed.scheme != "https" or parsed.hostname != "ethsupply.fyi":
         raise ValueError("unexpected ethsupply response origin")
-    if parsed.path not in {"/api/live", "/api/history", "/api/tracked"}:
+    if parsed.path not in {"/api/live", "/api/tracked"}:
         raise ValueError("unexpected ethsupply response path")
 
 
@@ -139,66 +143,11 @@ def _data_value(node: Any, *, signed: bool = False) -> tuple[int | None, str, st
     return value, str(node.get("status", "unavailable")), str(node.get("kind", "unknown")), str(node.get("asOf") or "")
 
 
-def parse_history(payload: dict[str, Any], *, expected_range: str = HISTORY_RANGE) -> tuple[pd.DataFrame, dict[str, Any]]:
-    if payload.get("schemaVersion") != 1 or payload.get("range") != expected_range:
-        raise ValueError("unexpected ethsupply history schema/range")
-    revision = int(payload.get("revision"))
-    generated_at = utc(pd.to_datetime(int(payload.get("generatedAt")), unit="s", utc=True))
-    epochs = payload.get("epochs")
-    if not isinstance(epochs, list) or not epochs:
-        raise ValueError("ethsupply history has no epoch observations")
-
-    rows: list[dict[str, Any]] = []
-    for point in epochs:
-        if not isinstance(point, dict):
-            raise ValueError("invalid ethsupply history point")
-        timestamp = pd.to_datetime(int(point["timestamp"]), unit="s", utc=True)
-        row: dict[str, Any] = {
-            "timestamp": timestamp.isoformat(),
-            "epoch": int(point["epoch"]),
-            "attestation_duty_epoch": "" if point.get("attestationDutyEpoch") is None else int(point["attestationDutyEpoch"]),
-            "blocks": "" if point.get("blocks") is None else int(point["blocks"]),
-        }
-        values: dict[str, int | None] = {}
-        for field in HISTORY_FIELDS:
-            parsed = _integer(point.get(field))
-            values[field] = parsed
-            snake = _snake(field)
-            row[snake] = "" if parsed is None else str(parsed)
-            row[snake.removesuffix("_wei") + "_eth"] = _eth(parsed)
-        issuance, burn = values["issuanceWei"], values["burnWei"]
-        derived_net = None if issuance is None or burn is None else issuance - burn
-        row["net_wei"] = "" if derived_net is None else str(derived_net)
-        row["net_eth"] = _eth(derived_net)
-        row["net_kind"] = "derived_from_history_issuance_minus_burn" if derived_net is not None else "unavailable"
-        rows.append(row)
-
-    frame = pd.DataFrame(rows).sort_values(["timestamp", "epoch"], kind="stable").reset_index(drop=True)
-    if frame["timestamp"].duplicated().any():
-        raise ValueError("duplicate ethsupply history timestamp")
-    timestamps = pd.to_datetime(frame["timestamp"], utc=True)
-    if timestamps.max() > generated_at + pd.Timedelta(minutes=10):
-        raise ValueError("history contains observations after source generation time")
-    meta = {
-        "schema_version": 1,
-        "source_revision": revision,
-        "source_generated_at": generated_at.isoformat(),
-        "source_range": expected_range,
-        "source_interval": str(payload.get("interval") or "unknown"),
-        "history_rows": int(len(frame)),
-        "first_timestamp": timestamps.min().isoformat(),
-        "last_timestamp": timestamps.max().isoformat(),
-        "coverage": payload.get("coverage") if isinstance(payload.get("coverage"), dict) else None,
-        "partial": bool(payload.get("partial", False)),
-    }
-    return frame, meta
-
-
 def parse_tracked(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("schemaVersion") != 1 or payload.get("range") != "retained":
         raise ValueError("unexpected ethsupply tracked schema")
     revision = int(payload["revision"])
-    generated_at = pd.to_datetime(int(payload["generatedAt"]), unit="s", utc=True)
+    generated_at = _unix_iso(payload["generatedAt"])
     summary = payload.get("summary")
     if not isinstance(summary, dict):
         raise ValueError("ethsupply tracked summary missing")
@@ -206,13 +155,16 @@ def parse_tracked(payload: dict[str, Any]) -> dict[str, Any]:
     to_slot = _integer(summary.get("toSlot"))
     if from_slot is None or to_slot is None or to_slot < from_slot:
         raise ValueError("invalid tracked slot range")
+
     row: dict[str, Any] = {
         "source_revision": revision,
-        "source_generated_at": generated_at.isoformat(),
+        "source_generated_at": generated_at,
         "from_slot": from_slot,
         "to_slot": to_slot,
         "from_timestamp": _integer(summary.get("fromTimestamp")),
         "to_timestamp": _integer(summary.get("toTimestamp")),
+        "from_time_utc": _unix_iso(summary.get("fromTimestamp")),
+        "to_time_utc": _unix_iso(summary.get("toTimestamp")),
         "slots": _integer(summary.get("slots")),
         "blocks": _integer(summary.get("blocks")),
         "finalized_to_slot": "" if payload.get("finalizedToSlot") is None else int(payload["finalizedToSlot"]),
@@ -235,7 +187,7 @@ def parse_live(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("schemaVersion") != 1 or payload.get("chainId") != 1:
         raise ValueError("unexpected ethsupply live schema")
     revision = int(payload["revision"])
-    generated_at = pd.to_datetime(int(payload["generatedAt"]), unit="s", utc=True)
+    generated_at = _unix_iso(payload["generatedAt"])
     supply = payload.get("supply") or {}
     accounting = payload.get("accounting") or {}
     issuance = accounting.get("issuance") or {}
@@ -257,205 +209,181 @@ def parse_live(payload: dict[str, Any]) -> dict[str, Any]:
     as_of = supply.get("asOf") or {}
     return {
         "source_revision": revision,
-        "source_generated_at": generated_at.isoformat(),
-        "head_block": head.get("block"), "head_slot": head.get("slot"), "head_timestamp": head.get("timestamp"),
-        "finalized_block": finalized.get("block"), "finalized_epoch": finalized.get("epoch"), "finalized_slot": finalized.get("slot"),
-        "supply_asof_block": as_of.get("block"), "supply_asof_slot": as_of.get("slot"), "supply_asof_epoch": as_of.get("epoch"), "supply_asof_timestamp": as_of.get("timestamp"),
-        "total_supply_wei": str(total_wei), "total_supply_eth": _eth(total_wei), "total_supply_status": total_status, "total_supply_kind": total_kind, "total_supply_asof": total_asof,
-        "finalized_supply_wei": "" if finalized_wei is None else str(finalized_wei), "finalized_supply_eth": _eth(finalized_wei), "finalized_supply_status": finalized_status, "finalized_supply_kind": finalized_kind, "finalized_supply_asof": finalized_asof,
-        "accounting_interval": str(accounting.get("interval") or ""), "accounting_epoch": accounting.get("epoch"), "accounting_target_epoch": accounting.get("targetEpoch"),
-        "issuance_wei": "" if issuance_wei is None else str(issuance_wei), "issuance_eth": _eth(issuance_wei), "issuance_status": issuance_status, "issuance_kind": issuance_kind, "issuance_asof": issuance_asof,
-        "burn_wei": "" if burn_wei is None else str(burn_wei), "burn_eth": _eth(burn_wei), "burn_status": burn_status, "burn_kind": burn_kind, "burn_asof": burn_asof,
-        "net_wei": "" if net_wei is None else str(net_wei), "net_eth": _eth(net_wei), "net_status": net_status, "net_kind": net_kind, "net_asof": net_asof,
+        "source_generated_at": generated_at,
+        "head_block": head.get("block"),
+        "head_slot": head.get("slot"),
+        "head_timestamp": head.get("timestamp"),
+        "head_time_utc": _unix_iso(head.get("timestamp")),
+        "finalized_block": finalized.get("block"),
+        "finalized_epoch": finalized.get("epoch"),
+        "finalized_slot": finalized.get("slot"),
+        "supply_asof_block": as_of.get("block"),
+        "supply_asof_slot": as_of.get("slot"),
+        "supply_asof_epoch": as_of.get("epoch"),
+        "supply_asof_timestamp": as_of.get("timestamp"),
+        "supply_asof_time_utc": _unix_iso(as_of.get("timestamp")),
+        "total_supply_wei": str(total_wei),
+        "total_supply_eth": _eth(total_wei),
+        "total_supply_status": total_status,
+        "total_supply_kind": total_kind,
+        "total_supply_asof": total_asof,
+        "finalized_supply_wei": "" if finalized_wei is None else str(finalized_wei),
+        "finalized_supply_eth": _eth(finalized_wei),
+        "finalized_supply_status": finalized_status,
+        "finalized_supply_kind": finalized_kind,
+        "finalized_supply_asof": finalized_asof,
+        "accounting_interval": str(accounting.get("interval") or ""),
+        "accounting_epoch": accounting.get("epoch"),
+        "accounting_target_epoch": accounting.get("targetEpoch"),
+        "issuance_wei": "" if issuance_wei is None else str(issuance_wei),
+        "issuance_eth": _eth(issuance_wei),
+        "issuance_status": issuance_status,
+        "issuance_kind": issuance_kind,
+        "issuance_asof": issuance_asof,
+        "burn_wei": "" if burn_wei is None else str(burn_wei),
+        "burn_eth": _eth(burn_wei),
+        "burn_status": burn_status,
+        "burn_kind": burn_kind,
+        "burn_asof": burn_asof,
+        "net_wei": "" if net_wei is None else str(net_wei),
+        "net_eth": _eth(net_wei),
+        "net_status": net_status,
+        "net_kind": net_kind,
+        "net_asof": net_asof,
         "identity_error_wei": identity_error,
     }
-
-
-def _read_csv(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, dtype=str, keep_default_na=False) if path.exists() and path.stat().st_size else pd.DataFrame()
 
 
 def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() and path.stat().st_size else {}
 
 
-def _same(a: Any, b: Any) -> bool:
-    return ("" if a is None else str(a)) == ("" if b is None else str(b))
+def _append_jsonl(path: Path, row: dict[str, Any]) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+    with path.open("r", encoding="utf-8") as handle:
+        return sum(1 for line in handle if line.strip())
 
 
-def reconcile_history(
-    snapshot: pd.DataFrame,
-    *,
-    existing: pd.DataFrame | None,
-    state: dict[str, Any] | None,
-    receipt_time: Any,
-    raw_sha256: str,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any], dict[str, int]]:
-    receipt = utc(receipt_time)
-    state = dict(state or {})
-    initial = not state.get("collector_started_at")
-    if initial:
-        state.update(schema=1, source_id=SOURCE_ID, collector_started_at=receipt.isoformat(), license_status=LICENSE_STATUS)
-    started = utc(state["collector_started_at"])
-
-    value_columns = [c for c in snapshot.columns if c not in {"available_at", "ingested_at", "revision", "vintage_mode", "raw_sha256"}]
-    prior: dict[str, dict[str, Any]] = {}
-    if existing is not None and not existing.empty:
-        prior = {str(row["timestamp"]): row.to_dict() for _, row in existing.iterrows()}
-    output = {k: dict(v) for k, v in prior.items()}
-    journal: list[dict[str, Any]] = []
-    stats = {"new_rows": 0, "revised_rows": 0, "unchanged_rows": 0}
-
-    for _, incoming_row in snapshot.iterrows():
-        incoming = incoming_row.to_dict()
-        key = str(incoming["timestamp"])
-        observed_at = utc(key)
-        old = output.get(key)
-        if old is None:
-            prospective = (not initial) and observed_at >= started
-            merged = {
-                **incoming,
-                "available_at": receipt.isoformat(),
-                "ingested_at": receipt.isoformat(),
-                "revision": "0",
-                "vintage_mode": "observed_vintages" if prospective else "reconstructed",
-                "raw_sha256": raw_sha256,
-            }
-            output[key] = merged
-            journal.append({"change_type": "new", **merged})
-            stats["new_rows"] += 1
-            continue
-        changed = any(not _same(old.get(column), incoming.get(column)) for column in value_columns)
-        if not changed:
-            stats["unchanged_rows"] += 1
-            continue
-        revision = int(old.get("revision") or 0) + 1
-        merged = {
-            **old, **incoming,
-            "available_at": receipt.isoformat(),
-            "ingested_at": receipt.isoformat(),
-            "revision": str(revision),
-            "vintage_mode": "observed_vintages",
-            "raw_sha256": raw_sha256,
-        }
-        output[key] = merged
-        journal.append({"change_type": "revision", **merged})
-        stats["revised_rows"] += 1
-
-    columns = list(snapshot.columns) + ["available_at", "ingested_at", "revision", "vintage_mode", "raw_sha256"]
-    latest = pd.DataFrame([output[key] for key in sorted(output, key=lambda x: utc(x))]).reindex(columns=columns)
-    events = pd.DataFrame(journal)
-    state.update(last_received_at=receipt.isoformat(), last_raw_sha256=raw_sha256, rows=int(len(latest)))
-    return latest, events, state, stats
+def _write_receipt_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        return
+    fields: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        for key in row:
+            if key not in seen:
+                seen.add(key)
+                fields.append(key)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
-def _append_receipt(path: Path, row: dict[str, Any]) -> pd.DataFrame:
-    frame = pd.concat([_read_csv(path), pd.DataFrame([row])], ignore_index=True, sort=False)
-    frame.to_csv(path, index=False)
-    return frame
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                rows.append(json.loads(line))
+    return rows
 
 
 def write_state(root: str | Path, *, receipt_time: Any | None = None) -> dict[str, Any]:
     base = Path(root)
     raw_dir = base / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
-    receipt = utc(receipt_time or datetime.now(timezone.utc))
+    receipt = _receipt_iso(receipt_time)
 
-    history_payload, history_raw, history_headers = fetch_json(HISTORY_URL)
     tracked_payload, tracked_raw, tracked_headers = fetch_json(TRACKED_URL)
     live_payload, live_raw, live_headers = fetch_json(LIVE_URL)
 
-    history, history_meta = parse_history(history_payload)
-    tracked = parse_tracked(tracked_payload)
-    live = parse_live(live_payload)
-    history_hash = history_headers["sha256"]
     tracked_hash = tracked_headers["sha256"]
     live_hash = live_headers["sha256"]
+    (raw_dir / "ethsupply_tracked_latest.json").write_bytes(tracked_raw)
+    (raw_dir / "ethsupply_live_latest.json").write_bytes(live_raw)
 
-    latest_path = base / "eth_supply_history_intervals.csv"
-    journal_path = base / "eth_supply_history_receipts.csv"
-    tracked_path = base / "eth_supply_tracked_receipts.csv"
-    live_path = base / "eth_supply_live_receipts.csv"
+    tracked = parse_tracked(tracked_payload)
+    live = parse_live(live_payload)
+
     state_path = base / "state.json"
     report_path = base / "report.json"
+    tracked_path = base / "eth_supply_tracked_receipts.jsonl"
+    live_path = base / "eth_supply_live_receipts.jsonl"
+    state = _read_json(state_path)
+    if not state.get("collector_started_at"):
+        state.update(schema=1, source_id=SOURCE_ID, collector_started_at=receipt, license_status=LICENSE_STATUS)
 
-    latest, events, state, stats = reconcile_history(
-        history,
-        existing=_read_csv(latest_path),
-        state=_read_json(state_path),
-        receipt_time=receipt,
-        raw_sha256=history_hash,
-    )
-    latest.to_csv(latest_path, index=False)
-    journal = pd.concat([_read_csv(journal_path), events], ignore_index=True, sort=False)
-    journal.to_csv(journal_path, index=False)
-
-    tracked_receipts = _append_receipt(tracked_path, {
-        "received_at": receipt.isoformat(),
+    tracked_receipt = {
+        "received_at": receipt,
+        "available_at": receipt,
         "raw_sha256": tracked_hash,
         "header_revision": tracked_headers.get("x-supply-revision", ""),
         "header_generated_at": tracked_headers.get("x-supply-generated-at", ""),
         **tracked,
-    })
-    live_receipts = _append_receipt(live_path, {
-        "received_at": receipt.isoformat(),
+    }
+    live_receipt = {
+        "received_at": receipt,
+        "available_at": receipt,
         "raw_sha256": live_hash,
         "header_revision": live_headers.get("x-supply-revision", ""),
         "header_generated_at": live_headers.get("x-supply-generated-at", ""),
         **live,
-    })
+    }
+    tracked_count = _append_jsonl(tracked_path, tracked_receipt)
+    live_count = _append_jsonl(live_path, live_receipt)
+
+    # Human-inspectable current receipt tables; JSONL remains the append-only source of truth.
+    _write_receipt_csv(base / "eth_supply_tracked_receipts.csv", _read_jsonl(tracked_path))
+    _write_receipt_csv(base / "eth_supply_live_receipts.csv", _read_jsonl(live_path))
 
     state.update(
-        last_history_revision=history_meta["source_revision"],
+        last_received_at=receipt,
         last_tracked_revision=tracked["source_revision"],
         last_live_revision=live["source_revision"],
-        last_history_generated_at=history_meta["source_generated_at"],
         last_tracked_generated_at=tracked["source_generated_at"],
         last_live_generated_at=live["source_generated_at"],
         last_tracked_raw_sha256=tracked_hash,
         last_live_raw_sha256=live_hash,
+        tracked_receipt_rows=tracked_count,
+        live_receipt_rows=live_count,
     )
     state_path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
-    (raw_dir / "ethsupply_history_30d_latest.json").write_bytes(history_raw)
-    (raw_dir / "ethsupply_tracked_latest.json").write_bytes(tracked_raw)
-    (raw_dir / "ethsupply_live_latest.json").write_bytes(live_raw)
 
     report = {
-        "schema": 2,
-        "generated_at_utc": receipt.isoformat(),
+        "schema": 3,
+        "generated_at_utc": receipt,
         "status": "research_only_rights_unreviewed",
         "source_id": SOURCE_ID,
         "source_name": SOURCE_NAME,
-        "history_url": HISTORY_URL,
         "tracked_url": TRACKED_URL,
         "live_url": LIVE_URL,
         "license_status": LICENSE_STATUS,
         "public_redistribution": PUBLIC_REDISTRIBUTION,
         "model_use": MODEL_USE,
         "site_use": SITE_USE,
-        "historical_vintage_mode": "first_30d_reconstructed_then_accumulated_observed_vintages",
-        "historical_available_at_policy": "actual EtherForecast collector receipt; no retroactive availability inference",
-        "prospective_available_at_policy": "actual EtherForecast collector receipt",
-        "history_sha256": history_hash,
+        "history_mode": "prospective_receipts_only",
+        "historical_backfill": "not_eligible_requires_self_derived_geth_consensus_replay",
+        "available_at_policy": "actual EtherForecast collector receipt only",
         "tracked_sha256": tracked_hash,
         "live_sha256": live_hash,
-        "source_history_revision": history_meta["source_revision"],
         "source_tracked_revision": tracked["source_revision"],
         "source_live_revision": live["source_revision"],
-        "source_range": history_meta["source_range"],
-        "source_interval": history_meta["source_interval"],
-        "history_rows": int(len(latest)),
-        "history_receipt_rows": int(len(journal)),
-        "tracked_receipt_rows": int(len(tracked_receipts)),
-        "live_receipt_rows": int(len(live_receipts)),
-        "first_timestamp": str(latest["timestamp"].min()),
-        "last_timestamp": str(latest["timestamp"].max()),
+        "tracked_receipt_rows": tracked_count,
+        "live_receipt_rows": live_count,
         "tracked_from_slot": tracked["from_slot"],
         "tracked_to_slot": tracked["to_slot"],
+        "tracked_from_time_utc": tracked["from_time_utc"],
+        "tracked_to_time_utc": tracked["to_time_utc"],
         "tracked_identity_error_wei": tracked["identity_error_wei"],
         "live_identity_error_wei": live["identity_error_wei"],
         "live_total_supply_eth": live["total_supply_eth"],
-        **stats,
+        "live_accounting_epoch": live["accounting_epoch"],
+        "live_accounting_interval": live["accounting_interval"],
     }
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     return report
