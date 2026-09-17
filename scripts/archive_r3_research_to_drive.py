@@ -19,6 +19,11 @@ R3_STREAMS = {
     "eth-supply-research",
     "eth-liquidation-research",
     "eth-execution-network-research",
+    # Keep reconstructed/long derivative history and fast prospective context
+    # in separate streams. A stream has one immutable watermark; sharing it
+    # across independent workflows could make a newer run hide another source.
+    "derivative-history-research",
+    "derivative-fast-research",
 }
 R3_ARTIFACTS = {
     "eth-etf-flow-state": ("eth-etf-research", "eth_etf_flows.yml"),
@@ -27,6 +32,14 @@ R3_ARTIFACTS = {
     "eth-execution-network-research-state": (
         "eth-execution-network-research",
         "eth_execution_network_research.yml",
+    ),
+    "free-source-fallback-state": (
+        "derivative-history-research",
+        "free_source_backfill.yml",
+    ),
+    "fast-derivative-state": (
+        "derivative-fast-research",
+        "fast_derivative_snapshots.yml",
     ),
 }
 
