@@ -63,7 +63,7 @@ jobs:
           path: lake/research/eth_supply
       - name: Collect prospective tracked and live ETH supply receipts
         run: python scripts/collect_eth_supply.py --root lake/research/eth_supply
-      - name: Verify rights, PIT and independent accounting gates
+      - name: Verify rights, PIT and exact accounting gates
         run: |
           python - <<'PY'
           from decimal import Decimal
@@ -79,12 +79,21 @@ jobs:
           assert int(d['tracked_receipt_rows']) >= 1
           assert int(d['live_receipt_rows']) >= 1
           assert int(d['tracked_to_slot']) >= int(d['tracked_from_slot'])
+          assert d['tracked_accounting_equation']=='net=issuance-burn-consensus_penalties-other_execution_burn'
+          assert d['live_accounting_equation']=='net=issuance-execution_burn-consensus_penalties'
+          assert str(d['tracked_execution_burn_component_error_wei']) == '0'
+          assert str(d['live_execution_burn_component_error_wei']) == '0'
           assert str(d['tracked_identity_error_wei']) == '0'
-          assert str(d['live_identity_error_wei']) in {'0',''}
+          assert str(d['live_identity_error_wei']) == '0'
           assert len(d['tracked_sha256']) == 64
           assert len(d['live_sha256']) == 64
           assert Decimal(str(d['live_total_supply_eth'])) > 0
-          print(json.dumps({k:d[k] for k in ('history_mode','tracked_receipt_rows','live_receipt_rows','tracked_from_slot','tracked_to_slot','tracked_from_time_utc','tracked_to_time_utc','tracked_identity_error_wei','live_identity_error_wei','live_total_supply_eth','live_accounting_epoch')},sort_keys=True))
+          print(json.dumps({k:d[k] for k in (
+              'history_mode','tracked_receipt_rows','live_receipt_rows',
+              'tracked_from_slot','tracked_to_slot','tracked_from_time_utc','tracked_to_time_utc',
+              'tracked_execution_burn_component_error_wei','live_execution_burn_component_error_wei',
+              'tracked_identity_error_wei','live_identity_error_wei',
+              'live_total_supply_eth','live_accounting_epoch')},sort_keys=True))
           PY
       - name: Upload immutable ETH supply research state
         if: always()
@@ -107,7 +116,12 @@ jobs:
                   f.write('No valid source report was produced. MODEL/site promotion is forbidden.\n')
               else:
                   d=json.loads(p.read_text())
-                  for key in ('status','history_mode','tracked_receipt_rows','live_receipt_rows','tracked_from_time_utc','tracked_to_time_utc','tracked_identity_error_wei','live_identity_error_wei','live_total_supply_eth','license_status'):
+                  for key in (
+                      'status','history_mode','tracked_receipt_rows','live_receipt_rows',
+                      'tracked_from_time_utc','tracked_to_time_utc',
+                      'tracked_execution_burn_component_error_wei','live_execution_burn_component_error_wei',
+                      'tracked_identity_error_wei','live_identity_error_wei',
+                      'live_total_supply_eth','license_status'):
                       f.write(f'- {key}: `{d.get(key)}`\n')
                   f.write('\nOnly prospective receipts are eligible. Historical MODEL use remains blocked pending self-derived replay.\n')
           PY
