@@ -33,7 +33,8 @@ R3_ARTIFACTS = {
         "eth-execution-network-research",
         "eth_execution_network_research.yml",
     ),
-    "free-source-fallback-state": (
+    # This artifact intentionally excludes FRED and other mixed fallback data.
+    "derivative-history-research-state": (
         "derivative-history-research",
         "free_source_backfill.yml",
     ),
