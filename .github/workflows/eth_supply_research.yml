@@ -10,7 +10,8 @@ on:
       - .github/workflows/eth_supply_research.yml
       - scripts/gdrive_store.py
       - scripts/archive_to_drive.py
-      - .github/workflows/gdrive_archive.yml
+      - scripts/archive_r3_research_to_drive.py
+      - .github/workflows/r3_research_drive_archive.yml
   push:
     branches: [main]
     paths:
@@ -21,7 +22,8 @@ on:
       - .github/workflows/eth_supply_research.yml
       - scripts/gdrive_store.py
       - scripts/archive_to_drive.py
-      - .github/workflows/gdrive_archive.yml
+      - scripts/archive_r3_research_to_drive.py
+      - .github/workflows/r3_research_drive_archive.yml
   schedule:
     - cron: "37 */6 * * *"
   workflow_dispatch:
@@ -66,9 +68,9 @@ jobs:
           run-id: ${{ steps.previous.outputs.run }}
           name: eth-supply-research-state
           path: lake/research/eth_supply
-      - name: Collect exact ETH supply receipts
+      - name: Collect detailed, tracked and live ETH supply receipts
         run: python scripts/collect_eth_supply.py --root lake/research/eth_supply
-      - name: Verify rights, PIT, coverage and accounting gate
+      - name: Verify rights, PIT, coverage and independent accounting gates
         run: |
           python - <<'PY'
           import json,pathlib
@@ -78,13 +80,15 @@ jobs:
           assert d['public_redistribution']=='blocked_pending_rights_review'
           assert d['model_use'].startswith('blocked_')
           assert d['site_use']=='blocked'
-          assert d['history_rows'] >= 30
-          assert d['identity_checked_rows'] >= 1
-          assert d['identity_nonzero_rows'] == 0
+          assert d['source_range']=='30d'
+          assert d['history_rows'] >= 20
+          assert int(d['tracked_to_slot']) >= int(d['tracked_from_slot'])
+          assert str(d['tracked_identity_error_wei']) == '0'
           assert str(d['live_identity_error_wei']) in {'0',''}
           assert len(d['history_sha256']) == 64
+          assert len(d['tracked_sha256']) == 64
           assert len(d['live_sha256']) == 64
-          print(json.dumps({k:d[k] for k in ('history_rows','first_timestamp','last_timestamp','source_interval','new_rows','revised_rows','identity_nonzero_rows','live_total_supply_eth')},sort_keys=True))
+          print(json.dumps({k:d[k] for k in ('history_rows','first_timestamp','last_timestamp','source_range','source_interval','new_rows','revised_rows','tracked_from_slot','tracked_to_slot','tracked_identity_error_wei','live_identity_error_wei','live_total_supply_eth')},sort_keys=True))
           PY
       - name: Upload immutable ETH supply research state
         if: always()
@@ -107,7 +111,7 @@ jobs:
                   f.write('No valid source report was produced. MODEL/site promotion is forbidden.\n')
               else:
                   d=json.loads(p.read_text())
-                  for key in ('status','history_rows','first_timestamp','last_timestamp','source_interval','new_rows','revised_rows','identity_nonzero_rows','license_status'):
+                  for key in ('status','history_rows','first_timestamp','last_timestamp','source_range','source_interval','new_rows','revised_rows','tracked_identity_error_wei','live_identity_error_wei','license_status'):
                       f.write(f'- {key}: `{d.get(key)}`\n')
-                  f.write('\nHistorical rows remain receipt-time reconstructed; MODEL/site use stays blocked.\n')
+                  f.write('\nFirst rolling history remains receipt-time reconstructed; MODEL/site use stays blocked.\n')
           PY
