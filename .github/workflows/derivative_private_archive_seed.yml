@@ -1,0 +1,90 @@
+name: Derivative private archive seed
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/derivative_private_archive_seed.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: derivative-private-archive-seed
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch current public data branch without checking it out
+        run: git fetch --no-tags origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+      - name: Seal current derivative caches into an isolated research snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=derivative-public-seed
+          mkdir -p "$root/lake/raw/vendor" "$root/lake/reports"
+          files=(
+            lake/raw/vendor/bitget_eth_context_4h.csv
+            lake/raw/vendor/bitget_eth_free_features.csv
+            lake/raw/vendor/hyperliquid_eth_context_4h.csv
+            lake/raw/vendor/hyperliquid_eth_free_features.csv
+            lake/raw/vendor/deribit_eth_dvol_daily.csv
+            lake/raw/vendor/deribit_eth_funding_daily.csv
+            lake/raw/vendor/deribit_eth_future_snapshot_daily.csv
+            lake/raw/vendor/deribit_eth_historical_volatility.csv
+            lake/raw/vendor/deribit_eth_option_snapshot_daily.csv
+          )
+          for path in "${files[@]}"; do
+            git cat-file -e "origin/data/daily-forecast:$path"
+            git show "origin/data/daily-forecast:$path" > "$root/$path"
+            test -s "$root/$path"
+          done
+          source_commit="$(git rev-parse origin/data/daily-forecast)"
+          SOURCE_COMMIT="$source_commit" python - <<'PY'
+          from datetime import datetime, timezone
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path('derivative-public-seed')
+          rows=[]
+          for path in sorted((root/'lake/raw/vendor').glob('*.csv')):
+              raw=path.read_bytes()
+              rows.append({
+                  'path':path.relative_to(root).as_posix(),
+                  'bytes':len(raw),
+                  'sha256':hashlib.sha256(raw).hexdigest(),
+              })
+          if len(rows) != 9:
+              raise SystemExit(f'expected 9 derivative files, got {len(rows)}')
+          manifest={
+              'schema':1,
+              'generated_at_utc':datetime.now(timezone.utc).isoformat(),
+              'status':'research_only_private_archive_seed',
+              'source_branch':'data/daily-forecast',
+              'source_commit':os.environ['SOURCE_COMMIT'],
+              'file_count':len(rows),
+              'files':rows,
+              'public_redistribution':'blocked',
+              'model_use':'blocked_pending_rights_storage_pit_audit_and_preregistered_gate',
+              'site_use':'blocked',
+              'paid_product_use':'blocked',
+              'note':'Pre-cleanup recovery seed. Presence here does not authorize public or commercial reuse.',
+          }
+          out=root/'lake/reports/derivative_public_seed_manifest.json'
+          out.write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print(json.dumps(manifest,sort_keys=True))
+          PY
+      - name: Upload pre-cleanup derivative recovery seed
+        uses: actions/upload-artifact@v4
+        with:
+          name: derivative-public-seed-state
+          path: derivative-public-seed/
+          compression-level: 9
+          retention-days: 30
+          if-no-files-found: error

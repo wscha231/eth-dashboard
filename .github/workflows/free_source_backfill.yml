@@ -63,10 +63,55 @@ jobs:
             if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" free-source-state/lake/raw/vendor/; fi
           done
           cp lake/reports/free_source_fallbacks.json free-source-state/lake/reports/
+      - name: Package isolated derivative-history research state
+        run: |
+          set -euo pipefail
+          mkdir -p derivative-history-state/lake/raw/vendor derivative-history-state/lake/reports
+          copied=0
+          for f in bitget_eth_free_features.csv deribit_eth_dvol_daily.csv hyperliquid_eth_free_features.csv; do
+            if [ -s "lake/raw/vendor/$f" ]; then
+              cp "lake/raw/vendor/$f" derivative-history-state/lake/raw/vendor/
+              copied=$((copied + 1))
+            fi
+          done
+          if [ "$copied" -eq 0 ]; then
+            echo "No derivative-history research files were produced" >&2
+            exit 1
+          fi
+          DERIVATIVE_ARCHIVE_FILE_COUNT="$copied" python - <<'PY'
+          from datetime import datetime, timezone
+          import json, os
+          from pathlib import Path
+          root=Path('derivative-history-state')
+          files=sorted(p.relative_to(root).as_posix() for p in root.glob('lake/raw/vendor/*.csv'))
+          manifest={
+              'schema':1,
+              'generated_at_utc':datetime.now(timezone.utc).isoformat(),
+              'status':'research_only_private_archive_bridge',
+              'file_count':int(os.environ['DERIVATIVE_ARCHIVE_FILE_COUNT']),
+              'files':files,
+              'public_redistribution':'blocked',
+              'model_use':'blocked_pending_rights_storage_pit_audit_and_preregistered_gate',
+              'site_use':'blocked',
+              'paid_product_use':'blocked',
+              'note':'Stage A private archive bridge; legacy public data-branch persistence is removed only after Drive recovery proof.',
+          }
+          path=root/'lake/reports/derivative_history_private_archive.json'
+          path.write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print(json.dumps(manifest,sort_keys=True))
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: free-source-fallback-state
           path: free-source-state/
           compression-level: 9
-          retention-days: 7
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload isolated derivative-history research state
+        uses: actions/upload-artifact@v4
+        with:
+          name: derivative-history-research-state
+          path: derivative-history-state/
+          compression-level: 9
+          retention-days: 30
           if-no-files-found: error

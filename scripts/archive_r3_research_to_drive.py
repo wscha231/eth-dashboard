@@ -19,6 +19,14 @@ R3_STREAMS = {
     "eth-supply-research",
     "eth-liquidation-research",
     "eth-execution-network-research",
+    # Keep reconstructed/long derivative history and fast prospective context
+    # in separate streams. A stream has one immutable watermark; sharing it
+    # across independent workflows could make a newer run hide another source.
+    "derivative-history-research",
+    "derivative-fast-research",
+    # One pre-cleanup snapshot seals every currently public derivative cache,
+    # including legacy Deribit files produced outside the two P1 collectors.
+    "derivative-public-seed",
 }
 R3_ARTIFACTS = {
     "eth-etf-flow-state": ("eth-etf-research", "eth_etf_flows.yml"),
@@ -27,6 +35,19 @@ R3_ARTIFACTS = {
     "eth-execution-network-research-state": (
         "eth-execution-network-research",
         "eth_execution_network_research.yml",
+    ),
+    # This artifact intentionally excludes FRED and other mixed fallback data.
+    "derivative-history-research-state": (
+        "derivative-history-research",
+        "free_source_backfill.yml",
+    ),
+    "fast-derivative-state": (
+        "derivative-fast-research",
+        "fast_derivative_snapshots.yml",
+    ),
+    "derivative-public-seed-state": (
+        "derivative-public-seed",
+        "derivative_private_archive_seed.yml",
     ),
 }
 
