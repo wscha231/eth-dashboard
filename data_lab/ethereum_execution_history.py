@@ -212,11 +212,17 @@ def canonicalize_chunk(rows: Iterable[dict]) -> dict:
 
 
 def join_execution_rows(supply_rows: Iterable[dict], header_rows: Iterable[dict]) -> list[dict]:
+    # Materialize once because node exporters may stream generators. Both inputs
+    # are inspected more than once for identity/integrity checks.
+    supply_rows = list(supply_rows)
+    header_rows = list(header_rows)
     supply_chain = canonicalize_chunk(supply_rows)
+    deduped_headers = _dedupe_hash_identity(header_rows)
     header_by_identity = {
-        (row["block_number"], row["block_hash"], row["parent_hash"]): row for row in header_rows
+        (row["block_number"], row["block_hash"], row["parent_hash"]): row
+        for row in deduped_headers.values()
     }
-    if len(header_by_identity) != len(list(_dedupe_hash_identity(header_rows).values())):
+    if len(header_by_identity) != len(deduped_headers):
         raise ValueError("duplicate header identities are ambiguous")
 
     joined = []
