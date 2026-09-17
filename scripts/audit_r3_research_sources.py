@@ -15,6 +15,17 @@ REQUIRED = {
 RESEARCH_STATES = {"research_active", "research_paused", "blocked"}
 
 
+def _valid_research_state(value: object) -> bool:
+    """Accept active/paused states or an explicitly fail-closed blocked reason.
+
+    Detailed blocked states such as ``blocked_missing_authorized_rpc`` remain
+    safer and more informative than collapsing every gate failure to the bare
+    ``blocked`` token. Arbitrary non-blocked states are still rejected.
+    """
+    state = str(value or "")
+    return state in RESEARCH_STATES or state.startswith("blocked_")
+
+
 def load(path: str | Path) -> dict:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if data.get("schema") != 1 or not isinstance(data.get("sources"), list):
@@ -44,7 +55,7 @@ def audit(registry_path: str | Path, *, root: str | Path = ".") -> dict:
         if missing:
             errors.append(f"{source_id}: missing fields {','.join(missing)}")
             continue
-        if source["collection_state"] not in RESEARCH_STATES:
+        if not _valid_research_state(source["collection_state"]):
             errors.append(f"{source_id}: invalid research collection_state")
         if source_id in production_ids:
             errors.append(f"{source_id}: research id collides with production registry")
