@@ -9,11 +9,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import gzip
 import hashlib
-from io import StringIO
 import json
 from pathlib import Path
 import re
-from typing import Iterable
 
 from bs4 import BeautifulSoup
 import numpy as np
@@ -53,16 +51,12 @@ def _date(text: str) -> pd.Timestamp | None:
     value = " ".join(str(text).replace("\xa0", " ").split())
     if not re.fullmatch(r"\d{1,2} [A-Za-z]{3} \d{4}", value):
         return None
-    stamp = pd.to_datetime(value, format="%d %b %Y", utc=True, errors="raise")
-    return stamp.normalize()
+    return pd.to_datetime(value, format="%d %b %Y", utc=True, errors="raise").normalize()
 
 
 def parse_farside_html(raw: bytes | str) -> pd.DataFrame:
     """Parse only the daily Ethereum ETF table; dashes remain missing, never zero."""
-    if isinstance(raw, bytes):
-        text = raw.decode("utf-8", errors="strict")
-    else:
-        text = raw
+    text = raw.decode("utf-8", errors="strict") if isinstance(raw, bytes) else raw
     soup = BeautifulSoup(text, "html.parser")
     chosen = None
     ticker_row = None
@@ -257,8 +251,9 @@ def collect(output_dir: Path, *, previous_dir: Path | None = None, received_at=N
     raw = raw if raw is not None else fetch_source()
     raw_sha = hashlib.sha256(raw).hexdigest()
     raw_name = f"farside_eth_{received_at.strftime('%Y%m%dT%H%M%SZ')}_{raw_sha[:12]}.html.gz"
-    with gzip.open(raw_dir / raw_name, "wb", mtime=0) as stream:
-        stream.write(raw)
+    with (raw_dir / raw_name).open("wb") as sink:
+        with gzip.GzipFile(fileobj=sink, mode="wb", mtime=0) as stream:
+            stream.write(raw)
 
     parsed = parse_farside_html(raw)
     prior_path = Path(previous_dir) / "eth_etf_flow_revisions.csv.gz" if previous_dir else None
