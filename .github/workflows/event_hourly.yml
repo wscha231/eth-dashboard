@@ -16,6 +16,8 @@ on:
       - scripts/publish_events.sh
       - scripts/publish_search_assets.py
       - scripts/export_event_segments.py
+      - scripts/run_variance_dense_shadow.py
+      - signal_pipeline/variance_dense_shadow.py
       - forecast_site/public/events.js
       - forecast_site/public/event_diagnostics.js
       - forecast_site/public/index.html
@@ -237,6 +239,28 @@ jobs:
             git show origin/data/event-ledger:lake/event-ledger/range_issued.db > lake/signals/range_shadow/issued.db
           fi
           python scripts/run_event_forecast.py --collect --daily --review --horizons 6 24 72 168 336 720
+      - name: Restore authorized HAR-RV checkpoints and update dense 24h/72h shadow
+        id: dense_variance
+        run: |
+          restore="$RUNNER_TEMP/variance-dense-restore"
+          rm -rf "$restore"
+          mkdir -p "$restore"
+          if ! git cat-file -e origin/data/event-ledger:lake/event-ledger/variance-shadow/active.json 2>/dev/null; then
+            echo "Legacy HAR-RV checkpoint manifest is unavailable; dense shadow fails closed" >&2
+            exit 1
+          fi
+          git archive origin/data/event-ledger -- lake/event-ledger/variance-shadow | tar -x -C "$restore"
+          mkdir -p lake/signals/variance_shadow
+          cp -a "$restore/lake/event-ledger/variance-shadow/." lake/signals/variance_shadow/
+          if git cat-file -e origin/data/event-ledger:lake/event-ledger/variance-shadow-dense/issued.db 2>/dev/null; then
+            mkdir -p lake/signals/variance_shadow_dense
+            git show origin/data/event-ledger:lake/event-ledger/variance-shadow-dense/issued.db > lake/signals/variance_shadow_dense/issued.db
+          fi
+          python scripts/run_variance_dense_shadow.py --root lake/signals
+          test -s lake/signals/variance_shadow_dense/issued.db
+          test -s lake/signals/variance_shadow_dense/report.json
+          test -s lake/signals/variance_shadow_dense/public.json
+          cat lake/signals/variance_shadow_dense/report.json >> "$GITHUB_STEP_SUMMARY"
       - name: Report all horizon evidence and source readiness
         run: |
           python scripts/audit_event_system.py
