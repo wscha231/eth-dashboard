@@ -1,0 +1,141 @@
+name: ETH liquidation research
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - data_lab/liquidation_cascade.py
+      - scripts/collect_eth_liquidations.py
+      - tests/test_liquidation_cascade.py
+      - requirements-liquidation.txt
+      - research/r3_eth_liquidation_v1_20260917/**
+      - .github/workflows/eth_liquidation_research.yml
+      - scripts/archive_r3_research_to_drive.py
+      - .github/workflows/r3_research_drive_archive.yml
+      - tests/test_r3_drive_archive.py
+  push:
+    branches: [main]
+    paths:
+      - data_lab/liquidation_cascade.py
+      - scripts/collect_eth_liquidations.py
+      - tests/test_liquidation_cascade.py
+      - requirements-liquidation.txt
+      - research/r3_eth_liquidation_v1_20260917/**
+      - .github/workflows/eth_liquidation_research.yml
+      - scripts/archive_r3_research_to_drive.py
+      - .github/workflows/r3_research_drive_archive.yml
+      - tests/test_r3_drive_archive.py
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+concurrency:
+  group: eth-liquidation-research-${{ github.event.pull_request.number || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install public stream client
+        run: python -m pip install -r requirements-liquidation.txt
+      - name: Test liquidation receipt contract
+        run: |
+          python -m unittest discover -s tests -p 'test_liquidation_cascade.py' -v
+          git diff --check
+      - name: Find previous successful ETH liquidation research state
+        id: previous
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'eth-liquidation-research-state',per_page:100});
+            const allowed=['main',context.payload.pull_request?.head?.ref].filter(Boolean);
+            if(context.eventName==='push') {
+              const {data:prs}=await github.rest.repos.listPullRequestsAssociatedWithCommit({...context.repo,commit_sha:context.sha});
+              for(const pr of prs) if(pr.merged_at && pr.merge_commit_sha===context.sha && pr.head.repo?.full_name===`${context.repo.owner}/${context.repo.repo}`) allowed.push(pr.head.ref);
+            }
+            const artifact=data.artifacts.find(a=>!a.expired && a.workflow_run?.head_repository_id===context.payload.repository.id && allowed.includes(a.workflow_run?.head_branch));
+            if(artifact) core.setOutput('run',artifact.workflow_run.id);
+      - uses: actions/download-artifact@v4
+        if: steps.previous.outputs.run != ''
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.previous.outputs.run }}
+          name: eth-liquidation-research-state
+          path: lake/research/eth_liquidations
+      - name: Collect prospective Bybit ETHUSDT liquidation receipts
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            duration=3300
+          else
+            duration=30
+          fi
+          python scripts/collect_eth_liquidations.py --root lake/research/eth_liquidations --duration-seconds "$duration"
+      - name: Verify rights, PIT, continuity and no-backfill gates
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          base=pathlib.Path('lake/research/eth_liquidations')
+          d=json.loads((base/'report.json').read_text())
+          sessions=[json.loads(x) for x in (base/'capture_sessions.jsonl').read_text().splitlines() if x.strip()]
+          assert d['status']=='research_only_rights_unreviewed'
+          assert d['license_status']=='rights_unreviewed_public_stream'
+          assert d['public_redistribution']=='blocked_pending_rights_review'
+          assert d['model_use'].startswith('blocked_')
+          assert d['site_use']=='blocked'
+          assert d['history_mode']=='prospective_receipts_only'
+          assert d['historical_backfill'].startswith('not_eligible_')
+          assert d['subscription_acknowledged'] is True
+          assert d['last_session_complete'] is True
+          assert int(d['capture_sessions']) >= 1
+          assert int(d['complete_capture_sessions']) >= 1
+          last=sessions[-1]
+          assert last['subscription_acknowledged'] is True
+          assert last['complete'] is True
+          assert int(last['parse_errors']) >= 0
+          assert int(last['disconnects']) >= 0
+          ledger=base/'eth_liquidation_events.jsonl'
+          if ledger.exists():
+              rows=[json.loads(x) for x in ledger.read_text().splitlines() if x.strip()]
+              ids=[x['event_id'] for x in rows]
+              assert len(ids)==len(set(ids))
+              for row in rows[-100:]:
+                  assert row['received_at']==row['available_at']
+                  assert row['symbol']=='ETHUSDT'
+                  assert row['liquidated_position'] in ('long','short')
+                  assert float(row['size_eth'])>0
+                  assert float(row['bankruptcy_price_usdt'])>0
+          print(json.dumps({k:d[k] for k in ('history_mode','capture_sessions','complete_capture_sessions','unique_event_rows','last_session_events','last_session_disconnects','latest_event_time')},sort_keys=True))
+          PY
+      - name: Upload immutable ETH liquidation research state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eth-liquidation-research-state
+          path: lake/research/eth_liquidations/
+          compression-level: 9
+          retention-days: 30
+          if-no-files-found: error
+      - name: Summarize liquidation gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path('lake/research/eth_liquidations/report.json')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('## R3 P0-4 ETH liquidation / cascade research\n\n')
+              if p.exists():
+                  d=json.loads(p.read_text())
+                  for key in ('status','history_mode','capture_sessions','complete_capture_sessions','unique_event_rows','last_session_events','last_session_disconnects','latest_event_time','license_status'):
+                      f.write(f'- {key}: `{d.get(key)}`\n')
+              else:
+                  f.write('No valid liquidation report. MODEL/site promotion is forbidden.\n')
+              f.write('\nProspective receipts only; missing stream coverage is never synthesized.\n')
+          PY
