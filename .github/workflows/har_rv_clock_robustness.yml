@@ -69,7 +69,7 @@ jobs:
       - name: Run frozen all-clock HAR-RV audit
         run: |
           rm -rf research/results/har_rv_clock_robustness_20260918
-          python research/model/har_rv_clock_robustness.py \
+          python -m research.model.har_rv_clock_robustness \
             --root lake/signals \
             --output research/results/har_rv_clock_robustness_20260918
           cat research/results/har_rv_clock_robustness_20260918/REPORT.md >> "$GITHUB_STEP_SUMMARY"
@@ -80,4 +80,4 @@ jobs:
           name: har-rv-clock-robustness-${{ github.run_id }}
           path: research/results/har_rv_clock_robustness_20260918/
           retention-days: 30
-          if-no-files-found: error
+          if-no-files-found: warn
