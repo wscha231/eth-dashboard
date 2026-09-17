@@ -80,5 +80,5 @@ def publish(root, runner, source=None):
 
 
 if __name__=='__main__':
-    git('config','user.name','eth-forecast-bot');git('config user.email','eth-forecast-bot@users.noreply.github.com')
+    git('config','user.name','eth-forecast-bot');git('config','user.email','eth-forecast-bot@users.noreply.github.com')
     publish('lake/signals',os.environ['RUNNER_TEMP'])
