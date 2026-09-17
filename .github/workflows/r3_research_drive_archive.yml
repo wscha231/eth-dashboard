@@ -21,8 +21,8 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: gdrive-archive-main
-  cancel-in-progress: false
+  group: gdrive-archive-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   self-test:
     runs-on: ubuntu-latest
