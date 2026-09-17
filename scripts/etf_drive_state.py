@@ -7,9 +7,13 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.gdrive_store import Drive, Store, report
+import scripts.gdrive_store as gdrive
 
 STREAM = "etf-research"
+# Keep the new private research family isolated until live collection, PIT and rights QA
+# are complete. The wrapper registers it only for this process; existing Drive streams
+# and automation catalogs are unchanged.
+gdrive.STREAMS.add(STREAM)
 
 
 def main():
@@ -20,10 +24,10 @@ def main():
     parser.add_argument("--optional", action="store_true")
     args = parser.parse_args()
 
-    store = Store(Drive())
+    store = gdrive.Store(gdrive.Drive())
     if args.action == "restore":
         result = store.restore(STREAM, args.target, required=not args.optional)
-        report(result)
+        gdrive.report(result)
         return
 
     report_path = args.root / "report.json"
@@ -45,7 +49,7 @@ def main():
             "raw_sha256": raw_sha,
         },
     )
-    report(result)
+    gdrive.report(result)
 
 
 if __name__ == "__main__":
