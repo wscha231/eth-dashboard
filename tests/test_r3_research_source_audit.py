@@ -11,7 +11,7 @@ def test_repository_r3_registry_is_research_only_and_fail_closed():
     report = audit(ROOT / "config/r3_research_source_registry.json", root=ROOT)
     assert report["status"] == "pass", report["errors"]
     assert report["production_effect"] == "none"
-    assert report["research_source_count"] == 9
+    assert report["research_source_count"] == 10
     assert report["active_research_source_count"] == 8
     assert report["all_model_site_public_paid_use_blocked"] is True
     ids = {row["id"] for row in report["sources"]}
@@ -25,6 +25,7 @@ def test_repository_r3_registry_is_research_only_and_fail_closed():
         "r3_p1_hyperliquid_funding_history",
         "r3_p1_hyperliquid_derivatives_fast",
         "r3_p1_deribit_eth_dvol_history",
+        "r3_p1_eth_execution_network",
     }
 
 
@@ -43,7 +44,14 @@ def test_prospective_only_sources_remain_historically_blocked():
 
 def test_p1_vendor_derivatives_are_fail_closed_pending_rights_and_private_storage():
     registry = json.loads((ROOT / "config/r3_research_source_registry.json").read_text())
-    rows = [row for row in registry["sources"] if row["id"].startswith("r3_p1_")]
+    vendor_ids = {
+        "r3_p1_bitget_derivatives_history",
+        "r3_p1_bitget_derivatives_fast",
+        "r3_p1_hyperliquid_funding_history",
+        "r3_p1_hyperliquid_derivatives_fast",
+        "r3_p1_deribit_eth_dvol_history",
+    }
+    rows = [row for row in registry["sources"] if row["id"] in vendor_ids]
     assert len(rows) == 5
     for row in rows:
         assert row["public_redistribution"] == "blocked"
@@ -57,6 +65,20 @@ def test_p1_vendor_derivatives_are_fail_closed_pending_rights_and_private_storag
     deribit = next(row for row in rows if row["id"] == "r3_p1_deribit_eth_dvol_history")
     assert deribit["collection_state"] == "blocked"
     assert "written_approval" in deribit["rights_status"]
+
+
+def test_execution_network_source_requires_authorized_transport_before_collection():
+    registry = json.loads((ROOT / "config/r3_research_source_registry.json").read_text())
+    row = next(row for row in registry["sources"] if row["id"] == "r3_p1_eth_execution_network")
+    assert row["collection_state"] == "blocked_missing_authorized_rpc"
+    assert row["rights_status"] == "authorized_or_self_hosted_rpc_required"
+    assert row["public_redistribution"] == "blocked"
+    assert row["model_use"].startswith("blocked_")
+    assert row["site_use"] == "blocked"
+    assert row["paid_product_use"] == "blocked"
+    assert row["historical_alpha_eligibility"].startswith("blocked_")
+    assert row["prospective_alpha_eligibility"].startswith("blocked_")
+    assert "no_public_data_branch" in row["storage_exposure"]
 
 
 def test_production_registry_does_not_misclassify_r3_ids_as_active_sources():
