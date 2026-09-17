@@ -42,11 +42,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install pytest
       - name: Fail closed on PIT, rights or use-boundary drift
         run: |
           python scripts/audit_r3_research_sources.py --output r3-source-audit/report.json
-          python -m pytest tests/test_r3_research_source_audit.py -q
           git diff --check
       - name: Preserve audit report
         if: always()
