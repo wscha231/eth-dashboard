@@ -5,11 +5,9 @@ Frozen: 2026-09-17
 
 ## Objective
 
-Build a durable point-in-time receipt history for ETH supply dynamics before testing any price-alpha hypothesis.
+Start a durable point-in-time receipt history for ETH supply dynamics before any price-alpha hypothesis is tested.
 
-The data family contains total ETH supply, consensus issuance, execution/consensus burn, derived interval net issuance, retained cumulative accounting, and exact source revision/hash metadata.
-
-Collection success is not evidence that supply dynamics predict ETH returns.
+This P0-2 gate captures only values that EtherForecast actually receives prospectively. It does **not** create a retrospective history for backtesting.
 
 ## Protocol definition
 
@@ -17,7 +15,7 @@ Ethereum supply changes are modeled as:
 
 `next supply = previous supply + issuance - execution fee burn - consensus penalties - other proven destruction`
 
-Transfers, execution/consensus deposits and withdrawals do not themselves create or destroy ETH.
+Transfers, deposits and withdrawals move ETH but do not themselves create or destroy total ETH.
 
 Primary protocol references:
 
@@ -25,7 +23,7 @@ Primary protocol references:
 - `https://ethereum.org/roadmap/merge/issuance/`
 - `https://geth.ethereum.org/docs/developers/evm-tracing/live-tracing`
 
-Geth's supply tracer is the intended long-run self-derived source: it emits block-bound issuance and burn components and can be independently replayed. A historical self-derived backfill is a separate gate because it requires a trusted canonical execution/consensus history and explicit reorg handling.
+Geth's supply tracer plus canonical consensus history remains the required long-run self-derived backfill path. Any retrospective alpha claim requires that separate gate and explicit reorg handling.
 
 ## First prospective research source
 
@@ -33,25 +31,25 @@ Provider: `ethsupply.fyi`.
 
 Methodology: `https://ethsupply.fyi/methodology/`.
 
-The collector deliberately separates three public contracts:
+Operational P0-2 uses two public contracts only:
 
-- `GET https://ethsupply.fyi/api/history?range=30d` — rolling detailed chart history with epoch observations;
-- `GET https://ethsupply.fyi/api/tracked` — retained cumulative accounting summary;
-- `GET https://ethsupply.fyi/api/live` — current exact supply and finalized-epoch accounting.
+- `GET https://ethsupply.fyi/api/tracked` — retained cumulative issuance/burn/net accounting through the live tail;
+- `GET https://ethsupply.fyi/api/live` — current total/finalized supply and finalized-epoch accounting.
 
 The provider documents exact base-10 wei strings and successful-response headers `x-supply-sha256`, `x-supply-generated-at`, and `x-supply-revision`.
 
-### Why detailed history uses 30d instead of retained
+## Why historical chart endpoints are excluded from P0-2
 
-The first live gate demonstrated that `history?range=retained` did not expose detailed epoch rows suitable for the interval parser. The provider separately defines `/api/tracked` as the retained cumulative-accounting contract. We therefore keep the two semantics separate rather than weakening the parser:
+Two live gates were intentionally allowed to fail rather than relaxing the contract:
 
-- rolling `30d` supplies detailed observations;
-- `/api/tracked` supplies the retained cumulative identity check;
-- EtherForecast's append-only receipts accumulate a longer prospective detailed history over time.
+1. `history?range=retained` did not expose detailed epoch observations to the collector;
+2. switching to `history?range=30d` still produced no usable epoch observations at collection time, despite the published schema allowing them.
 
-This change was made after a failed live-source gate and before any model experiment.
+EtherForecast therefore does not infer, synthesize, or substitute a historical interval series. P0-2 is narrowed to prospective `/tracked` and `/live` receipts. Historical supply/issuance/burn becomes eligible only after the self-derived Geth/consensus replay is implemented and audited.
 
-### Rights boundary
+This decision was made before any supply-based model experiment.
+
+## Rights boundary
 
 A public API is not automatically a commercial-data license. No sufficiently explicit commercial redistribution right was identified when this contract was frozen.
 
@@ -59,86 +57,74 @@ Therefore:
 
 - `license_status=rights_unreviewed_public_api`;
 - raw bytes and normalized rows remain in access-controlled research artifacts / private Drive;
-- no public Git data branch copy;
+- no public Git data-branch copy;
 - no website/API redistribution;
 - no production MODEL feature;
 - no paid-product dependency.
 
-Coin Metrics Community is deliberately **not** used as the primary stored source because its official API documentation says Community data is free for **non-commercial use**. It may be consulted manually for methodology or a future licensed cross-check, but is not silently incorporated into EtherForecast's planned commercial product.
+Coin Metrics Community is deliberately **not** persisted as the primary source because its free Community data is documented for non-commercial use.
 
 ## Point-in-time contract
 
-### Initial rolling history
+There is no inferred historical `available_at` in this P0-2 collector.
 
-The first `30d` document fetched by EtherForecast is `vintage_mode=reconstructed`.
+Every successful receipt stores:
 
-We do not infer that its values were available to EtherForecast at their historical timestamps. Every first-load interval receives:
+- `received_at = actual EtherForecast collector time`;
+- `available_at = received_at`;
+- source revision;
+- source generation time;
+- exact response SHA-256;
+- normalized exact wei fields and human-readable ETH values.
 
-- `available_at = actual first EtherForecast receipt time`;
-- `ingested_at = actual receipt time`;
-- `revision = 0`;
-- raw response SHA-256.
+`collector_started_at` is immutable once created.
 
-Consequently this first 30-day backfill is **not eligible for retrospective price-alpha promotion**.
+### `/api/tracked` receipts
 
-### Prospective detailed history
+Each receipt preserves:
 
-After `collector_started_at` is frozen:
+- retained from/to slot and UTC timestamps;
+- cumulative issuance;
+- cumulative burn and published burn components;
+- cumulative net issuance;
+- warnings/finalized-tail metadata;
+- native accounting identity result.
 
-- newly observed intervals at/after collector start are `vintage_mode=observed_vintages`;
-- `available_at = actual EtherForecast receipt time`;
-- later source edits increment row revision and become available only at the revision receipt;
-- the prior version remains in the append-only receipt journal;
-- as the rolling 30-day window advances, EtherForecast's retained append-only table becomes a genuinely prospective long history.
+Successive cumulative receipts can later be differenced using only information that was genuinely available at each receipt time.
 
-### Retained summary receipts
+### `/api/live` receipts
 
-Every collection appends `/api/tracked` as an immutable receipt with:
+Each receipt preserves:
 
-- source revision and generation time;
-- retained from/to slots and timestamps;
-- cumulative issuance, burn and net issuance;
-- exact raw SHA-256.
-
-It is an accounting summary, not a substitute for historical interval vintages.
-
-### Live snapshot receipts
-
-Every collection also appends `/api/live` with:
-
+- live head and finalized position;
 - total/finalized supply;
-- accounting epoch/interval;
-- issuance;
+- supply `asOf` position;
+- finalized-epoch issuance;
 - burn;
 - net issuance;
-- source `asOf` metadata;
-- exact raw SHA-256.
-
-These are receipt snapshots, not a license to interpolate missing history.
+- native availability/kind/as-of metadata;
+- native accounting identity result.
 
 ## Accounting gates
 
-For retained and live documents where all native components are available:
+For `/tracked` and `/live`, where all native components are available:
 
 `netWei == issuanceWei - burnWei`
 
-The collector records `identity_error_wei`. Non-zero identities block the source gate until reconciled rather than being silently corrected.
-
-The detailed HistoryPoint contract does not publish a native `netWei` field, so EtherForecast derives interval net as `issuanceWei - burnWei` and labels it derived. It is not counted as an independent identity test.
+The collector records `identity_error_wei`. A non-zero value is preserved as evidence and fails the workflow gate; it is never silently corrected.
 
 ## Evidence preservation
 
 Each run retains:
 
-- accumulated detailed interval table;
-- append-only interval revision journal;
-- append-only retained-summary receipts;
-- append-only live receipts;
-- raw 30-day history response;
+- append-only tracked receipts (`jsonl` plus inspection CSV);
+- append-only live receipts (`jsonl` plus inspection CSV);
 - raw tracked response;
 - raw live response;
 - collector state;
-- machine-readable rights/PIT/coverage/accounting report.
+- machine-readable rights/PIT/accounting report.
+
+The collector intentionally uses only Python's standard library so the 6-hour scheduled job does not install model-training dependencies.
 
 GitHub Actions carries state forward between runs. The existing content-addressed Google Drive archive is extended with dedicated `eth-supply-research` and `eth-etf-research` streams so successful main-branch receipts survive disposable Actions retention.
 
@@ -148,7 +134,7 @@ MODEL/site use remains blocked until all of the following are complete:
 
 1. commercial/intended-use rights review or replacement with a self-derived chain source;
 2. sufficient prospective receipt continuity;
-3. zero unexplained retained/live accounting-identity failures;
+3. zero unexplained tracked/live accounting-identity failures;
 4. independent chain-position cross-checks;
 5. self-derived historical PIT backfill for any retrospective model claim;
 6. preregistered supply hypothesis with a frozen MODEL gate.
