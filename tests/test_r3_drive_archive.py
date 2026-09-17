@@ -26,15 +26,16 @@ class R3DriveArchiveTests(unittest.TestCase):
                 ('eth-execution-network-research', 'eth_execution_network_research.yml'),
             )
             self.assertEqual(
-                r3.R3_ARTIFACTS['free-source-fallback-state'],
+                r3.R3_ARTIFACTS['derivative-history-research-state'],
                 ('derivative-history-research', 'free_source_backfill.yml'),
             )
+            self.assertNotIn('free-source-fallback-state', r3.R3_ARTIFACTS)
             self.assertEqual(
                 r3.R3_ARTIFACTS['fast-derivative-state'],
                 ('derivative-fast-research', 'fast_derivative_snapshots.yml'),
             )
             self.assertNotEqual(
-                r3.R3_ARTIFACTS['free-source-fallback-state'][0],
+                r3.R3_ARTIFACTS['derivative-history-research-state'][0],
                 r3.R3_ARTIFACTS['fast-derivative-state'][0],
             )
             self.assertTrue(original_streams <= storage.STREAMS)
