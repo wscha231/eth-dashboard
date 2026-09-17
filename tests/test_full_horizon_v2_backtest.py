@@ -9,6 +9,7 @@ from research.model.full_horizon_v2_backtest import (
     event_gate,
     site_recommendation,
 )
+from research.model.full_horizon_v2_backtest_replay import _frames_from_replay
 
 
 def review_frames():
@@ -86,3 +87,36 @@ def test_event_gate_and_site_policy_hide_failed_legacy_heads():
     assert rec["remove_unvalidated_direction_probabilities_from_default_surface"] is True
     assert rec["show_volatility_shadow_where_variance_gate_passes"] is True
     assert rec["preserve_old_forecasts_in_history_audit"] is True
+
+
+def test_full_replay_extraction_uses_embedded_climatology_at_same_origin():
+    payload = {
+        "points": [{
+            "slot": "2024-01-01T00:00:00+00:00",
+            "target_end": "2024-01-01T07:00:00+00:00",
+            "return": 0.02,
+            "terminal": 2,
+            "up": 1,
+            "down": 0,
+            "q50": 0.015,
+            "p_down": 0.1,
+            "p_flat": 0.2,
+            "p_up": 0.7,
+            "hit_up": 0.8,
+            "hit_down": 0.1,
+            "baseline": {
+                "q50": 0.001,
+                "p_down": 0.2,
+                "p_flat": 0.6,
+                "p_up": 0.2,
+                "hit_up": 0.3,
+                "hit_down": 0.3,
+            },
+        }]
+    }
+    candidate, incumbent, baseline = _frames_from_replay(payload)
+    assert candidate.loc[0, "q50"] == 0.015
+    assert baseline.loc[0, "q50"] == 0.001
+    assert incumbent.equals(baseline)
+    assert candidate.loc[0, "return"] == baseline.loc[0, "return"] == 0.02
+    assert candidate.loc[0, "slot"] == baseline.loc[0, "slot"]
