@@ -47,6 +47,26 @@ class R3DriveArchiveTests(unittest.TestCase):
             archive.ARTIFACTS.clear()
             archive.ARTIFACTS.update(original_artifacts)
 
+    def test_derivative_history_artifact_is_isolated_from_fred_and_retained_for_bridge(self):
+        text = Path('.github/workflows/free_source_backfill.yml').read_text(encoding='utf-8')
+        marker = 'name: derivative-history-research-state'
+        self.assertIn(marker, text)
+        package = text.split('name: Package isolated derivative-history research state', 1)[1]
+        package = package.split('- uses: actions/upload-artifact@v4', 1)[0]
+        self.assertIn('bitget_eth_free_features.csv', package)
+        self.assertIn('deribit_eth_dvol_daily.csv', package)
+        self.assertIn('hyperliquid_eth_free_features.csv', package)
+        self.assertNotIn('fred_current_vintage_long.csv', package)
+        self.assertNotIn('fred_initial_release_long.csv', package)
+        self.assertIn("'public_redistribution':'blocked'", package)
+        upload = text.split(marker, 1)[1]
+        self.assertIn('retention-days: 30', upload)
+
+    def test_fast_derivative_artifact_has_bridge_retention(self):
+        text = Path('.github/workflows/fast_derivative_snapshots.yml').read_text(encoding='utf-8')
+        self.assertIn('name: fast-derivative-state', text)
+        self.assertIn('retention-days: 30', text)
+
     def test_r3_archiver_can_be_invoked_exactly_like_workflow(self):
         completed = subprocess.run(
             [sys.executable, "scripts/archive_r3_research_to_drive.py", "--help"],
