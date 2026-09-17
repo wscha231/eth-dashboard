@@ -7,13 +7,7 @@ Frozen: 2026-09-17
 
 Build a durable point-in-time receipt history for ETH supply dynamics before testing any price-alpha hypothesis.
 
-The data family contains:
-
-- total ETH supply;
-- consensus issuance;
-- total burn and its base-fee/blob/penalty components when published;
-- net issuance;
-- exact source revision/hash metadata.
+The data family contains total ETH supply, consensus issuance, execution/consensus burn, derived interval net issuance, retained cumulative accounting, and exact source revision/hash metadata.
 
 Collection success is not evidence that supply dynamics predict ETH returns.
 
@@ -35,13 +29,27 @@ Geth's supply tracer is the intended long-run self-derived source: it emits bloc
 
 ## First prospective research source
 
-- Provider: `ethsupply.fyi`.
-- Methodology: `https://ethsupply.fyi/methodology/`.
-- Current public contracts:
-  - `GET https://ethsupply.fyi/api/live`
-  - `GET https://ethsupply.fyi/api/history?range=retained`
-- API responses expose source revision, generation time and SHA-256 headers and publish exact wei-denominated accounting fields.
-- The methodology documents an independent execution-state / protocol-flow / consensus reconciliation and an exact supply equation.
+Provider: `ethsupply.fyi`.
+
+Methodology: `https://ethsupply.fyi/methodology/`.
+
+The collector deliberately separates three public contracts:
+
+- `GET https://ethsupply.fyi/api/history?range=30d` — rolling detailed chart history with epoch observations;
+- `GET https://ethsupply.fyi/api/tracked` — retained cumulative accounting summary;
+- `GET https://ethsupply.fyi/api/live` — current exact supply and finalized-epoch accounting.
+
+The provider documents exact base-10 wei strings and successful-response headers `x-supply-sha256`, `x-supply-generated-at`, and `x-supply-revision`.
+
+### Why detailed history uses 30d instead of retained
+
+The first live gate demonstrated that `history?range=retained` did not expose detailed epoch rows suitable for the interval parser. The provider separately defines `/api/tracked` as the retained cumulative-accounting contract. We therefore keep the two semantics separate rather than weakening the parser:
+
+- rolling `30d` supplies detailed observations;
+- `/api/tracked` supplies the retained cumulative identity check;
+- EtherForecast's append-only receipts accumulate a longer prospective detailed history over time.
+
+This change was made after a failed live-source gate and before any model experiment.
 
 ### Rights boundary
 
@@ -60,31 +68,43 @@ Coin Metrics Community is deliberately **not** used as the primary stored source
 
 ## Point-in-time contract
 
-### Historical retained document
+### Initial rolling history
 
-The first retained history fetched by EtherForecast is `vintage_mode=reconstructed`.
+The first `30d` document fetched by EtherForecast is `vintage_mode=reconstructed`.
 
-We do not infer that the values were available to EtherForecast at their historical timestamps. Every historical row receives:
+We do not infer that its values were available to EtherForecast at their historical timestamps. Every first-load interval receives:
 
 - `available_at = actual first EtherForecast receipt time`;
 - `ingested_at = actual receipt time`;
 - `revision = 0`;
 - raw response SHA-256.
 
-Consequently this first backfill is **not eligible for retrospective price-alpha promotion**.
+Consequently this first 30-day backfill is **not eligible for retrospective price-alpha promotion**.
 
-### Prospective observations
+### Prospective detailed history
 
 After `collector_started_at` is frozen:
 
-- newly observed source intervals at/after collector start are `vintage_mode=observed_vintages`;
+- newly observed intervals at/after collector start are `vintage_mode=observed_vintages`;
 - `available_at = actual EtherForecast receipt time`;
 - later source edits increment row revision and become available only at the revision receipt;
-- the prior version remains in the append-only receipt journal.
+- the prior version remains in the append-only receipt journal;
+- as the rolling 30-day window advances, EtherForecast's retained append-only table becomes a genuinely prospective long history.
+
+### Retained summary receipts
+
+Every collection appends `/api/tracked` as an immutable receipt with:
+
+- source revision and generation time;
+- retained from/to slots and timestamps;
+- cumulative issuance, burn and net issuance;
+- exact raw SHA-256.
+
+It is an accounting summary, not a substitute for historical interval vintages.
 
 ### Live snapshot receipts
 
-Every collection also stores the source live revision and:
+Every collection also appends `/api/live` with:
 
 - total/finalized supply;
 - accounting epoch/interval;
@@ -96,22 +116,26 @@ Every collection also stores the source live revision and:
 
 These are receipt snapshots, not a license to interpolate missing history.
 
-## Accounting identity gate
+## Accounting gates
 
-Where all components are available:
+For retained and live documents where all native components are available:
 
 `netWei == issuanceWei - burnWei`
 
 The collector records `identity_error_wei`. Non-zero identities block the source gate until reconciled rather than being silently corrected.
 
+The detailed HistoryPoint contract does not publish a native `netWei` field, so EtherForecast derives interval net as `issuanceWei - burnWei` and labels it derived. It is not counted as an independent identity test.
+
 ## Evidence preservation
 
 Each run retains:
 
-- latest interval table;
+- accumulated detailed interval table;
 - append-only interval revision journal;
-- append-only live receipt table;
-- raw retained-history response;
+- append-only retained-summary receipts;
+- append-only live receipts;
+- raw 30-day history response;
+- raw tracked response;
 - raw live response;
 - collector state;
 - machine-readable rights/PIT/coverage/accounting report.
@@ -124,7 +148,7 @@ MODEL/site use remains blocked until all of the following are complete:
 
 1. commercial/intended-use rights review or replacement with a self-derived chain source;
 2. sufficient prospective receipt continuity;
-3. zero unexplained accounting-identity failures;
+3. zero unexplained retained/live accounting-identity failures;
 4. independent chain-position cross-checks;
 5. self-derived historical PIT backfill for any retrospective model claim;
 6. preregistered supply hypothesis with a frozen MODEL gate.
