@@ -24,13 +24,30 @@ def record(root, publication, dense, review, dense_persist=""):
     allowed = {'success','failure','skipped','cancelled',''}
     if any(v not in allowed for v in (publication,dense,review,dense_persist)):
         raise ValueError('invalid workflow step outcome')
-    # Clear older retained evidence only for a stage which did not run at all.
-    if dense in ('skipped','cancelled',''):
-        (root / 'dense_stage_status.json').unlink(missing_ok=True)
-    if review in ('skipped','cancelled',''):
-        for name in ('failure_review.json','failure_review.md'):
-            (root / name).unlink(missing_ok=True)
-    report = {'schema':1,'run_id':os.environ.get('GITHUB_RUN_ID'),
+    run_id = os.environ.get('GITHUB_RUN_ID')
+    # A killed process may not write an error report. Never relabel a restored
+    # previous-run success as evidence about the current failed attempt.
+    for name, outcome in (('dense_stage_status.json', dense), ('failure_review.json', review)):
+        path = root / name
+        if outcome in ('skipped','cancelled',''):
+            path.unlink(missing_ok=True)
+            if name == 'failure_review.json':
+                (root / 'failure_review.md').unlink(missing_ok=True)
+        elif outcome == 'failure' and run_id:
+            try:
+                previous = json.loads(path.read_text())
+                matches = isinstance(previous, dict) and previous.get('run_id') == run_id
+            except (OSError, ValueError):
+                matches = False
+            if not matches:
+                missing = {'status': 'failed', 'run_id': run_id,
+                           'generated_at': datetime.now(timezone.utc).isoformat(),
+                           'error': 'stage_failed_without_current_run_report; timeout_or_termination_cause_unclassified',
+                           'core_delivery_independent': True}
+                path.write_text(json.dumps(missing, indent=2) + '\n')
+                if name == 'failure_review.json':
+                    (root / 'failure_review.md').unlink(missing_ok=True)
+    report = {'schema':1,'run_id':run_id,
               'generated_at':datetime.now(timezone.utc).isoformat(),
               'core_publication':publication or 'not_reached',
               'optional_dense':dense or 'not_reached','failure_review':review or 'not_reached',
