@@ -13,6 +13,8 @@ on:
       - scripts/audit_forecast_continuity.py
       - scripts/wait_event_release.py
       - scripts/run_optional_dense.py
+      - scripts/availability_shadow.py
+      - scripts/run_availability_shadow.sh
       - scripts/review_forecast_failures.py
       - scripts/recovery_health.py
       - scripts/persist_event_ledger.sh
@@ -268,6 +270,14 @@ jobs:
       - name: Publish event probabilities, price ranges and immutable results
         id: publication
         run: bash scripts/publish_events.sh
+      - name: Record received-input CENTER availability shadow
+        id: availability_shadow
+        if: ${{ always() && (steps.inference.outcome == 'success' || steps.inference.outcome == 'failure') }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          CORE_PUBLICATION_OUTCOME: ${{ steps.publication.outcome }}
+        run: bash scripts/run_availability_shadow.sh
       # Optional dense work is intentionally AFTER core delivery. It cannot block it.
       - name: Restore authorized HAR-RV checkpoints and update dense 24h/72h shadow
         id: dense_variance
@@ -302,6 +312,13 @@ jobs:
         run: |
           python scripts/event_state.py snapshot lake/signals final-hourly-state
           python scripts/recovery_health.py --retain final-hourly-state
+      - name: Retain availability shadow without blocking core evidence upload
+        id: availability_snapshot
+        if: ${{ always() && steps.final_snapshot.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          AVAILABILITY_OUTCOME: ${{ steps.availability_shadow.outcome }}
+        run: python scripts/availability_shadow.py export --root lake/signals --target final-hourly-state --outcome "$AVAILABILITY_OUTCOME"
       - uses: actions/upload-artifact@v4
         if: ${{ always() && steps.final_snapshot.outcome == 'success' }}
         with:
@@ -311,7 +328,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
       - name: Fail optional health only after core delivery and evidence retention
-        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure') }}
+        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure' || steps.availability_shadow.outcome == 'failure' || steps.availability_snapshot.outcome == 'failure') }}
         run: |
-          echo "::error::Core delivery has its own recorded outcome. Optional dense/review health failed; inspect retained recovery diagnostics."
+          echo "::error::Core delivery has its own recorded outcome. Optional dense/review/availability health failed; inspect retained recovery diagnostics."
           exit 1
