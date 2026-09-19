@@ -196,7 +196,7 @@ def score(rows, field='q50'):
               'rmse': math.sqrt(statistics.fmean((p['return']-p[field])**2 for p in rows))}
     for side in ('up', 'down'):
         events = sum(p[side] for p in rows)
-        alerts = [p for p in rows if p['hit_'+side] >= p['threshold_'+side]]
+        alerts = [p for p in rows if p['hit_'+side] > p['threshold_'+side]]
         hits = sum(p[side] for p in alerts)
         result[side] = {'events': events, 'alerts': len(alerts), 'hits': hits,
                         'missed': events-hits, 'false_alerts': len(alerts)-hits,
@@ -280,7 +280,7 @@ def review(root, *, as_of=None, feedback=False):
               'promotion': 'none'}
     for h in HORIZONS:
         rows = [p for p in points if p['horizon_hours'] == h]
-        failures = [p for p in rows if any(p[s] and p['hit_'+s] < p['threshold_'+s] for s in ('up','down'))]
+        failures = [p for p in rows if any(p[s] and p['hit_'+s] <= p['threshold_'+s] for s in ('up','down'))]
         worst = sorted(failures, key=lambda p: abs(p['return']-p['q50']), reverse=True)[:5]
         cohorts = sorted({(p['model_version'],p['target_definition']) for p in rows})
         report['actual_performance'][str(h)] = {
