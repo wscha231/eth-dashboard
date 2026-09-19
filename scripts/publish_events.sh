@@ -1,7 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Caller holds the shared daily-forecast group. State must be persisted before publishing.
+# Always retain a gap/delivery audit; a failed public release must stay failed.
+audit_publication_exit() {
+  original_status=$?
+  trap - EXIT
+  audit_status=0
+  python scripts/audit_forecast_continuity.py --root lake/signals || audit_status=$?
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -s lake/signals/continuity_audit.md ]; then
+    cat lake/signals/continuity_audit.md >> "$GITHUB_STEP_SUMMARY" || true
+  fi
+  if [ "$original_status" -eq 0 ] && [ "$audit_status" -ne 0 ]; then
+    original_status=$audit_status
+  fi
+  exit "$original_status"
+}
+trap audit_publication_exit EXIT
 python scripts/publish_event_feed.py
+# First wait for the exact public payload; never replace the served release with
+# the Git source or download every historical archive on a known stale release.
+python scripts/wait_event_release.py --expected lake/signals/signals.json --receipt lake/signals/publication_probe.json
 python scripts/verify_event_site.py --expected lake/signals/signals.json --expected-replay lake/signals/replay.json
 python - <<'PY'
 import json
