@@ -219,7 +219,7 @@ def test_publisher_preserves_receipts_before_failing_readiness(tmp_path, payload
     (binaries/'git').write_text('#!/bin/sh\nexit 0\n')
     (binaries/'python').write_text(f'#!{sys.executable}\n' + '''import os,sys,pathlib
 args=sys.argv[1:]
-kind='feed' if 'publish_event_feed.py' in args[0] else 'receipts' if args==['-'] else 'readiness' if '--require-ready' in args else 'payload' if 'verify_event_site.py' in args[0] else 'export'
+kind='feed' if 'publish_event_feed.py' in args[0] else 'preflight' if 'wait_event_release.py' in args[0] else 'audit' if 'audit_forecast_continuity.py' in args[0] else 'receipts' if args==['-'] else 'readiness' if '--require-ready' in args else 'payload' if 'verify_event_site.py' in args[0] else 'export'
 with open(os.environ['OUTLOOK_TEST_TRACE'],'a') as f:f.write(kind+'\\n')
 if kind=='payload' and os.environ['PAYLOAD_VISIBLE']=='0':sys.exit(1)
 if kind=='receipts':sys.stdin.read()
@@ -234,4 +234,6 @@ if kind=='readiness':sys.exit(1)
                                  'RUNNER_TEMP': str(runner), 'OUTLOOK_TEST_TRACE': str(trace),
                                  'PAYLOAD_VISIBLE': str(int(payload_visible))})
     assert result.returncode != 0
-    assert trace.read_text().splitlines() == ['feed', 'payload'] + (['receipts', 'persisted', 'readiness'] if payload_visible else [])
+    # Preflight does not grant delivery receipts; the full payload verifier still
+    # gates them. The continuity audit runs after either failure path.
+    assert trace.read_text().splitlines() == ['feed', 'preflight', 'payload'] + (['receipts', 'persisted', 'readiness'] if payload_visible else []) + ['audit']
