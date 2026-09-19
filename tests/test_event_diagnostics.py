@@ -112,23 +112,35 @@ global.window={};global.document={getElementById(id){return elements[id]??={id,v
 global.Chart=class{constructor(el,config){plots[el.id]=config;}destroy(){}};
 global.fetch=async path=>{const b=fs.readFileSync(ROOT+'/'+path);return {ok:true,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)}};
 '''.replace('ROOT',json.dumps(str(tmp_path)))+source+r'''
+// Crypto/hash verification is asynchronous. Wait for the asserted observable
+// state with a hard bound, rather than assuming it completes within 50 ms.
+async function waitForDiagnostic(expected){
+  const deadline=Date.now()+2000;
+  while(!elements['diagnostic-status'].textContent.includes(expected)||!plots['diagnostic-price']){
+    const status=elements['diagnostic-status'].textContent;
+    if(status.startsWith('Evidence unavailable:'))throw Error(status);
+    if(Date.now()>=deadline)throw Error('render timeout: '+status);
+    await new Promise(r=>setTimeout(r,10));
+  }
+}
 (async()=>{
 listeners.forEach(f=>f());
 window.updateEventDiagnostics(PAYLOAD,6);
 elements['diagnostic-source'].onchange({target:{value:'published'}});
-await new Promise(r=>setTimeout(r,50));
+await waitForDiagnostic('1 scored / 3 records');
 if(!elements['diagnostic-status'].textContent.includes('1 scored / 3 records'))throw Error(elements['diagnostic-status'].textContent);
 const series=plots['diagnostic-price'].data.datasets;
 if(series[0].data.length!==2||series[0].data[1]!==null)throw Error('pending actual invented or excluded record plotted');
 if(Math.abs(series[1].data[1]-100*Math.exp(.1))>1e-9)throw Error('pending forecast lost or rebased');
 if(!elements['diagnostic-confusion'].innerHTML.includes('Higher'))throw Error('confusion missing');
 elements['diagnostic-from'].value='2027-01-01';elements['diagnostic-from'].onchange();
-await new Promise(r=>setTimeout(r,50));
+await waitForDiagnostic('0 scored / 0 records');
 if(!elements['diagnostic-status'].textContent.includes('0 scored / 0 records'))throw Error('stale metrics');
 if(plots['diagnostic-price'].data.datasets[0].data.length!==0)throw Error('stale chart');
 })().catch(e=>{console.error(e);process.exitCode=1});
 '''.replace('PAYLOAD',json.dumps({'evidence_archives':{'published':ref}}))
-    subprocess.run(['node','-e',script],check=True,capture_output=True,text=True)
+    result = subprocess.run(['node','-e',script],capture_output=True,text=True,timeout=10)
+    assert result.returncode == 0, result.stderr
 
 
 def test_live_dollar_error_and_independent_count_do_not_depend_on_ledger_order():

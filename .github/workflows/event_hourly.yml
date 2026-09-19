@@ -10,6 +10,11 @@ on:
       - ops/deployment_cooldown.json
       - scripts/archive_event_inputs.py
       - scripts/audit_event_system.py
+      - scripts/audit_forecast_continuity.py
+      - scripts/wait_event_release.py
+      - scripts/run_optional_dense.py
+      - scripts/review_forecast_failures.py
+      - scripts/recovery_health.py
       - scripts/persist_event_ledger.sh
       - scripts/event_state.py
       - scripts/verify_event_site.py
@@ -239,28 +244,6 @@ jobs:
             git show origin/data/event-ledger:lake/event-ledger/range_issued.db > lake/signals/range_shadow/issued.db
           fi
           python scripts/run_event_forecast.py --collect --daily --review --horizons 6 24 72 168 336 720
-      - name: Restore authorized HAR-RV checkpoints and update dense 24h/72h shadow
-        id: dense_variance
-        run: |
-          restore="$RUNNER_TEMP/variance-dense-restore"
-          rm -rf "$restore"
-          mkdir -p "$restore"
-          if ! git cat-file -e origin/data/event-ledger:lake/event-ledger/variance-shadow/active.json 2>/dev/null; then
-            echo "Legacy HAR-RV checkpoint manifest is unavailable; dense shadow fails closed" >&2
-            exit 1
-          fi
-          git archive origin/data/event-ledger -- lake/event-ledger/variance-shadow | tar -x -C "$restore"
-          mkdir -p lake/signals/variance_shadow
-          cp -a "$restore/lake/event-ledger/variance-shadow/." lake/signals/variance_shadow/
-          if git cat-file -e origin/data/event-ledger:lake/event-ledger/variance-shadow-dense/issued.db 2>/dev/null; then
-            mkdir -p lake/signals/variance_shadow_dense
-            git show origin/data/event-ledger:lake/event-ledger/variance-shadow-dense/issued.db > lake/signals/variance_shadow_dense/issued.db
-          fi
-          python scripts/run_variance_dense_shadow.py --root lake/signals
-          test -s lake/signals/variance_shadow_dense/issued.db
-          test -s lake/signals/variance_shadow_dense/report.json
-          test -s lake/signals/variance_shadow_dense/public.json
-          cat lake/signals/variance_shadow_dense/report.json >> "$GITHUB_STEP_SUMMARY"
       - name: Report all horizon evidence and source readiness
         run: |
           python scripts/audit_event_system.py
@@ -283,11 +266,42 @@ jobs:
           compression-level: 9
           retention-days: 90
       - name: Publish event probabilities, price ranges and immutable results
+        id: publication
         run: bash scripts/publish_events.sh
+      # Optional dense work is intentionally AFTER core delivery. It cannot block it.
+      - name: Restore authorized HAR-RV checkpoints and update dense 24h/72h shadow
+        id: dense_variance
+        if: ${{ always() && steps.inference.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 3
+        run: python scripts/run_optional_dense.py --root lake/signals
+      - name: Preserve only accepted optional dense results
+        id: dense_persist
+        if: ${{ always() && steps.dense_variance.outcome == 'success' }}
+        continue-on-error: true
+        run: bash scripts/persist_event_ledger.sh
+      - name: Review actual forecast failures and historical coverage without model changes
+        id: failure_review
+        if: ${{ always() && steps.inference.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          python scripts/review_forecast_failures.py --root lake/signals
+          cat lake/signals/failure_review.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Record separate core delivery and optional health outcomes
+        if: ${{ always() && (steps.inference.outcome == 'success' || steps.inference.outcome == 'failure') }}
+        env:
+          CORE_OUTCOME: ${{ steps.publication.outcome }}
+          DENSE_OUTCOME: ${{ steps.dense_variance.outcome }}
+          REVIEW_OUTCOME: ${{ steps.failure_review.outcome }}
+          DENSE_PERSIST: ${{ steps.dense_persist.outcome }}
+        run: python scripts/recovery_health.py --publication "$CORE_OUTCOME" --dense "$DENSE_OUTCOME" --review "$REVIEW_OUTCOME" --dense-persist "$DENSE_PERSIST"
       - name: Capture final issuance and delivery receipts even after a publication failure
         id: final_snapshot
         if: ${{ always() && (steps.inference.outcome == 'success' || steps.inference.outcome == 'failure') }}
-        run: python scripts/event_state.py snapshot lake/signals final-hourly-state
+        run: |
+          python scripts/event_state.py snapshot lake/signals final-hourly-state
+          python scripts/recovery_health.py --retain final-hourly-state
       - uses: actions/upload-artifact@v4
         if: ${{ always() && steps.final_snapshot.outcome == 'success' }}
         with:
@@ -296,3 +310,8 @@ jobs:
           compression-level: 9
           retention-days: 7
           if-no-files-found: error
+      - name: Fail optional health only after core delivery and evidence retention
+        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure') }}
+        run: |
+          echo "::error::Core delivery has its own recorded outcome. Optional dense/review health failed; inspect retained recovery diagnostics."
+          exit 1
