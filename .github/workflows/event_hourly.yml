@@ -217,7 +217,7 @@ jobs:
         if: steps.range_download.outcome == 'success'
         continue-on-error: true
         env:
-          RANGE_SEED_RUN: ${{ steps.state.outputs.range_seed }}
+          RANGE_SEED_RUN: ${{ steps.range_seed.outputs.run }}
         run: |
           python - <<'PY'
           from pathlib import Path
