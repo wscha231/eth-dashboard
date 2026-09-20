@@ -17,6 +17,7 @@ on:
       - scripts/run_availability_shadow.sh
       - scripts/review_forecast_failures.py
       - scripts/recovery_health.py
+      - scripts/build_automation_health.py
       - scripts/persist_event_ledger.sh
       - scripts/event_state.py
       - scripts/verify_event_site.py
@@ -305,7 +306,8 @@ jobs:
           DENSE_OUTCOME: ${{ steps.dense_variance.outcome }}
           REVIEW_OUTCOME: ${{ steps.failure_review.outcome }}
           DENSE_PERSIST: ${{ steps.dense_persist.outcome }}
-        run: python scripts/recovery_health.py --publication "$CORE_OUTCOME" --dense "$DENSE_OUTCOME" --review "$REVIEW_OUTCOME" --dense-persist "$DENSE_PERSIST"
+          AVAILABILITY_OUTCOME: ${{ steps.availability_shadow.outcome }}
+        run: python scripts/recovery_health.py --publication "$CORE_OUTCOME" --dense "$DENSE_OUTCOME" --review "$REVIEW_OUTCOME" --dense-persist "$DENSE_PERSIST" --availability "$AVAILABILITY_OUTCOME"
       - name: Capture final issuance and delivery receipts even after a publication failure
         id: final_snapshot
         if: ${{ always() && (steps.inference.outcome == 'success' || steps.inference.outcome == 'failure') }}
@@ -319,6 +321,30 @@ jobs:
         env:
           AVAILABILITY_OUTCOME: ${{ steps.availability_shadow.outcome }}
         run: python scripts/availability_shadow.py export --root lake/signals --target final-hourly-state --outcome "$AVAILABILITY_OUTCOME"
+      - name: Build small current-run automation health receipt
+        id: automation_health
+        if: always()
+        continue-on-error: true
+        env:
+          HEALTH_INFERENCE: ${{ steps.inference.outcome }}
+          HEALTH_PUBLICATION: ${{ steps.publication.outcome }}
+          HEALTH_DENSE_VARIANCE: ${{ steps.dense_variance.outcome }}
+          HEALTH_DENSE_PERSIST: ${{ steps.dense_persist.outcome }}
+          HEALTH_FAILURE_REVIEW: ${{ steps.failure_review.outcome }}
+          HEALTH_AVAILABILITY_SHADOW: ${{ steps.availability_shadow.outcome }}
+          HEALTH_FINAL_SNAPSHOT: ${{ steps.final_snapshot.outcome }}
+          HEALTH_AVAILABILITY_SNAPSHOT: ${{ steps.availability_snapshot.outcome }}
+        run: python scripts/build_automation_health.py --root final-hourly-state --output automation-health/health.json
+      - name: Upload compact automation health independently of full snapshot
+        id: automation_health_upload
+        if: ${{ always() && steps.automation_health.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-automation-health-${{ github.run_id }}-${{ github.run_attempt }}
+          path: automation-health/health.json
+          retention-days: 30
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: ${{ always() && steps.final_snapshot.outcome == 'success' }}
         with:
@@ -328,7 +354,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
       - name: Fail optional health only after core delivery and evidence retention
-        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure' || steps.availability_shadow.outcome == 'failure' || steps.availability_snapshot.outcome == 'failure') }}
+        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure' || steps.availability_shadow.outcome == 'failure' || steps.availability_snapshot.outcome == 'failure' || steps.automation_health.outcome == 'failure' || steps.automation_health_upload.outcome == 'failure') }}
         run: |
           echo "::error::Core delivery has its own recorded outcome. Optional dense/review/availability health failed; inspect retained recovery diagnostics."
           exit 1
