@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 import shutil
 
-NAMES = ('dense_stage_status.json', 'failure_review.json', 'failure_review.md', 'recovery_health.json')
+NAMES = ('dense_stage_status.json', 'failure_review.json', 'failure_review.md', 'recovery_health.json',
+         'operation_health.json')
 
 
 def retain(root, target):

@@ -20,6 +20,8 @@ class HealthTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.outcomes = dict.fromkeys(health.STAGES, 'success')
         self.data = {
+            'operation_health.json': {'run_id':'123','attempt':'1','input_refresh_degraded':False,
+                                     'failed_refresh_steps':[],'attribution':{}},
             'recovery_health.json': {'run_id':'123', 'schema':2, 'core_publication':'success'},
             'availability_stage_status.json': {'run_id':'123','status':'success',
                 'decision':{'status':'not_needed','reason':'strict_input_condition_satisfied','new_forecasts':0},

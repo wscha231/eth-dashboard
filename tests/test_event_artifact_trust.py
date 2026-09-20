@@ -8,7 +8,9 @@ import pytest
 
 @pytest.mark.parametrize('workflow,step_id,expected',[
     ('event_research.yml','previous',{'run':4}),
-    ('event_hourly.yml','state',{'research':4,'hourly':4}),
+    ('event_hourly.yml','state',{'hourly':4}),
+    ('event_hourly.yml','research',{'run':'4'}),
+    ('event_hourly.yml','bootstrap_research',{'run':'4'}),
 ])
 def test_model_restoration_rejects_foreign_repository_artifacts(workflow,step_id,expected):
     root=Path(__file__).resolve().parents[1]
@@ -26,17 +28,17 @@ def test_model_restoration_rejects_foreign_repository_artifacts(workflow,step_id
         {'id':4,'head_repository_id':123,'head_branch':'main'},
     ]
     # The publisher must also reject a same-repository PR run called main.
-    if step_id=='state':
+    if step_id in ('state','research','bootstrap_research'):
         candidates.insert(2,{'id':3,'head_repository_id':123,'head_branch':'main'})
     harness=r'''
-const input=JSON.parse(process.argv[1]),outputs={},lookups=[];
+const input=JSON.parse(process.argv[1]),outputs={},lookups=[];let artifactName='';
 const context={eventName:'push',sha:'merged',repo:{owner:'owner',repo:'repo'},payload:{repository:{id:123}}};
 const core={setOutput:(key,value)=>{outputs[key]=value;}};
 const github={rest:{repos:{listPullRequestsAssociatedWithCommit:async()=>({data:[]})},actions:{
-  listArtifactsForRepo:async()=>({data:{artifacts:input.candidates.map(workflow_run=>({expired:false,workflow_run}))}}),
+  listArtifactsForRepo:async({name})=>{artifactName=name;return {data:{artifacts:input.candidates.map(workflow_run=>({expired:false,workflow_run}))}}},
   getWorkflowRun:async({run_id})=>{
     lookups.push(run_id);
-    return {data:{path:'.github/workflows/'+(outputs.research?'event_hourly.yml':'event_research.yml'),
+    return {data:{id:run_id,path:'.github/workflows/'+(artifactName==='event-research-state'?'event_research.yml':'event_hourly.yml'),
       event:run_id===3?'pull_request':'push',conclusion:'success'}};
   }
 }}};

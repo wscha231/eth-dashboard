@@ -20,6 +20,8 @@ on:
       - scripts/build_automation_health.py
       - scripts/persist_event_ledger.sh
       - scripts/event_state.py
+      - scripts/refresh_event_state.py
+      - scripts/build_operation_health.py
       - scripts/verify_event_site.py
       - scripts/publish_events.sh
       - scripts/publish_search_assets.py
@@ -67,26 +69,22 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-events.txt
       - run: python -m pip install -r requirements-events.txt
-      - name: Locate trusted successful research and latest durable hourly ledger
+      - name: Locate latest trusted durable hourly ledger
         id: state
         uses: actions/github-script@v7
         with:
           script: |
             const today = new Date().toISOString().slice(0,10);
             let latestHourly = null, dailyBackup = null;
-            for (const [name,key,workflow] of [['event-research-state','research','event_research.yml'],['event-final-state','hourly','event_hourly.yml'],['event-hourly-state','hourly','event_hourly.yml'],['event-daily-backup','daily','event_hourly.yml']]) {
+            for (const [name,key,workflow] of [['event-final-state','hourly','event_hourly.yml'],['event-hourly-state','hourly','event_hourly.yml'],['event-daily-backup','daily','event_hourly.yml']]) {
               const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name,per_page:100});
               for(const a of data.artifacts) {
                 if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
                 const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
                 if(!run.path.endsWith('/'+workflow) || run.event==='pull_request')continue;
-                if(key==='research' && run.conclusion!=='success')continue;
-                if(key==='research')core.setOutput(key,a.workflow_run.id);
-                else {
-                  const candidate={run:a.workflow_run.id,name,created:a.created_at};
-                  if(key==='daily')dailyBackup=candidate;
-                  if(!latestHourly || Date.parse(candidate.created)>Date.parse(latestHourly.created))latestHourly=candidate;
-                }
+                const candidate={run:a.workflow_run.id,name,created:a.created_at};
+                if(key==='daily')dailyBackup=candidate;
+                if(!latestHourly || Date.parse(candidate.created)>Date.parse(latestHourly.created))latestHourly=candidate;
                 break;
               }
             }
@@ -124,113 +122,46 @@ jobs:
               target.parent.mkdir(parents=True,exist_ok=True)
               source.replace(target)
           PY
-      - name: Check whether a new research state is available
-        id: refresh
-        env:
-          RESEARCH_RUN: ${{ steps.state.outputs.research }}
-        run: |
-          python - <<'PY'
-          import os,pathlib,json
-          p=pathlib.Path('lake/signals/research_run.txt')
-          replay=pathlib.Path('lake/signals/replay.json')
-          needs_archive=not replay.exists() or not json.loads(replay.read_text()).get('archive')
-          changed=bool(os.environ['RESEARCH_RUN']) and (needs_archive or not p.exists() or p.read_text().strip()!=os.environ['RESEARCH_RUN'])
-          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write(f'changed={str(changed).lower()}\n')
-          PY
+      - name: Check restored current-month checkpoints without fitting
+        id: restored
+        run: python scripts/refresh_event_state.py check
+      - name: Locate trusted compatible research update
+        id: bootstrap_research
+        if: steps.restored.outputs.ready != 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs=require('fs'),p='lake/signals/research_run.txt';
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-research-state',per_page:100});
+            for(const a of data.artifacts) {
+              if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
+              const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
+              if(run.path!=='.github/workflows/event_research.yml' || run.event==='pull_request' || run.conclusion!=='success')continue;
+              core.setOutput('run',String(run.id));
+              break;
+            }
       - uses: actions/download-artifact@v4
-        if: steps.refresh.outputs.changed == 'true'
+        id: bootstrap_download
+        if: steps.bootstrap_research.outputs.run != ''
+        continue-on-error: true
+        timeout-minutes: 2
         with:
           github-token: ${{ github.token }}
-          run-id: ${{ steps.state.outputs.research }}
+          run-id: ${{ steps.bootstrap_research.outputs.run }}
           name: event-research-state
-          path: lake/event-research-input
-      - name: Merge source vintages and checkpoints while preserving actual issued records
-        if: steps.refresh.outputs.changed == 'true'
+          path: lake/bootstrap-research-input
+      - name: Bootstrap only when no compatible restored checkpoint is usable
+        id: bootstrap_install
+        if: steps.bootstrap_download.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 2
         env:
-          RESEARCH_RUN: ${{ steps.state.outputs.research }}
-        run: |
-          python scripts/event_state.py merge lake/event-research-input lake/signals
-          python - <<'PY'
-          import os,pathlib
-          pathlib.Path('lake/signals/research_run.txt').write_text(os.environ['RESEARCH_RUN'])
-          PY
-      - name: Find a complete compatible historical candidate report
-        id: historical
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-historical-report',per_page:100});
-            for(const a of data.artifacts) {
-              if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
-              const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
-              if(!run.path.endsWith('/event_historical_study.yml') || run.event==='pull_request' || run.conclusion!=='success')continue;
-              const fs=require('fs'),p='lake/signals/historical_run.txt';
-              if(!fs.existsSync(p) || fs.readFileSync(p,'utf8').trim()!==String(run.id))core.setOutput('run',String(run.id));
-              break;
-            }
-      - uses: actions/download-artifact@v4
-        id: historical_download
-        if: steps.historical.outputs.run != ''
-        continue-on-error: true
-        with:
-          github-token: ${{ github.token }}
-          run-id: ${{ steps.historical.outputs.run }}
-          name: event-historical-report
-          path: lake/historical-source
-      - name: Import historical evidence without importing models or issued records
-        if: steps.historical.outputs.run != '' && steps.historical_download.outcome == 'success'
-        continue-on-error: true
-        env:
-          HISTORICAL_RUN: ${{ steps.historical.outputs.run }}
-        run: |
-          python scripts/import_event_study.py lake/historical-source lake/signals
-          python - <<'PYCODE'
-          import os,pathlib
-          pathlib.Path('lake/signals/historical_run.txt').write_text(os.environ['HISTORICAL_RUN'])
-          PYCODE
+          RESEARCH_RUN: ${{ steps.bootstrap_research.outputs.run }}
+        run: python scripts/refresh_event_state.py research --source lake/bootstrap-research-input --source-run "$RESEARCH_RUN" --report operation-health/bootstrap.json
       - name: Require restored replay and checkpoint manifest before issuance
-        # Range seeds are data-only and never import checkpoints or issued records.
         run: test -s lake/signals/replay.json && test -s lake/signals/active.json
-      - name: Locate completed adaptive feedback seed
-        id: range_seed
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-adaptive-report',per_page:100});
-            const fs=require('fs'),marker='lake/signals/range_seed_run.txt';
-            for(const a of data.artifacts) {
-              if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
-              const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
-              if(run.path!=='.github/workflows/event_historical_study.yml' || run.event==='pull_request' || run.conclusion!=='success')continue;
-              if(!fs.existsSync(marker) || fs.readFileSync(marker,'utf8').trim()!==String(run.id))core.setOutput('run',String(run.id));
-              break;
-            }
-      - uses: actions/download-artifact@v4
-        id: range_download
-        if: steps.range_seed.outputs.run != ''
-        continue-on-error: true
-        with:
-          github-token: ${{ github.token }}
-          run-id: ${{ steps.range_seed.outputs.run }}
-          name: event-adaptive-report
-          path: lake/range-seed-input
-      - name: Install verified past-only range feedback
-        if: steps.range_download.outcome == 'success'
-        continue-on-error: true
-        env:
-          RANGE_SEED_RUN: ${{ steps.range_seed.outputs.run }}
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os
-          from signal_pipeline.range_candidate import install_seed
-          source=Path('lake/range-seed-input/range_seed.json')
-          if source.exists():
-              print('Range seed installed:',install_seed(source,'lake/signals'))
-              Path('lake/signals/range_seed_run.txt').write_text(os.environ['RANGE_SEED_RUN'])
-          PY
       - name: Collect closed bars, settle matured outcomes and infer from saved models
         id: inference
         run: |
@@ -299,6 +230,145 @@ jobs:
         run: |
           python scripts/review_forecast_failures.py --root lake/signals
           cat lake/signals/failure_review.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Locate trusted compatible research update
+        id: research
+        if: ${{ always() && steps.inference.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs=require('fs'),p='lake/signals/research_run.txt';
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-research-state',per_page:100});
+            for(const a of data.artifacts) {
+              if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
+              const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
+              if(run.path!=='.github/workflows/event_research.yml' || run.event==='pull_request' || run.conclusion!=='success')continue;
+              if(!fs.existsSync(p) || fs.readFileSync(p,'utf8').trim()!==String(run.id))core.setOutput('run',String(run.id));
+              break;
+            }
+      - uses: actions/download-artifact@v4
+        id: research_download
+        if: ${{ always() && steps.research.outputs.run != '' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.research.outputs.run }}
+          name: event-research-state
+          path: lake/event-research-input
+      - name: Commit a complete verified research generation for the next issuance
+        id: research_install
+        if: ${{ always() && steps.research_download.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          RESEARCH_RUN: ${{ steps.research.outputs.run }}
+        run: python scripts/refresh_event_state.py research --source lake/event-research-input --source-run "$RESEARCH_RUN" --report operation-health/research.json
+      - name: Find a complete compatible historical candidate report
+        id: historical
+        if: ${{ always() && steps.inference.outcome == 'success' }}
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-historical-report',per_page:100});
+            for(const a of data.artifacts) {
+              if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
+              const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
+              if(!run.path.endsWith('/event_historical_study.yml') || run.event==='pull_request' || run.conclusion!=='success')continue;
+              const fs=require('fs'),p='lake/signals/historical_run.txt';
+              if(!fs.existsSync(p) || fs.readFileSync(p,'utf8').trim()!==String(run.id))core.setOutput('run',String(run.id));
+              break;
+            }
+      - uses: actions/download-artifact@v4
+        id: historical_download
+        timeout-minutes: 2
+        if: ${{ always() && steps.historical.outputs.run != '' }}
+        continue-on-error: true
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.historical.outputs.run }}
+          name: event-historical-report
+          path: lake/historical-source
+      - name: Import historical evidence without importing models or issued records
+        id: historical_install
+        timeout-minutes: 2
+        if: ${{ always() && steps.historical.outputs.run != '' && steps.historical_download.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          HISTORICAL_RUN: ${{ steps.historical.outputs.run }}
+        run: python scripts/refresh_event_state.py historical --source lake/historical-source --source-run "$HISTORICAL_RUN" --report operation-health/historical.json
+      - name: Locate completed adaptive feedback seed
+        id: range_seed
+        if: ${{ always() && steps.inference.outcome == 'success' }}
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data}=await github.rest.actions.listArtifactsForRepo({...context.repo,name:'event-adaptive-report',per_page:100});
+            const fs=require('fs'),marker='lake/signals/range_seed_run.txt';
+            for(const a of data.artifacts) {
+              if(a.expired || a.workflow_run?.head_branch!=='main' || a.workflow_run?.head_repository_id!==context.payload.repository.id)continue;
+              const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:a.workflow_run.id});
+              if(run.path!=='.github/workflows/event_historical_study.yml' || run.event==='pull_request' || run.conclusion!=='success')continue;
+              if(!fs.existsSync(marker) || fs.readFileSync(marker,'utf8').trim()!==String(run.id))core.setOutput('run',String(run.id));
+              break;
+            }
+      - uses: actions/download-artifact@v4
+        id: range_download
+        timeout-minutes: 2
+        if: ${{ always() && steps.range_seed.outputs.run != '' }}
+        continue-on-error: true
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.range_seed.outputs.run }}
+          name: event-adaptive-report
+          path: lake/range-seed-input
+      - name: Install verified past-only range feedback
+        id: range_install
+        timeout-minutes: 2
+        if: ${{ always() && steps.range_download.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          RANGE_SEED_RUN: ${{ steps.range_seed.outputs.run }}
+        run: python scripts/refresh_event_state.py range --source lake/range-seed-input --source-run "$RANGE_SEED_RUN" --report operation-health/range.json
+      - name: Read current Actions execution times for causal attribution
+        id: operation_times
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs=require('fs');
+            const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:context.runId});
+            const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt,
+              {...context.repo,run_id:context.runId,attempt_number:Number(process.env.GITHUB_RUN_ATTEMPT),per_page:100});
+            fs.mkdirSync('operation-health',{recursive:true});
+            fs.writeFileSync('operation-health/actions.json',JSON.stringify({id:run.id,run_attempt:run.run_attempt,
+              created_at:run.created_at,event:run.event,head_sha:run.head_sha,
+              jobs:jobs.map(j=>({name:j.name,run_attempt:j.run_attempt,started_at:j.started_at,steps:j.steps}))}));
+      - name: Attribute current gaps and optional refresh outcomes
+        id: operation_audit
+        if: always()
+        continue-on-error: true
+        env:
+          REFRESH_BOOTSTRAP_RESEARCH: ${{ steps.bootstrap_research.outcome }}
+          REFRESH_BOOTSTRAP_DOWNLOAD: ${{ steps.bootstrap_download.outcome }}
+          REFRESH_BOOTSTRAP_INSTALL: ${{ steps.bootstrap_install.outcome }}
+          REFRESH_RESEARCH: ${{ steps.research.outcome }}
+          REFRESH_RESEARCH_DOWNLOAD: ${{ steps.research_download.outcome }}
+          REFRESH_RESEARCH_INSTALL: ${{ steps.research_install.outcome }}
+          REFRESH_HISTORICAL: ${{ steps.historical.outcome }}
+          REFRESH_HISTORICAL_DOWNLOAD: ${{ steps.historical_download.outcome }}
+          REFRESH_HISTORICAL_INSTALL: ${{ steps.historical_install.outcome }}
+          REFRESH_RANGE_SEED: ${{ steps.range_seed.outcome }}
+          REFRESH_RANGE_DOWNLOAD: ${{ steps.range_download.outcome }}
+          REFRESH_RANGE_INSTALL: ${{ steps.range_install.outcome }}
+        run: python scripts/build_operation_health.py
       - name: Record separate core delivery and optional health outcomes
         if: ${{ always() && (steps.inference.outcome == 'success' || steps.inference.outcome == 'failure') }}
         env:
@@ -326,6 +396,8 @@ jobs:
         if: always()
         continue-on-error: true
         env:
+          HEALTH_INPUT_REFRESH: ${{ steps.operation_audit.outputs.refresh_outcome }}
+          HEALTH_OPERATION_AUDIT: ${{ steps.operation_audit.outcome }}
           HEALTH_INFERENCE: ${{ steps.inference.outcome }}
           HEALTH_PUBLICATION: ${{ steps.publication.outcome }}
           HEALTH_DENSE_VARIANCE: ${{ steps.dense_variance.outcome }}
@@ -354,7 +426,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
       - name: Fail optional health only after core delivery and evidence retention
-        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure' || steps.availability_shadow.outcome == 'failure' || steps.availability_snapshot.outcome == 'failure' || steps.automation_health.outcome == 'failure' || steps.automation_health_upload.outcome == 'failure') }}
+        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure' || steps.availability_shadow.outcome == 'failure' || steps.availability_snapshot.outcome == 'failure' || steps.automation_health.outcome == 'failure' || steps.automation_health_upload.outcome == 'failure' || steps.operation_audit.outcome == 'failure' || steps.operation_audit.outputs.refresh_outcome == 'failure') }}
         run: |
-          echo "::error::Core delivery has its own recorded outcome. Optional dense/review/availability health failed; inspect retained recovery diagnostics."
+          echo "::error::Core delivery has its own recorded outcome. Optional refresh/dense/review/availability health failed; inspect retained recovery diagnostics."
           exit 1

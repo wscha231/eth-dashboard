@@ -1,5 +1,6 @@
 """Restore research inputs without overwriting prospective issuance or newer vintages."""
 import argparse
+from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
@@ -20,7 +21,7 @@ def merge_research(source, destination):
     if not (source/"replay.json").exists():
         raise ValueError("research state is incomplete")
     # Only input observations are merged. Actual issued.db is NEVER imported from research.
-    with observation_db(destination) as dst:
+    with closing(observation_db(destination)) as dst, dst:
         dst.execute("ATTACH DATABASE ? AS research", (str(source/"observations.db"),))
         rows = dst.execute("""SELECT r.* FROM research.bars r LEFT JOIN main.bars b
             ON b.product=r.product AND b.open_time=r.open_time AND b.content_hash=r.content_hash

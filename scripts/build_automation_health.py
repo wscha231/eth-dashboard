@@ -9,7 +9,7 @@ from pathlib import Path
 
 HORIZONS = (6, 24, 72, 168, 336, 720)
 STAGES = ('inference', 'publication', 'dense_variance', 'dense_persist', 'failure_review',
-          'availability_shadow', 'final_snapshot', 'availability_snapshot')
+          'availability_shadow', 'final_snapshot', 'availability_snapshot', 'input_refresh', 'operation_audit')
 ALLOWED = {'success', 'failure', 'skipped', 'cancelled', ''}
 MAX_REPORT_BYTES = 4 * 1024 * 1024
 
@@ -90,6 +90,12 @@ def build(root, *, run_id, attempt, commit, outcomes, now=None):
         if recovery.get('core_publication') != outcomes['publication']:
             attention.append('recovery_health:publication_outcome_disagrees')
         result['recovery_summary_schema'] = recovery.get('schema')
+    operation = read('operation_health.json', stage='operation_audit', identified=True)
+    if operation is not None:
+        result['operation'] = {k: operation.get(k) for k in
+                               ('input_refresh_degraded', 'failed_refresh_steps', 'attribution')}
+        if operation.get('input_refresh_degraded'):
+            attention.append('input_refresh:rejected_or_incomplete_optional_update')
     availability = read('availability_stage_status.json', stage='availability_shadow', identified=True)
     if availability is not None:
         decision = availability.get('decision') or {}
