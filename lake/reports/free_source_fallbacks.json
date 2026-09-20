@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-09-20T06:05:33.791301+00:00",
-  "refresh_mode": "incremental",
+  "generated_at_utc": "2026-09-20T09:26:13.771128+00:00",
+  "refresh_mode": "full_reconcile",
   "requested_end": "2026-09-20T00:00:00+00:00",
   "requested_start": "2017-01-01T00:00:00+00:00",
   "schema": 3,
@@ -8,15 +8,15 @@
     "bitget_basis": {
       "columns": 5,
       "end": "2026-09-19T00:00:00+00:00",
-      "fetch_start": "2026-07-21T00:00:00+00:00",
-      "rows": 61,
-      "start": "2026-07-21T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
+      "rows": 2598,
+      "start": "2019-08-10T00:00:00+00:00",
       "status": "ok"
     },
     "bitget_features": {
       "columns": 17,
       "end": "2026-09-20T00:00:00+00:00",
-      "fetch_start": "2026-07-21T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
       "note": "OI is a daily snapshot accumulated prospectively; historical OI is not synthesized",
       "rows": 2599,
       "start": "2019-08-10T00:00:00+00:00",
@@ -25,9 +25,9 @@
     "bitget_funding": {
       "columns": 3,
       "end": "2026-09-20T00:00:00+00:00",
-      "fetch_start": "2026-07-21T00:00:00+00:00",
-      "rows": 62,
-      "start": "2026-07-21T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
+      "rows": 91,
+      "start": "2026-06-22T00:00:00+00:00",
       "status": "ok"
     },
     "bitget_ticker_snapshot": {
@@ -41,14 +41,14 @@
     "deribit_eth_dvol": {
       "columns": 7,
       "end": "2026-09-20T00:00:00+00:00",
-      "fetch_start": "2026-07-21T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
       "note": "Deribit volatility-index history in native DVOL units; reconstructed research backfill",
       "rows": 2007,
       "start": "2021-03-24T00:00:00+00:00",
       "status": "ok"
     },
     "fred_current_vintage": {
-      "fetch_start": "2026-03-22T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
       "rows": 12658,
       "series_errors": {},
       "status": "ok",
@@ -57,15 +57,19 @@
     "fred_initial_release": {
       "asof_rows": 3550,
       "available_at_policy": "date-only initial release becomes eligible next UTC day",
-      "fetch_start": "2026-03-22T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
       "long_rows": 6816,
-      "series_errors": {},
-      "status": "ok"
+      "series_errors": {
+        "DFF": 400,
+        "RRPONTSYD": 400,
+        "T10Y2Y": 400
+      },
+      "status": "partial"
     },
     "hyperliquid_features": {
       "columns": 16,
       "end": "2026-09-20T00:00:00+00:00",
-      "fetch_start": "2026-07-21T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
       "note": "Funding is historical; OI/premium/mark context snapshots accumulate prospectively and are never backfilled synthetically",
       "rows": 1228,
       "start": "2023-05-12T00:00:00+00:00",
@@ -74,9 +78,9 @@
     "hyperliquid_funding": {
       "columns": 5,
       "end": "2026-09-20T00:00:00+00:00",
-      "fetch_start": "2026-07-21T00:00:00+00:00",
-      "rows": 62,
-      "start": "2026-07-21T00:00:00+00:00",
+      "fetch_start": "2017-01-01T00:00:00+00:00",
+      "rows": 1228,
+      "start": "2023-05-12T00:00:00+00:00",
       "status": "ok"
     },
     "hyperliquid_snapshot": {
