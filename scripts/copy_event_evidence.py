@@ -17,10 +17,14 @@ def copy_evidence(source, destination, *, retain_previous=False):
             if d.get('archive'): refs.append((source,d['archive']))
     # A new incumbent research snapshot does not contain the independently produced
     # candidate study. Preserve its verified objects when merging into hourly state.
-    retained=destination/'historical_study.json'
-    if source.resolve()!=destination.resolve() and retained.exists() and not (source/'historical_study.json').exists():
-        d=json.loads(retained.read_text())
-        if d.get('archive'):refs.append((destination,d['archive']))
+    # A research refresh must also retain the archives referenced by the actual
+    # already-published feed. Research does not replace that feed or its ledger.
+    for name in ('historical_study.json', 'signals.json'):
+        retained=destination/name
+        if source.resolve()!=destination.resolve() and retained.exists():
+            d=json.loads(retained.read_text())
+            if d.get('archive'):refs.append((destination,d['archive']))
+            refs += [(destination,r) for r in d.get('evidence_archives',{}).values() if r]
     names=set(); origins={}
     for origin,ref in refs:
         manifest=validate_object(origin,ref); names.add(ref['path']);origins[ref['path']]=origin

@@ -128,3 +128,36 @@ candidates. No new predictive edge is claimed by this automation alignment.
 
 Technical reference for outcome versus conclusion:
 https://github.com/actions/runner/blob/main/docs/adrs/0274-step-outcome-and-conclusion.md
+
+## A2: publication first, transactional input refresh and execution attribution
+
+For a compatible restored current-month core, research/model installation,
+historical evidence import and range-seed installation now run AFTER publication
+and the existing independent shadow/review stages. A bootstrap attempt before
+inference is allowed only when the restored core fails its checkpoint checks.
+The same trusted successful main-artifact filters and daily-forecast writer lock
+apply. An invalid input/checkpoint still fails closed; no model is trained here.
+
+Every install modifies an isolated copy, checks all six checkpoint hashes and
+protocol/training/month/purged-cutoff compatibility, verifies the referenced
+archives and preservation of existing observations, ledgers and public feed, and
+exchanges whole directories atomically with Linux renameat2. A failed install
+keeps the previous complete state and does not advance its source-run marker.
+Historical/range updates also preserve the original observations and checkpoints.
+Archive retention keeps objects referenced by the already-published feed as well
+as the new research report. This path requires Linux on a single filesystem and
+the existing single-writer workflow; it is not a concurrent-writer abstraction.
+
+Read automation_health.json's input_refresh and operation_audit stage outcomes
+and its operation field. The full operation_health.json is retained in the final
+snapshot and existing Drive stream. It binds current Actions run/attempt, job
+and inference timestamps to the current generated feed, records original refresh
+step outcomes, and distinguishes late run creation, late job start, pre-inference
+delay, input failures and checkpoint errors. A dispatch-to-job interval does not
+prove lock contention. Missing run creation does not prove scheduler failure.
+Do not reuse old feed/errors or prior-attempt success when evidence is missing.
+
+An optional refresh failure fails final health only after core delivery and
+evidence retention. Existing monitors should report delivered-but-degraded
+separately from missing publication. Source rights, forecasts, SLO acceptance,
+model promotion, cron schedules and writer lock names remain unchanged.
