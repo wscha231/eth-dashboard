@@ -18,11 +18,11 @@ def retain(root, target):
             shutil.copyfile(root / name, target / name)
 
 
-def record(root, publication, dense, review, dense_persist=""):
+def record(root, publication, dense, review, dense_persist="", availability=""):
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
     allowed = {'success','failure','skipped','cancelled',''}
-    if any(v not in allowed for v in (publication,dense,review,dense_persist)):
+    if any(v not in allowed for v in (publication,dense,review,dense_persist,availability)):
         raise ValueError('invalid workflow step outcome')
     run_id = os.environ.get('GITHUB_RUN_ID')
     # A killed process may not write an error report. Never relabel a restored
@@ -47,13 +47,14 @@ def record(root, publication, dense, review, dense_persist=""):
                 path.write_text(json.dumps(missing, indent=2) + '\n')
                 if name == 'failure_review.json':
                     (root / 'failure_review.md').unlink(missing_ok=True)
-    report = {'schema':1,'run_id':run_id,
+    report = {'schema':2,'run_id':run_id,'attempt':os.environ.get('GITHUB_RUN_ATTEMPT'),
               'generated_at':datetime.now(timezone.utc).isoformat(),
               'core_publication':publication or 'not_reached',
               'optional_dense':dense or 'not_reached','failure_review':review or 'not_reached',
               'optional_dense_persistence':dense_persist or 'not_reached',
+              'optional_availability':availability or 'not_reached',
               'core_delivery_succeeded':publication=='success',
-              'optional_degraded':'failure' in (dense,review,dense_persist),
+              'optional_degraded':any(v in ('failure','cancelled') for v in (dense,review,dense_persist,availability)),
               'interpretation':'A failed optional stage does not revoke real core delivery; it still fails the final health gate.',
               'model_promotion':'none'}
     (root/'recovery_health.json').write_text(json.dumps(report,indent=2)+'\n')
@@ -67,10 +68,11 @@ def main():
     p.add_argument('--dense',default='')
     p.add_argument('--review',default='')
     p.add_argument('--dense-persist',default='')
+    p.add_argument('--availability',default='')
     p.add_argument('--retain',type=Path)
     a=p.parse_args()
     if a.retain is not None: retain(a.root,a.retain)
-    else: print(json.dumps(record(a.root,a.publication,a.dense,a.review,a.dense_persist)),flush=True)
+    else: print(json.dumps(record(a.root,a.publication,a.dense,a.review,a.dense_persist,a.availability)),flush=True)
 
 
 if __name__=='__main__':main()

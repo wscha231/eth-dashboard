@@ -16,8 +16,9 @@ on:
       - tests/test_gdrive_storage.py
       - .github/workflows/gdrive_archive.yml
       - .github/workflows/gdrive_restore.yml
+  # Derivative completion events are owned by the R3 archive extension.
   workflow_run:
-    workflows: ["Hourly ETH event forecast", "Daily ETH market data", "ETH hourly event research", "ETH multi-year candidate study", "Daily archived hybrid settlement", "Daily ETH source refresh", "Free ETH research source backfill", "Fast ETH derivative snapshots", "DATA refresh freshness guard", "DATA weekly monthly reconciliation"]
+    workflows: ["Hourly ETH event forecast", "Daily ETH market data", "ETH hourly event research", "ETH multi-year candidate study", "Daily archived hybrid settlement", "Daily ETH source refresh", "DATA refresh freshness guard", "DATA weekly monthly reconciliation"]
     types: [completed]
     branches: [main]
   schedule:
