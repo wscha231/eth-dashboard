@@ -21,7 +21,12 @@ def copy_evidence(source, destination, *, retain_previous=False):
     # already-published feed. Research does not replace that feed or its ledger.
     for name in ('historical_study.json', 'signals.json'):
         retained=destination/name
-        if source.resolve()!=destination.resolve() and retained.exists():
+        supplied=source/name
+        # Snapshot callers copy report JSON before its archives. Identical
+        # reports must resolve objects from the source, not the still-empty
+        # destination. Distinct retained live reports still own their objects.
+        if (source.resolve()!=destination.resolve() and retained.exists()
+                and (not supplied.exists() or supplied.read_bytes()!=retained.read_bytes())):
             d=json.loads(retained.read_text())
             if d.get('archive'):refs.append((destination,d['archive']))
             refs += [(destination,r) for r in d.get('evidence_archives',{}).values() if r]
