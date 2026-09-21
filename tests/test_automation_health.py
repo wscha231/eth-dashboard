@@ -23,6 +23,8 @@ class HealthTests(unittest.TestCase):
             'operation_health.json': {'run_id':'123','attempt':'1','input_refresh_degraded':False,
                                      'failed_refresh_steps':[],'attribution':{}},
             'recovery_health.json': {'run_id':'123', 'schema':2, 'core_publication':'success'},
+            'variance_daily_status.json': {'run_id':'123','status':'success','phase':'complete',
+                'issued_horizons':[6,24,72,168,336,720],'errors':[]},
             'availability_stage_status.json': {'run_id':'123','status':'success',
                 'decision':{'status':'not_needed','reason':'strict_input_condition_satisfied','new_forecasts':0},
                 'totals':{'forecasts':0}},
@@ -44,6 +46,16 @@ class HealthTests(unittest.TestCase):
         self.assertEqual(r['availability']['status'],'not_needed')
         self.assertFalse(r['availability']['public_delivery'])
         self.assertFalse(r['public_site_rechecked_by_this_report'])
+    def test_variance_not_due_is_normal_outside_midnight_window(self):
+        self.data['variance_daily_status.json'].update(status='not_due',phase='window_check',issued_horizons=[])
+        self.write();r=self.build()
+        self.assertEqual(r['status'],'ready')
+        self.assertEqual(r['variance_daily']['status'],'not_due')
+    def test_variance_failure_is_optional_degradation(self):
+        self.outcomes['variance_daily']='failure'
+        self.data['variance_daily_status.json']['status']='failed';self.write()
+        r=self.build();self.assertTrue(r['optional_degraded'])
+        self.assertEqual(r['status'],'attention')
     def test_availability_failure_cannot_be_hidden_by_legacy_success(self):
         self.outcomes['availability_shadow']='failure'
         r=self.build(); self.assertTrue(r['optional_degraded'])
@@ -130,12 +142,15 @@ class HealthTests(unittest.TestCase):
 class WiringTests(unittest.TestCase):
     def test_health_after_export_before_artifact_and_final_failure_gate(self):
         text=Path('.github/workflows/event_hourly.yml').read_text()
-        for left,right in (('id: publication','id: availability_shadow'),
+        for left,right in (('id: publication','id: variance_daily'),
+                           ('id: variance_daily','id: availability_shadow'),
                            ('id: availability_snapshot','id: automation_health'),
                            ('id: automation_health','name: event-final-state'),
                            ('name: event-final-state','Fail optional health only')):
             self.assertLess(text.index(left),text.index(right))
         self.assertIn('--availability "$AVAILABILITY_OUTCOME"',text)
+        self.assertIn('HEALTH_VARIANCE_DAILY',text)
+        self.assertIn("steps.variance_daily.outcome == 'failure'",text)
         self.assertIn("steps.automation_health.outcome == 'failure'",text)
         self.assertIn("steps.automation_health_upload.outcome == 'failure'",text)
         self.assertIn('group: daily-forecast',text)
