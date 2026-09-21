@@ -93,7 +93,7 @@ def snapshot(root, destination):
         p=root/"raw"/f"{value}.json.gz"
         if p.exists():shutil.copy2(p,destination/"raw"/p.name)
     for name in ("replay.json","source_status.json","signals.json","weekly_review.json","research_run.txt","active.json","system_audit.json","system_audit.md","historical_study.json","historical_run.txt",
-                 "continuity_audit.json","continuity_audit.md","publication_probe.json"):
+                 "continuity_audit.json","continuity_audit.md","publication_probe.json","variance_daily_status.json"):
         if (root/name).exists():shutil.copy2(root/name,destination/name)
     copy_evidence(root,destination)
     for name in ('optimization.json','shadow_active.json'):
