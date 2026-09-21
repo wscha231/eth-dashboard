@@ -13,6 +13,10 @@ on:
       - scripts/audit_forecast_continuity.py
       - scripts/wait_event_release.py
       - scripts/run_optional_dense.py
+      - scripts/run_variance_shadow.py
+      - scripts/run_hourly_variance_shadow.sh
+      - scripts/persist_variance_ledger.sh
+      - signal_pipeline/variance_shadow.py
       - scripts/availability_shadow.py
       - scripts/run_availability_shadow.sh
       - scripts/review_forecast_failures.py
@@ -202,6 +206,12 @@ jobs:
       - name: Publish event probabilities, price ranges and immutable results
         id: publication
         run: bash scripts/publish_events.sh
+      - name: Issue frozen all-horizon HAR-RV at the 00UTC slot
+        id: variance_daily
+        if: ${{ always() && steps.inference.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        run: bash scripts/run_hourly_variance_shadow.sh
       - name: Record received-input CENTER availability shadow
         id: availability_shadow
         if: ${{ always() && (steps.inference.outcome == 'success' || steps.inference.outcome == 'failure') }}
@@ -400,6 +410,7 @@ jobs:
           HEALTH_OPERATION_AUDIT: ${{ steps.operation_audit.outcome }}
           HEALTH_INFERENCE: ${{ steps.inference.outcome }}
           HEALTH_PUBLICATION: ${{ steps.publication.outcome }}
+          HEALTH_VARIANCE_DAILY: ${{ steps.variance_daily.outcome }}
           HEALTH_DENSE_VARIANCE: ${{ steps.dense_variance.outcome }}
           HEALTH_DENSE_PERSIST: ${{ steps.dense_persist.outcome }}
           HEALTH_FAILURE_REVIEW: ${{ steps.failure_review.outcome }}
@@ -426,7 +437,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
       - name: Fail optional health only after core delivery and evidence retention
-        if: ${{ always() && (steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure' || steps.availability_shadow.outcome == 'failure' || steps.availability_snapshot.outcome == 'failure' || steps.automation_health.outcome == 'failure' || steps.automation_health_upload.outcome == 'failure' || steps.operation_audit.outcome == 'failure' || steps.operation_audit.outputs.refresh_outcome == 'failure') }}
+        if: ${{ always() && (steps.variance_daily.outcome == 'failure' || steps.dense_variance.outcome == 'failure' || steps.dense_persist.outcome == 'failure' || steps.failure_review.outcome == 'failure' || steps.availability_shadow.outcome == 'failure' || steps.availability_snapshot.outcome == 'failure' || steps.automation_health.outcome == 'failure' || steps.automation_health_upload.outcome == 'failure' || steps.operation_audit.outcome == 'failure' || steps.operation_audit.outputs.refresh_outcome == 'failure') }}
         run: |
-          echo "::error::Core delivery has its own recorded outcome. Optional refresh/dense/review/availability health failed; inspect retained recovery diagnostics."
+          echo "::error::Core delivery has its own recorded outcome. Optional refresh/variance/dense/review/availability health failed; inspect retained recovery diagnostics."
           exit 1
