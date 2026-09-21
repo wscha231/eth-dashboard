@@ -48,6 +48,19 @@ def issuance_audit(result: dict) -> dict:
     }
 
 
+def require_current_issue(report: dict, audit: dict) -> None:
+    """Fail closed unless the current frozen 00UTC origin has all six horizons."""
+    if not audit.get("current_window_eligible"):
+        raise ValueError("current 00UTC variance issuance window is not eligible")
+    horizons = {int(row["horizon_hours"]) for row in report.get("issued_this_run", [])}
+    expected = set(variance_shadow.HORIZONS)
+    if report.get("errors") or horizons != expected:
+        raise ValueError(
+            "current 00UTC variance issuance incomplete: "
+            f"horizons={sorted(horizons)} errors={report.get('errors', [])}"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("lake/signals"))
@@ -82,14 +95,7 @@ def main():
     variance_shadow.atomic_json(state / "public.json", public)
 
     if args.require_current_issue:
-        if not audit["current_window_eligible"]:
-            raise SystemExit("current 00UTC variance issuance window is not eligible")
-        horizons = {int(row["horizon_hours"]) for row in report.get("issued_this_run", [])}
-        if report.get("errors") or horizons != set(variance_shadow.HORIZONS):
-            raise SystemExit(
-                "current 00UTC variance issuance incomplete: "
-                f"horizons={sorted(horizons)} errors={report.get('errors', [])}"
-            )
+        require_current_issue(report, audit)
 
     print(json.dumps({
         "generated_at": report["generated_at"],
