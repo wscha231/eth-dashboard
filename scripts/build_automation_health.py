@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 HORIZONS = (6, 24, 72, 168, 336, 720)
-STAGES = ('inference', 'publication', 'dense_variance', 'dense_persist', 'failure_review',
+STAGES = ('inference', 'publication', 'variance_daily', 'dense_variance', 'dense_persist', 'failure_review',
           'availability_shadow', 'final_snapshot', 'availability_snapshot', 'input_refresh', 'operation_audit')
 ALLOWED = {'success', 'failure', 'skipped', 'cancelled', ''}
 MAX_REPORT_BYTES = 4 * 1024 * 1024
@@ -96,6 +96,16 @@ def build(root, *, run_id, attempt, commit, outcomes, now=None):
                                ('input_refresh_degraded', 'failed_refresh_steps', 'attribution')}
         if operation.get('input_refresh_degraded'):
             attention.append('input_refresh:rejected_or_incomplete_optional_update')
+    variance_daily = read('variance_daily_status.json', stage='variance_daily', identified=True)
+    if variance_daily is not None:
+        result['variance_daily'] = {k: variance_daily.get(k) for k in
+                                    ('status', 'phase', 'generated_at', 'source_as_of',
+                                     'issued_horizons', 'issuance_audit', 'errors')}
+        if variance_daily.get('status') == 'not_due':
+            result['variance_daily']['status'] = 'not_due'
+        elif variance_daily.get('status') != 'success':
+            attention.append('variance_daily:invalid_status')
+
     availability = read('availability_stage_status.json', stage='availability_shadow', identified=True)
     if availability is not None:
         decision = availability.get('decision') or {}
