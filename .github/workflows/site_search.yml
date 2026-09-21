@@ -7,6 +7,7 @@ on:
       - scripts/publish_search_assets.py
       - scripts/publish_v2_assets.py
       - scripts/verify_site_privacy.py
+      - scripts/verify_v2_site.py
       - forecast_site/public/index.html
       - forecast_site/public/v2.html
       - forecast_site/public/volatility.js
@@ -59,3 +60,5 @@ jobs:
         run: |
           python scripts/deployment_policy.py --require-enabled
           python scripts/verify_site_privacy.py
+      - name: Verify deployed V2 homepage and research-only availability status
+        run: python scripts/verify_v2_site.py
