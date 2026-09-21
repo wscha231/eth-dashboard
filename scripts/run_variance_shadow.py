@@ -51,10 +51,22 @@ def issuance_audit(result: dict) -> dict:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("lake/signals"))
+    parser.add_argument("--no-refit", action="store_true",
+                        help="Use only a valid existing HAR checkpoint; never fit inside issuance.")
+    parser.add_argument("--require-current-issue", action="store_true",
+                        help="Fail unless all six current 00UTC horizon records are issued/idempotently restored.")
     args = parser.parse_args()
-    # Operational refits may use a source snapshot at most one completed hour behind
-    # wall time. The issuance path itself remains strict and still requires current-slot data.
-    variance_shadow.fit_checkpoint = fit_checkpoint
+    # Research/refit and prospective issuance are separate responsibilities.  The
+    # hourly producer uses --no-refit so a stale checkpoint is visible instead of
+    # doing expensive training inside the causal issuance window.
+    if args.no_refit:
+        def _disabled_refit(*_args, **_kwargs):
+            raise ValueError("variance checkpoint unavailable/stale; research refit required")
+        variance_shadow.fit_checkpoint = _disabled_refit
+    else:
+        # Dedicated research/refit may use a source snapshot at most one completed
+        # hour behind wall time.  The issuance contract below remains strict.
+        variance_shadow.fit_checkpoint = fit_checkpoint
     result = variance_shadow.run(args.root)
 
     # The frozen HAR-RV policy intentionally uses the same 00:00 UTC origin as the
@@ -68,6 +80,16 @@ def main():
     public = json.loads((state / "public.json").read_text(encoding="utf-8"))
     public["issuance_audit"] = audit
     variance_shadow.atomic_json(state / "public.json", public)
+
+    if args.require_current_issue:
+        if not audit["current_window_eligible"]:
+            raise SystemExit("current 00UTC variance issuance window is not eligible")
+        horizons = {int(row["horizon_hours"]) for row in report.get("issued_this_run", [])}
+        if report.get("errors") or horizons != set(variance_shadow.HORIZONS):
+            raise SystemExit(
+                "current 00UTC variance issuance incomplete: "
+                f"horizons={sorted(horizons)} errors={report.get('errors', [])}"
+            )
 
     print(json.dumps({
         "generated_at": report["generated_at"],
