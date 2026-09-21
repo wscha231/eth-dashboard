@@ -5,8 +5,11 @@ on:
     paths:
       - .github/workflows/site_search.yml
       - scripts/publish_search_assets.py
+      - scripts/publish_v2_assets.py
       - scripts/verify_site_privacy.py
       - forecast_site/public/index.html
+      - forecast_site/public/v2.html
+      - forecast_site/public/volatility.js
       - forecast_site/public/brand-status.*
       - forecast_site/public/site_status.json
       - forecast_site/public/assets/etherforecast-*.svg
@@ -42,6 +45,11 @@ jobs:
           git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
           git worktree add --detach "$RUNNER_TEMP/search-site" origin/data/daily-forecast
           python scripts/publish_search_assets.py --target "$RUNNER_TEMP/search-site" --stage
+          python - <<'PY'
+          from pathlib import Path
+          from scripts.publish_v2_assets import publish
+          publish(Path(__import__('os').environ['RUNNER_TEMP'])/'search-site', stage=True)
+          PY
           python scripts/deployment_policy.py --target "$RUNNER_TEMP/search-site" --stage
           if ! git -C "$RUNNER_TEMP/search-site" diff --cached --quiet; then
             git -C "$RUNNER_TEMP/search-site" commit -m "chore(site): publish search metadata and dated outlook"
