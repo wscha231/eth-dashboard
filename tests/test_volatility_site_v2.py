@@ -20,7 +20,7 @@ def test_v2_home_removes_unvalidated_price_claims_from_default_surface():
     assert 'id="service"' in html
     assert 'id="release-state"' in html
     assert 'id="input-state"' in html
-    assert "fallback shadow" in html
+    assert "no-change fallback is shadow-only" in html
     assert 'id="event-horizon"' not in html
     assert "Estimated end price" not in html
 
