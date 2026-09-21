@@ -237,3 +237,14 @@ if kind=='readiness':sys.exit(1)
     # Preflight does not grant delivery receipts; the full payload verifier still
     # gates them. The continuity audit runs after either failure path.
     assert trace.read_text().splitlines() == ['feed', 'preflight', 'payload'] + (['receipts', 'persisted', 'readiness'] if payload_visible else []) + ['audit']
+
+
+def test_watchdog_has_two_lightweight_recovery_checks_without_new_forecast_cron():
+    watchdog=(ROOT/'.github/workflows/event_watchdog.yml').read_text()
+    hourly=(ROOT/'.github/workflows/event_hourly.yml').read_text()
+    assert 'cron: "18,38 * * * *"' in watchdog
+    assert watchdog.count('schedule:') == 1
+    assert 'createWorkflowDispatch' not in watchdog  # recovery remains centralized in event_recovery.cjs
+    assert 'scripts/event_recovery.cjs' in watchdog
+    assert 'cron: "8 * * * *"' in hourly
+    assert hourly.count('schedule:') == 1
