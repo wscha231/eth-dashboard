@@ -1,4 +1,6 @@
-from scripts.run_variance_shadow import issuance_audit
+import pytest
+
+from scripts.run_variance_shadow import issuance_audit, require_current_issue
 
 
 def result(at, *, issued=False, errors=False):
@@ -37,3 +39,37 @@ def test_deadline_passed_never_allows_late_issue():
     assert audit["current_window_status"] == "current_frozen_origin_deadline_passed"
     assert audit["next_eligible_origin"] == "2026-09-19T00:00:00+00:00"
     assert audit["late_or_reconstructed_issue_allowed"] is False
+
+
+def test_strict_current_issue_requires_all_six_horizons():
+    report = {
+        "generated_at": "2026-09-18T00:17:00+00:00",
+        "issued_this_run": [{"horizon_hours": h} for h in (6,24,72,168,336,720)],
+        "errors": [],
+    }
+    audit = issuance_audit(report)
+    require_current_issue(report, audit)
+
+
+def test_strict_current_issue_rejects_partial_or_error():
+    base = {
+        "generated_at": "2026-09-18T00:17:00+00:00",
+        "issued_this_run": [{"horizon_hours": h} for h in (6,24,72,168,336,720)],
+        "errors": [],
+    }
+    partial = dict(base, issued_this_run=base["issued_this_run"][:-1])
+    with pytest.raises(ValueError, match="incomplete"):
+        require_current_issue(partial, issuance_audit(partial))
+    failed = dict(base, errors=[{"horizon_hours":72,"reason":"stale checkpoint"}])
+    with pytest.raises(ValueError, match="incomplete"):
+        require_current_issue(failed, issuance_audit(failed))
+
+
+def test_strict_current_issue_rejects_outside_frozen_window():
+    report = {
+        "generated_at": "2026-09-18T01:17:00+00:00",
+        "issued_this_run": [{"horizon_hours": h} for h in (6,24,72,168,336,720)],
+        "errors": [],
+    }
+    with pytest.raises(ValueError, match="not eligible"):
+        require_current_issue(report, issuance_audit(report))

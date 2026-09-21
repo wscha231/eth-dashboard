@@ -14,7 +14,7 @@ def test_hourly_snapshot_preserves_optional_recovery_reports(tmp_path, monkeypat
     source, target = tmp_path/'source', tmp_path/'target'
     source.mkdir()
     (source/'active.json').write_text('{}')
-    names = ('continuity_audit.json', 'continuity_audit.md', 'publication_probe.json')
+    names = ('continuity_audit.json', 'continuity_audit.md', 'publication_probe.json', 'variance_daily_status.json')
     if reports_present:
         for name in names:
             (source/name).write_text('immutable test receipt: '+name+'\n')
