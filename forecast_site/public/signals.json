@@ -1,848 +1,62 @@
 {
   "schema_version": 1,
   "product": "ETH event research beta",
-  "generated_at": "2026-09-24T07:52:03.593274+00:00",
+  "generated_at": "2026-09-24T08:57:11.550381+00:00",
   "protocol_hash": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
   "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-  "status": "ready",
-  "expected_slot": "2026-09-24T07:00:00+00:00",
-  "current": [
+  "status": "delayed",
+  "expected_slot": "2026-09-24T08:00:00+00:00",
+  "current": [],
+  "errors": [
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-09-24T14:00:00+00:00",
-      "horizon_seconds": 21600,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.014888612493750654,
-      "upper_barrier_price": 2725.89415,
-      "lower_barrier_price": 2645.92118226601,
-      "terminal_down_flat_up": [
-        0.09552049172563017,
-        0.7993679607795517,
-        0.10511154749481799
-      ],
-      "hit_up": 0.16817240867795072,
-      "hit_down": 0.19034699886256007,
-      "price_quantiles": [
-        2647.7558174446717,
-        2685.4027013324608,
-        2722.2418094487693
-      ],
-      "selected_model": "catboost",
-      "alert_thresholds": {
-        "up": 0.330374144593617,
-        "down": 0.4146604386235064
-      },
-      "model_version": "3a5776f64938959519f7a7e109d7c3e340e0051ac5acb1aebdbe338b2ecbeb1b",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.10978342046303212,
-          0.7684839432412248,
-          0.12173263629574309
-        ],
-        "hit_up": 0.2405677997758685,
-        "hit_down": 0.26036608143444157,
-        "price_quantiles": [
-          2634.423070253195,
-          2686.485242165242,
-          2739.6318679981136
-        ],
-        "alert_thresholds": {
-          "up": 0.23961424332344214,
-          "down": 0.2689169139465875
-        }
-      },
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "ee2b66c93e737ba2986dd68f6518a896c140e6828bf06177032c26a96415503d",
-      "issued_at": "2026-09-24T07:52:00.420252+00:00",
-      "role": "shadow_research"
+      "horizon": 6,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-09-25T08:00:00+00:00",
-      "horizon_seconds": 86400,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.0295588022415444,
-      "upper_barrier_price": 2766.1783,
-      "lower_barrier_price": 2607.3883495145633,
-      "terminal_down_flat_up": [
-        0.13188448162716027,
-        0.7421334191720741,
-        0.12598209920076558
-      ],
-      "hit_up": 0.230708150587291,
-      "hit_down": 0.26171903861624646,
-      "price_quantiles": [
-        2584.528824847325,
-        2687.105062829152,
-        2787.977565528058
-      ],
-      "selected_model": "catboost_calibrated",
-      "alert_thresholds": {
-        "up": 0.3002158012074358,
-        "down": 0.33218822310373597
-      },
-      "model_version": "ee6484d63c47d2543a71de4fba0443f78a9e723156a235a785cafd57903036f6",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.12626451854627202,
-          0.7426002248032971,
-          0.13113525665043088
-        ],
-        "hit_up": 0.25862068965517243,
-        "hit_down": 0.2661169415292354,
-        "price_quantiles": [
-          2580.3540529762704,
-          2688.6825676122107,
-          2800.6291869863257
-        ],
-        "alert_thresholds": {
-          "up": 0.2539033457249071,
-          "down": 0.2821561338289963
-        }
-      },
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "f840f5e27f1a4bda9b02b48a61b3f0eac3dd0408f0b6c82cb72946d5e5a8d19d",
-      "issued_at": "2026-09-24T07:52:00.444134+00:00",
-      "role": "shadow_research"
+      "horizon": 24,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-09-27T08:00:00+00:00",
-      "horizon_seconds": 259200,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.04879016416943201,
-      "upper_barrier_price": 2819.8905000000004,
-      "lower_barrier_price": 2557.7238095238095,
-      "terminal_down_flat_up": [
-        0.12551984877126654,
-        0.732703213610586,
-        0.14177693761814744
-      ],
-      "hit_up": 0.2723146747352496,
-      "hit_down": 0.26059001512859303,
-      "price_quantiles": [
-        2502.9484659090194,
-        2693.1862717996105,
-        2883.9383858469205
-      ],
-      "selected_model": "climatology",
-      "alert_thresholds": {
-        "up": 0.25953627524308154,
-        "down": 0.29281974569932684
-      },
-      "model_version": "4dc349ee53b6b3f3ac40ba0b428adabb93e883eb62539169161a96db65173382",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.12551984877126654,
-          0.732703213610586,
-          0.14177693761814744
-        ],
-        "hit_up": 0.2723146747352496,
-        "hit_down": 0.26059001512859303,
-        "price_quantiles": [
-          2502.9484659090194,
-          2693.1862717996105,
-          2883.9383858469205
-        ],
-        "alert_thresholds": {
-          "up": 0.25953627524308154,
-          "down": 0.29281974569932684
-        }
-      },
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "e5706846096c439e3f9293fba6d2ebc23212d58125e86860dbbb0e4db7dc307b",
-      "issued_at": "2026-09-24T07:52:00.467501+00:00",
-      "role": "shadow_research"
+      "horizon": 72,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-10-01T08:00:00+00:00",
-      "horizon_seconds": 604800,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.06765864847381481,
-      "upper_barrier_price": 2873.6027000000004,
-      "lower_barrier_price": 2509.9158878504672,
-      "terminal_down_flat_up": [
-        0.1301501732768579,
-        0.7373892953407778,
-        0.13246053138236427
-      ],
-      "hit_up": 0.2981510015408321,
-      "hit_down": 0.2727272727272727,
-      "price_quantiles": [
-        2415.4257629706403,
-        2706.205713305337,
-        2991.0404534089366
-      ],
-      "selected_model": "climatology",
-      "alert_thresholds": {
-        "up": 0.2702498107494323,
-        "down": 0.31718395155185464
-      },
-      "model_version": "a7c1910d570dbeecb8083e9ef0660dbf1cf9f9539bb3e2e88667c46e5cf680f1",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.1301501732768579,
-          0.7373892953407778,
-          0.13246053138236427
-        ],
-        "hit_up": 0.2981510015408321,
-        "hit_down": 0.2727272727272727,
-        "price_quantiles": [
-          2415.4257629706403,
-          2706.205713305337,
-          2991.0404534089366
-        ],
-        "alert_thresholds": {
-          "up": 0.2702498107494323,
-          "down": 0.31718395155185464
-        }
-      },
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "82add722fa7578c7f904cfdf1894126abdc5e305c2155c55e039f82d17104423",
-      "issued_at": "2026-09-24T07:52:00.490919+00:00",
-      "role": "shadow_research"
+      "horizon": 168,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-10-08T08:00:00+00:00",
-      "horizon_seconds": 1209600,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.09531017980432487,
-      "upper_barrier_price": 2954.1710000000003,
-      "lower_barrier_price": 2441.4636363636364,
-      "terminal_down_flat_up": [
-        0.14019248042335675,
-        0.61261582825191,
-        0.24719169132473331
-      ],
-      "hit_up": 0.2826353235242496,
-      "hit_down": 0.36955265261388026,
-      "price_quantiles": [
-        2326.274987787021,
-        2691.359460052007,
-        3174.674528766627
-      ],
-      "selected_model": "catboost_calibrated",
-      "alert_thresholds": {
-        "up": 0.4358031021924694,
-        "down": 0.3357963223618279
-      },
-      "model_version": "62338a6d1cf6cbabd1f1b083d13353d311a71e5fe192fe6d33e34f48891e91f0",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.11376793355147244,
-          0.6969544424867858,
-          0.18927762396174175
-        ],
-        "hit_up": 0.3164652567975831,
-        "hit_down": 0.2691339375629406,
-        "price_quantiles": [
-          2337.954891976419,
-          2711.4444824775555,
-          3230.034347832669
-        ],
-        "alert_thresholds": {
-          "up": 0.29862617498192334,
-          "down": 0.2653651482284888
-        }
-      },
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "a8d6743b69497ccb6a14a0a83f07a4c902a945d33076d65991442973ea467056",
-      "issued_at": "2026-09-24T07:52:00.514886+00:00",
-      "role": "shadow_research"
+      "horizon": 336,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-10-24T08:00:00+00:00",
-      "horizon_seconds": 2592000,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.13976194237515868,
-      "upper_barrier_price": 3088.4515,
-      "lower_barrier_price": 2335.313043478261,
-      "terminal_down_flat_up": [
-        0.11663581063210791,
-        0.6646389843956625,
-        0.21872520497222958
-      ],
-      "hit_up": 0.35079365079365077,
-      "hit_down": 0.25925925925925924,
-      "price_quantiles": [
-        2157.3716131025503,
-        2749.872993565805,
-        3607.2445313005055
-      ],
-      "selected_model": "climatology",
-      "alert_thresholds": {
-        "up": 0.34991295697587665,
-        "down": 0.2748072618751554
-      },
-      "model_version": "df1138a0274a05d4d49a877b336de4690d8e82736c54b2e06ce14b14a22cd68f",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.11663581063210791,
-          0.6646389843956625,
-          0.21872520497222958
-        ],
-        "hit_up": 0.35079365079365077,
-        "hit_down": 0.25925925925925924,
-        "price_quantiles": [
-          2157.3716131025503,
-          2749.872993565805,
-          3607.2445313005055
-        ],
-        "alert_thresholds": {
-          "up": 0.34991295697587665,
-          "down": 0.2748072618751554
-        }
-      },
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "ba4c0f72d4abc0b1598558aa32a861b05d9206182e801c24fd9cd4d67bdb5edf",
-      "issued_at": "2026-09-24T07:52:00.538943+00:00",
-      "role": "shadow_research"
+      "horizon": 720,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     }
   ],
-  "errors": [],
   "source": {
     "source": "coinbase_exchange",
     "instrument": "ETH-USD",
-    "generated_at": "2026-09-24T07:51:58.803482+00:00",
-    "expected_cutoff": "2026-09-24T07:00:00+00:00",
+    "generated_at": "2026-09-24T08:57:07.027665+00:00",
+    "expected_cutoff": "2026-09-24T08:00:00+00:00",
     "latest": {
-      "ETH-USD": "2026-09-24T07:00:00+00:00",
-      "BTC-USD": "2026-09-24T07:00:00+00:00"
+      "ETH-USD": "2026-09-24T08:00:00+00:00",
+      "BTC-USD": "2026-09-24T08:00:00+00:00"
     },
-    "rows": 1922,
+    "rows": 1920,
     "requests": 2,
     "errors": [],
-    "runtime_seconds": 0.1839892420000524,
+    "runtime_seconds": 0.3509858339999994,
     "ready": true,
     "history": "observed now; historical reconstruction, not historical receipt vintages"
   },
   "current_regime": {
-    "trailing_24h_return": -0.0248471336654513,
-    "volatility_ratio_24h_30d": 0.8241844802663139,
-    "trend_strength": -1.0220018400263344,
-    "state": "down",
+    "trailing_24h_return": -0.01815676065889308,
+    "volatility_ratio_24h_30d": 0.8292270320011739,
+    "trend_strength": -0.7458927172061267,
+    "state": "range",
     "meaning": "past-only current-state detection, not a prediction of an unseen turning point"
   },
   "recent_issued": [
-    {
-      "alert_thresholds": {
-        "down": 0.4146604386235064,
-        "up": 0.330374144593617
-      },
-      "available_at": "2026-09-23T00:22:05.622513920+00:00",
-      "baseline": {
-        "alert_thresholds": {
-          "down": 0.2689169139465875,
-          "up": 0.23961424332344214
-        },
-        "hit_down": 0.26036608143444157,
-        "hit_up": 0.2405677997758685,
-        "price_quantiles": [
-          2700.9013941613794,
-          2754.277328455336,
-          2808.7650823122663
-        ],
-        "terminal_down_flat_up": [
-          0.10978342046303212,
-          0.7684839432412248,
-          0.12173263629574309
-        ]
-      },
-      "forecast_id": "dce12b0c13a98ec4d04677a84d1333e5d2191f79fc49d5354606102885f427af",
-      "hit_down": 0.18661892736735353,
-      "hit_up": 0.21780997233089008,
-      "horizon_seconds": 21600,
-      "input_cutoff": "2026-09-23T00:00:00+00:00",
-      "input_snapshot": "41faa7df91a9d24671dcf22a046fedc8cb6d5c2e1c5dffe24f6747eb6e9b1ac3",
-      "instrument": "ETH-USD",
-      "issued_at": "2026-09-23T00:22:06.747953+00:00",
-      "log_barrier": 0.014888612493750654,
-      "lower_barrier_price": 2712.689655172414,
-      "model_version": "3a5776f64938959519f7a7e109d7c3e340e0051ac5acb1aebdbe338b2ecbeb1b",
-      "origin_market": {
-        "trend_state": "range",
-        "volatility_state": "normal"
-      },
-      "price_quantiles": [
-        2716.469816121696,
-        2755.252642970104,
-        2797.694272236989
-      ],
-      "reference_price": 2753.38,
-      "role": "shadow_research",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "selected_model": "catboost",
-      "slot": "2026-09-23T00:00:00+00:00",
-      "source": "coinbase_exchange",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "target_end": "2026-09-23T07:00:00+00:00",
-      "terminal_down_flat_up": [
-        0.10275360598913867,
-        0.7691399114559645,
-        0.12810648255489684
-      ],
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "upper_barrier_price": 2794.6807,
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "window_start": "2026-09-23T01:00:00+00:00",
-      "outcome": {
-        "actual_price": 2754.04,
-        "return": 0.00023967665555182745,
-        "up": 0,
-        "down": 0,
-        "terminal": 1,
-        "first_up_bar": null,
-        "first_down_bar": null,
-        "truth_available_at": "2026-09-23T08:02:08.478480+00:00"
-      },
-      "truth_revision": 1,
-      "published_at": "2026-09-23T00:23:25.976889+00:00",
-      "outcome_evaluated_at": "2026-09-23T08:02:08.605440+00:00"
-    },
-    {
-      "alert_thresholds": {
-        "down": 0.33218822310373597,
-        "up": 0.3002158012074358
-      },
-      "available_at": "2026-09-23T00:22:05.622513920+00:00",
-      "baseline": {
-        "alert_thresholds": {
-          "down": 0.2821561338289963,
-          "up": 0.2539033457249071
-        },
-        "hit_down": 0.2661169415292354,
-        "hit_up": 0.25862068965517243,
-        "price_quantiles": [
-          2645.4679727822745,
-          2756.5301022903955,
-          2871.301637566292
-        ],
-        "terminal_down_flat_up": [
-          0.12626451854627202,
-          0.7426002248032971,
-          0.13113525665043088
-        ]
-      },
-      "forecast_id": "8d250cb89e362280b082c0855a09bcfbe9beae4b2d5b5a410ab04d44eb55e6aa",
-      "hit_down": 0.26915742398655296,
-      "hit_up": 0.25779279214922624,
-      "horizon_seconds": 86400,
-      "input_cutoff": "2026-09-23T00:00:00+00:00",
-      "input_snapshot": "41faa7df91a9d24671dcf22a046fedc8cb6d5c2e1c5dffe24f6747eb6e9b1ac3",
-      "instrument": "ETH-USD",
-      "issued_at": "2026-09-23T00:22:06.766304+00:00",
-      "log_barrier": 0.0295588022415444,
-      "lower_barrier_price": 2673.1844660194174,
-      "model_version": "ee6484d63c47d2543a71de4fba0443f78a9e723156a235a785cafd57903036f6",
-      "origin_market": {
-        "trend_state": "range",
-        "volatility_state": "normal"
-      },
-      "price_quantiles": [
-        2653.3671078682637,
-        2754.0913635408756,
-        2858.5683295087742
-      ],
-      "reference_price": 2753.38,
-      "role": "shadow_research",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "selected_model": "catboost_calibrated",
-      "slot": "2026-09-23T00:00:00+00:00",
-      "source": "coinbase_exchange",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "target_end": "2026-09-24T01:00:00+00:00",
-      "terminal_down_flat_up": [
-        0.12443901838740803,
-        0.7399592898152679,
-        0.13560169179732406
-      ],
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "upper_barrier_price": 2835.9814,
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "window_start": "2026-09-23T01:00:00+00:00",
-      "outcome": {
-        "actual_price": 2682.09,
-        "return": -0.026232906530242562,
-        "up": 0,
-        "down": 1,
-        "terminal": 1,
-        "first_up_bar": null,
-        "first_down_bar": "2026-09-23T14:00:00+00:00",
-        "truth_available_at": "2026-09-24T04:36:51.943808+00:00"
-      },
-      "truth_revision": 1,
-      "published_at": "2026-09-23T00:23:25.976975+00:00",
-      "outcome_evaluated_at": "2026-09-24T04:36:52.565496+00:00"
-    },
-    {
-      "alert_thresholds": {
-        "down": 0.29281974569932684,
-        "up": 0.25953627524308154
-      },
-      "available_at": "2026-09-23T00:22:05.622513920+00:00",
-      "baseline": {
-        "alert_thresholds": {
-          "down": 0.29281974569932684,
-          "up": 0.25953627524308154
-        },
-        "hit_down": 0.26059001512859303,
-        "hit_up": 0.2723146747352496,
-        "price_quantiles": [
-          2566.109095164442,
-          2761.1474551582737,
-          2956.7131016131134
-        ],
-        "terminal_down_flat_up": [
-          0.12551984877126654,
-          0.732703213610586,
-          0.14177693761814744
-        ]
-      },
-      "forecast_id": "09397e5ebc26ce6e96da84ded3fecd6a2d5458c2935e6d84108b8bda9b6c4c3a",
-      "hit_down": 0.26059001512859303,
-      "hit_up": 0.2723146747352496,
-      "horizon_seconds": 259200,
-      "input_cutoff": "2026-09-23T00:00:00+00:00",
-      "input_snapshot": "41faa7df91a9d24671dcf22a046fedc8cb6d5c2e1c5dffe24f6747eb6e9b1ac3",
-      "instrument": "ETH-USD",
-      "issued_at": "2026-09-23T00:22:06.783988+00:00",
-      "log_barrier": 0.04879016416943201,
-      "lower_barrier_price": 2622.2666666666664,
-      "model_version": "4dc349ee53b6b3f3ac40ba0b428adabb93e883eb62539169161a96db65173382",
-      "origin_market": {
-        "trend_state": "range",
-        "volatility_state": "normal"
-      },
-      "price_quantiles": [
-        2566.109095164442,
-        2761.1474551582737,
-        2956.7131016131134
-      ],
-      "reference_price": 2753.38,
-      "role": "shadow_research",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "selected_model": "climatology",
-      "slot": "2026-09-23T00:00:00+00:00",
-      "source": "coinbase_exchange",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "target_end": "2026-09-26T01:00:00+00:00",
-      "terminal_down_flat_up": [
-        0.12551984877126654,
-        0.732703213610586,
-        0.14177693761814744
-      ],
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "upper_barrier_price": 2891.0490000000004,
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "window_start": "2026-09-23T01:00:00+00:00",
-      "outcome": null,
-      "truth_revision": null,
-      "published_at": "2026-09-23T00:23:25.977003+00:00",
-      "outcome_evaluated_at": null
-    },
-    {
-      "alert_thresholds": {
-        "down": 0.31718395155185464,
-        "up": 0.2702498107494323
-      },
-      "available_at": "2026-09-23T00:22:05.622513920+00:00",
-      "baseline": {
-        "alert_thresholds": {
-          "down": 0.31718395155185464,
-          "up": 0.2702498107494323
-        },
-        "hit_down": 0.2727272727272727,
-        "hit_up": 0.2981510015408321,
-        "price_quantiles": [
-          2476.377801411263,
-          2774.495435636838,
-          3066.5178352802895
-        ],
-        "terminal_down_flat_up": [
-          0.1301501732768579,
-          0.7373892953407778,
-          0.13246053138236427
-        ]
-      },
-      "forecast_id": "912e19d42edf657d2610438cc8237e385520f9e7b40e02f92873ac0992e81a02",
-      "hit_down": 0.2727272727272727,
-      "hit_up": 0.2981510015408321,
-      "horizon_seconds": 604800,
-      "input_cutoff": "2026-09-23T00:00:00+00:00",
-      "input_snapshot": "41faa7df91a9d24671dcf22a046fedc8cb6d5c2e1c5dffe24f6747eb6e9b1ac3",
-      "instrument": "ETH-USD",
-      "issued_at": "2026-09-23T00:22:06.802091+00:00",
-      "log_barrier": 0.06765864847381481,
-      "lower_barrier_price": 2573.2523364485983,
-      "model_version": "a7c1910d570dbeecb8083e9ef0660dbf1cf9f9539bb3e2e88667c46e5cf680f1",
-      "origin_market": {
-        "trend_state": "range",
-        "volatility_state": "normal"
-      },
-      "price_quantiles": [
-        2476.377801411263,
-        2774.495435636838,
-        3066.5178352802895
-      ],
-      "reference_price": 2753.38,
-      "role": "shadow_research",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "selected_model": "climatology",
-      "slot": "2026-09-23T00:00:00+00:00",
-      "source": "coinbase_exchange",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "target_end": "2026-09-30T01:00:00+00:00",
-      "terminal_down_flat_up": [
-        0.1301501732768579,
-        0.7373892953407778,
-        0.13246053138236427
-      ],
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "upper_barrier_price": 2946.1166000000003,
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "window_start": "2026-09-23T01:00:00+00:00",
-      "outcome": null,
-      "truth_revision": null,
-      "published_at": "2026-09-23T00:23:25.977015+00:00",
-      "outcome_evaluated_at": null
-    },
-    {
-      "alert_thresholds": {
-        "down": 0.3357963223618279,
-        "up": 0.4358031021924694
-      },
-      "available_at": "2026-09-23T00:22:05.622513920+00:00",
-      "baseline": {
-        "alert_thresholds": {
-          "down": 0.2653651482284888,
-          "up": 0.29862617498192334
-        },
-        "hit_down": 0.2691339375629406,
-        "hit_up": 0.3164652567975831,
-        "price_quantiles": [
-          2396.9519924598258,
-          2779.8664024799027,
-          3311.542618859594
-        ],
-        "terminal_down_flat_up": [
-          0.11376793355147244,
-          0.6969544424867858,
-          0.18927762396174175
-        ]
-      },
-      "forecast_id": "acad6f7f91fc701cb7ab0c409c08035d4080d381e935630b6efaf2aabb5d4d13",
-      "hit_down": 0.361964961701958,
-      "hit_up": 0.3161556994502278,
-      "horizon_seconds": 1209600,
-      "input_cutoff": "2026-09-23T00:00:00+00:00",
-      "input_snapshot": "41faa7df91a9d24671dcf22a046fedc8cb6d5c2e1c5dffe24f6747eb6e9b1ac3",
-      "instrument": "ETH-USD",
-      "issued_at": "2026-09-23T00:22:06.821235+00:00",
-      "log_barrier": 0.09531017980432487,
-      "lower_barrier_price": 2503.072727272727,
-      "model_version": "62338a6d1cf6cbabd1f1b083d13353d311a71e5fe192fe6d33e34f48891e91f0",
-      "origin_market": {
-        "trend_state": "range",
-        "volatility_state": "normal"
-      },
-      "price_quantiles": [
-        2422.913847350992,
-        2793.7460460573757,
-        3298.4928103467823
-      ],
-      "reference_price": 2753.38,
-      "role": "shadow_research",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "selected_model": "catboost_calibrated",
-      "slot": "2026-09-23T00:00:00+00:00",
-      "source": "coinbase_exchange",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "target_end": "2026-10-07T01:00:00+00:00",
-      "terminal_down_flat_up": [
-        0.12649997469615104,
-        0.5570317210538268,
-        0.3164683042500221
-      ],
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "upper_barrier_price": 3028.7180000000003,
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "window_start": "2026-09-23T01:00:00+00:00",
-      "outcome": null,
-      "truth_revision": null,
-      "published_at": "2026-09-23T00:23:25.977025+00:00",
-      "outcome_evaluated_at": null
-    },
-    {
-      "alert_thresholds": {
-        "down": 0.2748072618751554,
-        "up": 0.34991295697587665
-      },
-      "available_at": "2026-09-23T00:22:05.622513920+00:00",
-      "baseline": {
-        "alert_thresholds": {
-          "down": 0.2748072618751554,
-          "up": 0.34991295697587665
-        },
-        "hit_down": 0.25925925925925924,
-        "hit_up": 0.35079365079365077,
-        "price_quantiles": [
-          2211.8117865528875,
-          2819.264637465684,
-          3698.2715091141995
-        ],
-        "terminal_down_flat_up": [
-          0.11663581063210791,
-          0.6646389843956625,
-          0.21872520497222958
-        ]
-      },
-      "forecast_id": "ce166e1196afdeebb8e6d2c13496f65b996870694e553964951bfe53268df151",
-      "hit_down": 0.25925925925925924,
-      "hit_up": 0.35079365079365077,
-      "horizon_seconds": 2592000,
-      "input_cutoff": "2026-09-23T00:00:00+00:00",
-      "input_snapshot": "41faa7df91a9d24671dcf22a046fedc8cb6d5c2e1c5dffe24f6747eb6e9b1ac3",
-      "instrument": "ETH-USD",
-      "issued_at": "2026-09-23T00:22:06.838857+00:00",
-      "log_barrier": 0.13976194237515868,
-      "lower_barrier_price": 2394.24347826087,
-      "model_version": "df1138a0274a05d4d49a877b336de4690d8e82736c54b2e06ce14b14a22cd68f",
-      "origin_market": {
-        "trend_state": "range",
-        "volatility_state": "normal"
-      },
-      "price_quantiles": [
-        2211.8117865528875,
-        2819.264637465684,
-        3698.2715091141995
-      ],
-      "reference_price": 2753.38,
-      "role": "shadow_research",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "selected_model": "climatology",
-      "slot": "2026-09-23T00:00:00+00:00",
-      "source": "coinbase_exchange",
-      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "target_end": "2026-10-23T01:00:00+00:00",
-      "terminal_down_flat_up": [
-        0.11663581063210791,
-        0.6646389843956625,
-        0.21872520497222958
-      ],
-      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-      "training_target_end": "2026-08-31T19:00:00+00:00",
-      "upper_barrier_price": 3166.3869999999997,
-      "validation_target_end": "2026-08-31T19:00:00+00:00",
-      "window_start": "2026-09-23T01:00:00+00:00",
-      "outcome": null,
-      "truth_revision": null,
-      "published_at": "2026-09-23T00:23:25.977034+00:00",
-      "outcome_evaluated_at": null
-    },
     {
       "alert_thresholds": {
         "down": 0.4146604386235064,
@@ -7097,13 +6311,421 @@
       "truth_revision": null,
       "published_at": "2026-09-24T05:23:52.612843+00:00",
       "outcome_evaluated_at": null
+    },
+    {
+      "alert_thresholds": {
+        "down": 0.4146604386235064,
+        "up": 0.330374144593617
+      },
+      "available_at": "2026-09-24T07:51:58.775697920+00:00",
+      "baseline": {
+        "alert_thresholds": {
+          "down": 0.2689169139465875,
+          "up": 0.23961424332344214
+        },
+        "hit_down": 0.26036608143444157,
+        "hit_up": 0.2405677997758685,
+        "price_quantiles": [
+          2634.423070253195,
+          2686.485242165242,
+          2739.6318679981136
+        ],
+        "terminal_down_flat_up": [
+          0.10978342046303212,
+          0.7684839432412248,
+          0.12173263629574309
+        ]
+      },
+      "forecast_id": "ee2b66c93e737ba2986dd68f6518a896c140e6828bf06177032c26a96415503d",
+      "hit_down": 0.19034699886256007,
+      "hit_up": 0.16817240867795072,
+      "horizon_seconds": 21600,
+      "input_cutoff": "2026-09-24T07:00:00+00:00",
+      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
+      "instrument": "ETH-USD",
+      "issued_at": "2026-09-24T07:52:00.420252+00:00",
+      "log_barrier": 0.014888612493750654,
+      "lower_barrier_price": 2645.92118226601,
+      "model_version": "3a5776f64938959519f7a7e109d7c3e340e0051ac5acb1aebdbe338b2ecbeb1b",
+      "origin_market": {
+        "trend_state": "down",
+        "volatility_state": "normal"
+      },
+      "price_quantiles": [
+        2647.7558174446717,
+        2685.4027013324608,
+        2722.2418094487693
+      ],
+      "reference_price": 2685.61,
+      "role": "shadow_research",
+      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
+      "selected_model": "catboost",
+      "slot": "2026-09-24T07:00:00+00:00",
+      "source": "coinbase_exchange",
+      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
+      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
+      "target_end": "2026-09-24T14:00:00+00:00",
+      "terminal_down_flat_up": [
+        0.09552049172563017,
+        0.7993679607795517,
+        0.10511154749481799
+      ],
+      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "upper_barrier_price": 2725.89415,
+      "validation_target_end": "2026-08-31T19:00:00+00:00",
+      "window_start": "2026-09-24T08:00:00+00:00",
+      "outcome": null,
+      "truth_revision": null,
+      "published_at": "2026-09-24T07:53:16.838981+00:00",
+      "outcome_evaluated_at": null
+    },
+    {
+      "alert_thresholds": {
+        "down": 0.33218822310373597,
+        "up": 0.3002158012074358
+      },
+      "available_at": "2026-09-24T07:51:58.775697920+00:00",
+      "baseline": {
+        "alert_thresholds": {
+          "down": 0.2821561338289963,
+          "up": 0.2539033457249071
+        },
+        "hit_down": 0.2661169415292354,
+        "hit_up": 0.25862068965517243,
+        "price_quantiles": [
+          2580.3540529762704,
+          2688.6825676122107,
+          2800.6291869863257
+        ],
+        "terminal_down_flat_up": [
+          0.12626451854627202,
+          0.7426002248032971,
+          0.13113525665043088
+        ]
+      },
+      "forecast_id": "f840f5e27f1a4bda9b02b48a61b3f0eac3dd0408f0b6c82cb72946d5e5a8d19d",
+      "hit_down": 0.26171903861624646,
+      "hit_up": 0.230708150587291,
+      "horizon_seconds": 86400,
+      "input_cutoff": "2026-09-24T07:00:00+00:00",
+      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
+      "instrument": "ETH-USD",
+      "issued_at": "2026-09-24T07:52:00.444134+00:00",
+      "log_barrier": 0.0295588022415444,
+      "lower_barrier_price": 2607.3883495145633,
+      "model_version": "ee6484d63c47d2543a71de4fba0443f78a9e723156a235a785cafd57903036f6",
+      "origin_market": {
+        "trend_state": "down",
+        "volatility_state": "normal"
+      },
+      "price_quantiles": [
+        2584.528824847325,
+        2687.105062829152,
+        2787.977565528058
+      ],
+      "reference_price": 2685.61,
+      "role": "shadow_research",
+      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
+      "selected_model": "catboost_calibrated",
+      "slot": "2026-09-24T07:00:00+00:00",
+      "source": "coinbase_exchange",
+      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
+      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
+      "target_end": "2026-09-25T08:00:00+00:00",
+      "terminal_down_flat_up": [
+        0.13188448162716027,
+        0.7421334191720741,
+        0.12598209920076558
+      ],
+      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "upper_barrier_price": 2766.1783,
+      "validation_target_end": "2026-08-31T19:00:00+00:00",
+      "window_start": "2026-09-24T08:00:00+00:00",
+      "outcome": null,
+      "truth_revision": null,
+      "published_at": "2026-09-24T07:53:16.839126+00:00",
+      "outcome_evaluated_at": null
+    },
+    {
+      "alert_thresholds": {
+        "down": 0.29281974569932684,
+        "up": 0.25953627524308154
+      },
+      "available_at": "2026-09-24T07:51:58.775697920+00:00",
+      "baseline": {
+        "alert_thresholds": {
+          "down": 0.29281974569932684,
+          "up": 0.25953627524308154
+        },
+        "hit_down": 0.26059001512859303,
+        "hit_up": 0.2723146747352496,
+        "price_quantiles": [
+          2502.9484659090194,
+          2693.1862717996105,
+          2883.9383858469205
+        ],
+        "terminal_down_flat_up": [
+          0.12551984877126654,
+          0.732703213610586,
+          0.14177693761814744
+        ]
+      },
+      "forecast_id": "e5706846096c439e3f9293fba6d2ebc23212d58125e86860dbbb0e4db7dc307b",
+      "hit_down": 0.26059001512859303,
+      "hit_up": 0.2723146747352496,
+      "horizon_seconds": 259200,
+      "input_cutoff": "2026-09-24T07:00:00+00:00",
+      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
+      "instrument": "ETH-USD",
+      "issued_at": "2026-09-24T07:52:00.467501+00:00",
+      "log_barrier": 0.04879016416943201,
+      "lower_barrier_price": 2557.7238095238095,
+      "model_version": "4dc349ee53b6b3f3ac40ba0b428adabb93e883eb62539169161a96db65173382",
+      "origin_market": {
+        "trend_state": "down",
+        "volatility_state": "normal"
+      },
+      "price_quantiles": [
+        2502.9484659090194,
+        2693.1862717996105,
+        2883.9383858469205
+      ],
+      "reference_price": 2685.61,
+      "role": "shadow_research",
+      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
+      "selected_model": "climatology",
+      "slot": "2026-09-24T07:00:00+00:00",
+      "source": "coinbase_exchange",
+      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
+      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
+      "target_end": "2026-09-27T08:00:00+00:00",
+      "terminal_down_flat_up": [
+        0.12551984877126654,
+        0.732703213610586,
+        0.14177693761814744
+      ],
+      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "upper_barrier_price": 2819.8905000000004,
+      "validation_target_end": "2026-08-31T19:00:00+00:00",
+      "window_start": "2026-09-24T08:00:00+00:00",
+      "outcome": null,
+      "truth_revision": null,
+      "published_at": "2026-09-24T07:53:16.839168+00:00",
+      "outcome_evaluated_at": null
+    },
+    {
+      "alert_thresholds": {
+        "down": 0.31718395155185464,
+        "up": 0.2702498107494323
+      },
+      "available_at": "2026-09-24T07:51:58.775697920+00:00",
+      "baseline": {
+        "alert_thresholds": {
+          "down": 0.31718395155185464,
+          "up": 0.2702498107494323
+        },
+        "hit_down": 0.2727272727272727,
+        "hit_up": 0.2981510015408321,
+        "price_quantiles": [
+          2415.4257629706403,
+          2706.205713305337,
+          2991.0404534089366
+        ],
+        "terminal_down_flat_up": [
+          0.1301501732768579,
+          0.7373892953407778,
+          0.13246053138236427
+        ]
+      },
+      "forecast_id": "82add722fa7578c7f904cfdf1894126abdc5e305c2155c55e039f82d17104423",
+      "hit_down": 0.2727272727272727,
+      "hit_up": 0.2981510015408321,
+      "horizon_seconds": 604800,
+      "input_cutoff": "2026-09-24T07:00:00+00:00",
+      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
+      "instrument": "ETH-USD",
+      "issued_at": "2026-09-24T07:52:00.490919+00:00",
+      "log_barrier": 0.06765864847381481,
+      "lower_barrier_price": 2509.9158878504672,
+      "model_version": "a7c1910d570dbeecb8083e9ef0660dbf1cf9f9539bb3e2e88667c46e5cf680f1",
+      "origin_market": {
+        "trend_state": "down",
+        "volatility_state": "normal"
+      },
+      "price_quantiles": [
+        2415.4257629706403,
+        2706.205713305337,
+        2991.0404534089366
+      ],
+      "reference_price": 2685.61,
+      "role": "shadow_research",
+      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
+      "selected_model": "climatology",
+      "slot": "2026-09-24T07:00:00+00:00",
+      "source": "coinbase_exchange",
+      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
+      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
+      "target_end": "2026-10-01T08:00:00+00:00",
+      "terminal_down_flat_up": [
+        0.1301501732768579,
+        0.7373892953407778,
+        0.13246053138236427
+      ],
+      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "upper_barrier_price": 2873.6027000000004,
+      "validation_target_end": "2026-08-31T19:00:00+00:00",
+      "window_start": "2026-09-24T08:00:00+00:00",
+      "outcome": null,
+      "truth_revision": null,
+      "published_at": "2026-09-24T07:53:16.839192+00:00",
+      "outcome_evaluated_at": null
+    },
+    {
+      "alert_thresholds": {
+        "down": 0.3357963223618279,
+        "up": 0.4358031021924694
+      },
+      "available_at": "2026-09-24T07:51:58.775697920+00:00",
+      "baseline": {
+        "alert_thresholds": {
+          "down": 0.2653651482284888,
+          "up": 0.29862617498192334
+        },
+        "hit_down": 0.2691339375629406,
+        "hit_up": 0.3164652567975831,
+        "price_quantiles": [
+          2337.954891976419,
+          2711.4444824775555,
+          3230.034347832669
+        ],
+        "terminal_down_flat_up": [
+          0.11376793355147244,
+          0.6969544424867858,
+          0.18927762396174175
+        ]
+      },
+      "forecast_id": "a8d6743b69497ccb6a14a0a83f07a4c902a945d33076d65991442973ea467056",
+      "hit_down": 0.36955265261388026,
+      "hit_up": 0.2826353235242496,
+      "horizon_seconds": 1209600,
+      "input_cutoff": "2026-09-24T07:00:00+00:00",
+      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
+      "instrument": "ETH-USD",
+      "issued_at": "2026-09-24T07:52:00.514886+00:00",
+      "log_barrier": 0.09531017980432487,
+      "lower_barrier_price": 2441.4636363636364,
+      "model_version": "62338a6d1cf6cbabd1f1b083d13353d311a71e5fe192fe6d33e34f48891e91f0",
+      "origin_market": {
+        "trend_state": "down",
+        "volatility_state": "normal"
+      },
+      "price_quantiles": [
+        2326.274987787021,
+        2691.359460052007,
+        3174.674528766627
+      ],
+      "reference_price": 2685.61,
+      "role": "shadow_research",
+      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
+      "selected_model": "catboost_calibrated",
+      "slot": "2026-09-24T07:00:00+00:00",
+      "source": "coinbase_exchange",
+      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
+      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
+      "target_end": "2026-10-08T08:00:00+00:00",
+      "terminal_down_flat_up": [
+        0.14019248042335675,
+        0.61261582825191,
+        0.24719169132473331
+      ],
+      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "upper_barrier_price": 2954.1710000000003,
+      "validation_target_end": "2026-08-31T19:00:00+00:00",
+      "window_start": "2026-09-24T08:00:00+00:00",
+      "outcome": null,
+      "truth_revision": null,
+      "published_at": "2026-09-24T07:53:16.839212+00:00",
+      "outcome_evaluated_at": null
+    },
+    {
+      "alert_thresholds": {
+        "down": 0.2748072618751554,
+        "up": 0.34991295697587665
+      },
+      "available_at": "2026-09-24T07:51:58.775697920+00:00",
+      "baseline": {
+        "alert_thresholds": {
+          "down": 0.2748072618751554,
+          "up": 0.34991295697587665
+        },
+        "hit_down": 0.25925925925925924,
+        "hit_up": 0.35079365079365077,
+        "price_quantiles": [
+          2157.3716131025503,
+          2749.872993565805,
+          3607.2445313005055
+        ],
+        "terminal_down_flat_up": [
+          0.11663581063210791,
+          0.6646389843956625,
+          0.21872520497222958
+        ]
+      },
+      "forecast_id": "ba4c0f72d4abc0b1598558aa32a861b05d9206182e801c24fd9cd4d67bdb5edf",
+      "hit_down": 0.25925925925925924,
+      "hit_up": 0.35079365079365077,
+      "horizon_seconds": 2592000,
+      "input_cutoff": "2026-09-24T07:00:00+00:00",
+      "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
+      "instrument": "ETH-USD",
+      "issued_at": "2026-09-24T07:52:00.538943+00:00",
+      "log_barrier": 0.13976194237515868,
+      "lower_barrier_price": 2335.313043478261,
+      "model_version": "df1138a0274a05d4d49a877b336de4690d8e82736c54b2e06ce14b14a22cd68f",
+      "origin_market": {
+        "trend_state": "down",
+        "volatility_state": "normal"
+      },
+      "price_quantiles": [
+        2157.3716131025503,
+        2749.872993565805,
+        3607.2445313005055
+      ],
+      "reference_price": 2685.61,
+      "role": "shadow_research",
+      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
+      "selected_model": "climatology",
+      "slot": "2026-09-24T07:00:00+00:00",
+      "source": "coinbase_exchange",
+      "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
+      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
+      "target_end": "2026-10-24T08:00:00+00:00",
+      "terminal_down_flat_up": [
+        0.11663581063210791,
+        0.6646389843956625,
+        0.21872520497222958
+      ],
+      "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
+      "training_target_end": "2026-08-31T19:00:00+00:00",
+      "upper_barrier_price": 3088.4515,
+      "validation_target_end": "2026-08-31T19:00:00+00:00",
+      "window_start": "2026-09-24T08:00:00+00:00",
+      "outcome": null,
+      "truth_revision": null,
+      "published_at": "2026-09-24T07:53:16.839230+00:00",
+      "outcome_evaluated_at": null
     }
   ],
   "prospective": {
     "6": {
-      "issued": 247,
+      "issued": 248,
       "resolved": 245,
-      "pending": 2,
+      "pending": 3,
       "metrics": {
         "rows": 245,
         "terminal_brier": 0.3461347378989035,
@@ -7141,7 +6763,7 @@
         "return_rmse_pp": 1.374839940003174,
         "return_mae_pp": 0.9697525441702444,
         "price_mae_usd": 24.681724475189384,
-        "price_mape_pct": 0.965633471514384,
+        "price_mape_pct": 0.9656334715143841,
         "interval_score80_pp": 5.0405394989955585,
         "confusion_actual_by_predicted": [
           [
@@ -7198,7 +6820,7 @@
         "return_rmse_pp": 1.3691290546966732,
         "return_mae_pp": 0.9649600507510082,
         "price_mae_usd": 24.554034811944163,
-        "price_mape_pct": 0.9612816115526495,
+        "price_mape_pct": 0.9612816115526492,
         "interval_score80_pp": 5.229609382353894,
         "confusion_actual_by_predicted": [
           [
@@ -7255,7 +6877,7 @@
         "return_rmse_pp": 1.374839940003174,
         "return_mae_pp": 0.9697525441702444,
         "price_mae_usd": 24.681724475189384,
-        "price_mape_pct": 0.965633471514384,
+        "price_mape_pct": 0.9656334715143841,
         "interval_score80_pp": 5.0405394989955585,
         "confusion_actual_by_predicted": [
           [
@@ -7280,9 +6902,9 @@
       "promotion": "research_only"
     },
     "24": {
-      "issued": 247,
+      "issued": 248,
       "resolved": 234,
-      "pending": 13,
+      "pending": 14,
       "metrics": {
         "rows": 234,
         "terminal_brier": 0.33153038485204483,
@@ -7377,7 +6999,7 @@
         "return_rmse_pp": 2.5755124511638265,
         "return_mae_pp": 1.9426697516590234,
         "price_mae_usd": 49.17405329248775,
-        "price_mape_pct": 1.921620877703768,
+        "price_mape_pct": 1.9216208777037673,
         "interval_score80_pp": 10.03149280701078,
         "confusion_actual_by_predicted": [
           [
@@ -7459,9 +7081,9 @@
       "promotion": "research_only"
     },
     "72": {
-      "issued": 247,
+      "issued": 248,
       "resolved": 207,
-      "pending": 40,
+      "pending": 41,
       "metrics": {
         "rows": 207,
         "terminal_brier": 0.3700944782533255,
@@ -7638,31 +7260,31 @@
       "promotion": "research_only"
     },
     "168": {
-      "issued": 247,
-      "resolved": 155,
+      "issued": 248,
+      "resolved": 156,
       "pending": 92,
       "metrics": {
-        "rows": 155,
-        "terminal_brier": 0.33761521532489996,
-        "terminal_accuracy": 0.8064516129032258,
+        "rows": 156,
+        "terminal_brier": 0.34386964836830786,
+        "terminal_accuracy": 0.8012820512820513,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.6369292282882629,
-        "event_brier": 0.18012608301101513,
+        "terminal_logloss": 0.6458044931985264,
+        "event_brier": 0.18078864716455795,
         "up": {
-          "brier": 0.2712092441345336,
-          "pr_auc": 0.45161290322580644,
-          "prevalence": 0.45161290322580644,
-          "events": 70,
+          "brier": 0.2726283644710952,
+          "pr_auc": 0.4551282051282051,
+          "prevalence": 0.4551282051282051,
+          "events": 71,
           "recall": 1.0,
-          "precision": 0.45161290322580644,
+          "precision": 0.4551282051282051,
           "false_positive_rate": 1.0,
-          "alerts": 155,
+          "alerts": 156,
           "false_alerts": 85
         },
         "down": {
-          "brier": 0.08904292188749664,
-          "pr_auc": 0.03225806451612903,
-          "prevalence": 0.03225806451612903,
+          "brier": 0.08894892985802073,
+          "pr_auc": 0.03205128205128205,
+          "prevalence": 0.03205128205128205,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -7670,16 +7292,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.04100046020610965,
-        "no_change_mae": 0.042687850380124105,
-        "mae_skill": 0.03952858152820271,
-        "coverage80": 0.9225806451612903,
+        "return_mae": 0.04135585015609786,
+        "no_change_mae": 0.043081583434372205,
+        "mae_skill": 0.04005733171119896,
+        "coverage80": 0.9230769230769231,
         "mean_interval_width": 0.21433294128272395,
-        "return_rmse_pp": 5.575745720256329,
-        "return_mae_pp": 4.100046020610965,
-        "price_mae_usd": 101.28594366014762,
-        "price_mape_pct": 3.8665794062818537,
-        "interval_score80_pp": 23.329737809796374,
+        "return_rmse_pp": 5.6112267164177885,
+        "return_mae_pp": 4.135585015609786,
+        "price_mae_usd": 102.14452821513791,
+        "price_mape_pct": 3.8977856431966322,
+        "interval_score80_pp": 23.31758111953019,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -7693,33 +7315,33 @@
           ],
           [
             0,
-            30,
+            31,
             0
           ]
         ]
       },
       "baseline": {
-        "rows": 155,
-        "terminal_brier": 0.33761521532489996,
-        "terminal_accuracy": 0.8064516129032258,
+        "rows": 156,
+        "terminal_brier": 0.34386964836830786,
+        "terminal_accuracy": 0.8012820512820513,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.6369292282882629,
-        "event_brier": 0.18012608301101513,
+        "terminal_logloss": 0.6458044931985264,
+        "event_brier": 0.18078864716455795,
         "up": {
-          "brier": 0.2712092441345336,
-          "pr_auc": 0.45161290322580644,
-          "prevalence": 0.45161290322580644,
-          "events": 70,
+          "brier": 0.2726283644710952,
+          "pr_auc": 0.4551282051282051,
+          "prevalence": 0.4551282051282051,
+          "events": 71,
           "recall": 1.0,
-          "precision": 0.45161290322580644,
+          "precision": 0.4551282051282051,
           "false_positive_rate": 1.0,
-          "alerts": 155,
+          "alerts": 156,
           "false_alerts": 85
         },
         "down": {
-          "brier": 0.08904292188749664,
-          "pr_auc": 0.03225806451612903,
-          "prevalence": 0.03225806451612903,
+          "brier": 0.08894892985802073,
+          "pr_auc": 0.03205128205128205,
+          "prevalence": 0.03205128205128205,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -7727,16 +7349,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.04100046020610965,
-        "no_change_mae": 0.042687850380124105,
-        "mae_skill": 0.03952858152820271,
-        "coverage80": 0.9225806451612903,
+        "return_mae": 0.04135585015609786,
+        "no_change_mae": 0.043081583434372205,
+        "mae_skill": 0.04005733171119896,
+        "coverage80": 0.9230769230769231,
         "mean_interval_width": 0.21433294128272395,
-        "return_rmse_pp": 5.575745720256329,
-        "return_mae_pp": 4.100046020610965,
-        "price_mae_usd": 101.28594366014762,
-        "price_mape_pct": 3.8665794062818537,
-        "interval_score80_pp": 23.329737809796374,
+        "return_rmse_pp": 5.6112267164177885,
+        "return_mae_pp": 4.135585015609786,
+        "price_mae_usd": 102.14452821513791,
+        "price_mape_pct": 3.8977856431966322,
+        "interval_score80_pp": 23.31758111953019,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -7750,33 +7372,33 @@
           ],
           [
             0,
-            30,
+            31,
             0
           ]
         ]
       },
       "paired_selected": {
-        "rows": 155,
-        "terminal_brier": 0.33761521532489996,
-        "terminal_accuracy": 0.8064516129032258,
+        "rows": 156,
+        "terminal_brier": 0.34386964836830786,
+        "terminal_accuracy": 0.8012820512820513,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.6369292282882629,
-        "event_brier": 0.18012608301101513,
+        "terminal_logloss": 0.6458044931985264,
+        "event_brier": 0.18078864716455795,
         "up": {
-          "brier": 0.2712092441345336,
-          "pr_auc": 0.45161290322580644,
-          "prevalence": 0.45161290322580644,
-          "events": 70,
+          "brier": 0.2726283644710952,
+          "pr_auc": 0.4551282051282051,
+          "prevalence": 0.4551282051282051,
+          "events": 71,
           "recall": 1.0,
-          "precision": 0.45161290322580644,
+          "precision": 0.4551282051282051,
           "false_positive_rate": 1.0,
-          "alerts": 155,
+          "alerts": 156,
           "false_alerts": 85
         },
         "down": {
-          "brier": 0.08904292188749664,
-          "pr_auc": 0.03225806451612903,
-          "prevalence": 0.03225806451612903,
+          "brier": 0.08894892985802073,
+          "pr_auc": 0.03205128205128205,
+          "prevalence": 0.03205128205128205,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -7784,16 +7406,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.04100046020610965,
-        "no_change_mae": 0.042687850380124105,
-        "mae_skill": 0.03952858152820271,
-        "coverage80": 0.9225806451612903,
+        "return_mae": 0.04135585015609786,
+        "no_change_mae": 0.043081583434372205,
+        "mae_skill": 0.04005733171119896,
+        "coverage80": 0.9230769230769231,
         "mean_interval_width": 0.21433294128272395,
-        "return_rmse_pp": 5.575745720256329,
-        "return_mae_pp": 4.100046020610965,
-        "price_mae_usd": 101.28594366014762,
-        "price_mape_pct": 3.8665794062818537,
-        "interval_score80_pp": 23.329737809796374,
+        "return_rmse_pp": 5.6112267164177885,
+        "return_mae_pp": 4.135585015609786,
+        "price_mae_usd": 102.14452821513791,
+        "price_mape_pct": 3.8977856431966322,
+        "interval_score80_pp": 23.31758111953019,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -7807,7 +7429,7 @@
           ],
           [
             0,
-            30,
+            31,
             0
           ]
         ]
@@ -7817,21 +7439,21 @@
       "promotion": "research_only"
     },
     "336": {
-      "issued": 247,
-      "resolved": 65,
+      "issued": 248,
+      "resolved": 66,
       "pending": 182,
       "metrics": {
-        "rows": 65,
-        "terminal_brier": 0.252021548865647,
-        "terminal_accuracy": 0.8769230769230769,
+        "rows": 66,
+        "terminal_brier": 0.24969552885699223,
+        "terminal_accuracy": 0.8787878787878788,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.4968262150544231,
-        "event_brier": 0.26312287491390385,
+        "terminal_logloss": 0.4937271409843818,
+        "event_brier": 0.2635577849355621,
         "up": {
-          "brier": 0.4606509051803845,
-          "pr_auc": 0.6464299698936085,
-          "prevalence": 0.8307692307692308,
-          "events": 54,
+          "brier": 0.46160473961776294,
+          "pr_auc": 0.6503545286547134,
+          "prevalence": 0.8333333333333334,
+          "events": 55,
           "recall": 0.0,
           "precision": null,
           "false_positive_rate": 0.0,
@@ -7839,7 +7461,7 @@
           "false_alerts": 0
         },
         "down": {
-          "brier": 0.06559484464742325,
+          "brier": 0.06551083025336121,
           "pr_auc": null,
           "prevalence": 0.0,
           "events": 0,
@@ -7849,16 +7471,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.07615648374641616,
-        "no_change_mae": 0.09446444084229103,
-        "mae_skill": 0.19380792319980078,
+        "return_mae": 0.0760661753483409,
+        "no_change_mae": 0.09433701298544861,
+        "mae_skill": 0.19367623649400445,
         "coverage80": 1.0,
-        "mean_interval_width": 0.28317359736049885,
-        "return_rmse_pp": 7.877895865189825,
-        "return_mae_pp": 7.615648374641617,
-        "price_mae_usd": 189.3038066009736,
-        "price_mape_pct": 6.933555727400196,
-        "interval_score80_pp": 28.317359736049884,
+        "mean_interval_width": 0.28308182991322783,
+        "return_rmse_pp": 7.865590364876879,
+        "return_mae_pp": 7.60661753483409,
+        "price_mae_usd": 189.0728144197825,
+        "price_mape_pct": 6.926432298299701,
+        "interval_score80_pp": 28.308182991322784,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -7867,7 +7489,7 @@
           ],
           [
             0,
-            57,
+            58,
             0
           ],
           [
@@ -7878,44 +7500,44 @@
         ]
       },
       "baseline": {
-        "rows": 65,
-        "terminal_brier": 0.2655723730487573,
-        "terminal_accuracy": 0.8769230769230769,
+        "rows": 66,
+        "terminal_brier": 0.263678939692953,
+        "terminal_accuracy": 0.8787878787878788,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.5214666417785444,
-        "event_brier": 0.23876668498374667,
+        "terminal_logloss": 0.5190358628522579,
+        "event_brier": 0.23923728688939389,
         "up": {
-          "brier": 0.40510029361936056,
-          "pr_auc": 0.8307692307692308,
-          "prevalence": 0.8307692307692308,
-          "events": 54,
+          "brier": 0.406041497430655,
+          "pr_auc": 0.8333333333333334,
+          "prevalence": 0.8333333333333334,
+          "events": 55,
           "recall": 1.0,
-          "precision": 0.8307692307692308,
+          "precision": 0.8333333333333334,
           "false_positive_rate": 1.0,
-          "alerts": 65,
+          "alerts": 66,
           "false_alerts": 11
         },
         "down": {
-          "brier": 0.0724330763481328,
+          "brier": 0.07243307634813279,
           "pr_auc": null,
           "prevalence": 0.0,
           "events": 0,
           "recall": null,
           "precision": 0.0,
           "false_positive_rate": 1.0,
-          "alerts": 65,
-          "false_alerts": 65
+          "alerts": 66,
+          "false_alerts": 66
         },
-        "return_mae": 0.08484484511634596,
-        "no_change_mae": 0.09446444084229103,
-        "mae_skill": 0.10183298223301862,
+        "return_mae": 0.08471741725950355,
+        "no_change_mae": 0.09433701298544861,
+        "mae_skill": 0.10197053544009149,
         "coverage80": 1.0,
-        "mean_interval_width": 0.3321701422977461,
-        "return_rmse_pp": 8.633086280263104,
-        "return_mae_pp": 8.484484511634596,
-        "price_mae_usd": 210.95330171429006,
-        "price_mape_pct": 7.73235932676503,
-        "interval_score80_pp": 33.21701422977461,
+        "mean_interval_width": 0.33217014229774605,
+        "return_rmse_pp": 8.618939774993276,
+        "return_mae_pp": 8.471741725950356,
+        "price_mae_usd": 210.6286645737394,
+        "price_mape_pct": 7.721836096692335,
+        "interval_score80_pp": 33.217014229774605,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -7924,7 +7546,7 @@
           ],
           [
             0,
-            57,
+            58,
             0
           ],
           [
@@ -7935,17 +7557,17 @@
         ]
       },
       "paired_selected": {
-        "rows": 65,
-        "terminal_brier": 0.252021548865647,
-        "terminal_accuracy": 0.8769230769230769,
+        "rows": 66,
+        "terminal_brier": 0.24969552885699223,
+        "terminal_accuracy": 0.8787878787878788,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.4968262150544231,
-        "event_brier": 0.26312287491390385,
+        "terminal_logloss": 0.4937271409843818,
+        "event_brier": 0.2635577849355621,
         "up": {
-          "brier": 0.4606509051803845,
-          "pr_auc": 0.6464299698936085,
-          "prevalence": 0.8307692307692308,
-          "events": 54,
+          "brier": 0.46160473961776294,
+          "pr_auc": 0.6503545286547134,
+          "prevalence": 0.8333333333333334,
+          "events": 55,
           "recall": 0.0,
           "precision": null,
           "false_positive_rate": 0.0,
@@ -7953,7 +7575,7 @@
           "false_alerts": 0
         },
         "down": {
-          "brier": 0.06559484464742325,
+          "brier": 0.06551083025336121,
           "pr_auc": null,
           "prevalence": 0.0,
           "events": 0,
@@ -7963,16 +7585,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.07615648374641616,
-        "no_change_mae": 0.09446444084229103,
-        "mae_skill": 0.19380792319980078,
+        "return_mae": 0.0760661753483409,
+        "no_change_mae": 0.09433701298544861,
+        "mae_skill": 0.19367623649400445,
         "coverage80": 1.0,
-        "mean_interval_width": 0.28317359736049885,
-        "return_rmse_pp": 7.877895865189825,
-        "return_mae_pp": 7.615648374641617,
-        "price_mae_usd": 189.3038066009736,
-        "price_mape_pct": 6.933555727400196,
-        "interval_score80_pp": 28.317359736049884,
+        "mean_interval_width": 0.28308182991322783,
+        "return_rmse_pp": 7.865590364876879,
+        "return_mae_pp": 7.60661753483409,
+        "price_mae_usd": 189.0728144197825,
+        "price_mape_pct": 6.926432298299701,
+        "interval_score80_pp": 28.308182991322784,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -7981,7 +7603,7 @@
           ],
           [
             0,
-            57,
+            58,
             0
           ],
           [
@@ -7996,9 +7618,9 @@
       "promotion": "research_only"
     },
     "720": {
-      "issued": 247,
+      "issued": 248,
       "resolved": 0,
-      "pending": 247,
+      "pending": 248,
       "metrics": {
         "rows": 0
       },
@@ -8014,14 +7636,14 @@
     }
   },
   "replay_generated_at": "2026-09-20T12:23:49.077142+00:00",
-  "runtime_seconds": 2.1637868760000174,
-  "next_expected_update": "2026-09-24T08:08:00+00:00",
+  "runtime_seconds": 1.9764087810000035,
+  "next_expected_update": "2026-09-24T09:08:00+00:00",
   "service_status": "public_research_beta; paid service and predictive edge not established",
   "evidence_archives": {
     "published": {
-      "path": "archive/published_manifest_0d08e68cf2412308646cac5f058836660c681744cabf85d681c8cb07387488a9.json",
-      "sha256": "0d08e68cf2412308646cac5f058836660c681744cabf85d681c8cb07387488a9",
-      "bytes": 7779
+      "path": "archive/published_manifest_dd310636e727c6c1b528b578487559541ce6eb61e38c1468dde8b3ca2e9c8cf8.json",
+      "sha256": "dd310636e727c6c1b528b578487559541ce6eb61e38c1468dde8b3ca2e9c8cf8",
+      "bytes": 7777
     },
     "historical": {
       "path": "archive/historical_manifest_b43cf4f20995db6efa73f9dbd948e459ee8f778faf19d961f404bebe173fb039.json",
@@ -8029,14 +7651,14 @@
       "bytes": 22972
     },
     "shadow": {
-      "path": "archive/shadow_manifest_f7deaa89e5164a67eb7593fd330a5ddea04b89b4087bd25535ab11b9f2e9e1bf.json",
-      "sha256": "f7deaa89e5164a67eb7593fd330a5ddea04b89b4087bd25535ab11b9f2e9e1bf",
-      "bytes": 6795
+      "path": "archive/shadow_manifest_5b7924e118269460042c58c3227070ee51639086a779a793c1444026842dfb50.json",
+      "sha256": "5b7924e118269460042c58c3227070ee51639086a779a793c1444026842dfb50",
+      "bytes": 6791
     },
     "range_shadow": {
-      "path": "archive/range_shadow_manifest_3f49ff6ddb826b7657496c3b4c921af9628a8bf2797def841faf20abf1d89a6c.json",
-      "sha256": "3f49ff6ddb826b7657496c3b4c921af9628a8bf2797def841faf20abf1d89a6c",
-      "bytes": 4551
+      "path": "archive/range_shadow_manifest_c08fba57b571f3cabab3a2a5964c288033e18eb0fb1029209a0a30a587ed60d9.json",
+      "sha256": "c08fba57b571f3cabab3a2a5964c288033e18eb0fb1029209a0a30a587ed60d9",
+      "bytes": 4550
     },
     "candidate_history": {
       "path": "archive/candidate_history_manifest_259b77d3051f911804ddfb085d5ff224cffb62ad15c281070d7517a1f958483f.json",
@@ -8044,428 +7666,38 @@
       "bytes": 20328
     }
   },
-  "shadow_current": [
+  "shadow_current": [],
+  "shadow_errors": [
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-09-24T14:00:00+00:00",
-      "horizon_seconds": 21600,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.014888612493750654,
-      "upper_barrier_price": 2725.89415,
-      "lower_barrier_price": 2645.92118226601,
-      "terminal_down_flat_up": [
-        0.10512806942361719,
-        0.7870270776413639,
-        0.10784485293501878
-      ],
-      "hit_up": 0.20302878949635655,
-      "hit_down": 0.2201401968445385,
-      "price_quantiles": [
-        2645.906185335137,
-        2685.031365769121,
-        2722.461991457828
-      ],
-      "selected_model": "separate_heads_frozen_calibration_v1",
-      "alert_thresholds": {
-        "up": 0.2483731791508048,
-        "down": 0.27478953579043774
-      },
-      "model_version": "869787cf84b4559a782969464a2ae27babcd10151954114466f0ce66beec4a6b",
-      "training_target_end": "2026-06-21T19:00:00+00:00",
-      "validation_target_end": "2026-06-21T19:00:00+00:00",
-      "source_snapshot": "0bc40de1517b60ec62a6d7d1fdf24a4fc9bf3a41989c54da7b49fe44fc264bc3",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "separate_heads_frozen_calibration_v1",
-      "head_choices": {
-        "probability": "730:catboost",
-        "point": "730:catboost",
-        "interval": "730:catboost"
-      },
-      "calibration_identity": "b8f297f439123edf191f9be4a77f24ac",
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.11501120238984316,
-          0.7617625093353249,
-          0.12322628827483197
-        ],
-        "hit_up": 0.24094135225999253,
-        "hit_down": 0.269704893537542,
-        "price_quantiles": [
-          2633.4530688263303,
-          2686.057058809541,
-          2740.99659967077
-        ],
-        "alert_thresholds": {
-          "up": 1.0,
-          "down": 1.0
-        }
-      },
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "1543d0f75ab0ac96d5954fa9b61bfb411ab2c5aacae0edd52fb36d8219bae48c",
-      "issued_at": "2026-09-24T07:52:02.098687+00:00",
-      "role": "shadow_research"
+      "horizon": 6,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-09-25T08:00:00+00:00",
-      "horizon_seconds": 86400,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.0295588022415444,
-      "upper_barrier_price": 2766.1783,
-      "lower_barrier_price": 2607.3883495145633,
-      "terminal_down_flat_up": [
-        0.08592741883052421,
-        0.8319638774587281,
-        0.0821087037107477
-      ],
-      "hit_up": 0.19890293593555647,
-      "hit_down": 0.22728655870360542,
-      "price_quantiles": [
-        2600.5842017500445,
-        2685.0170679670346,
-        2752.657264710169
-      ],
-      "selected_model": "separate_heads_frozen_calibration_v1",
-      "alert_thresholds": {
-        "up": 0.19890293593555647,
-        "down": 0.22728655870360542
-      },
-      "model_version": "d923af1c1f2bb8c1395aa88b26d76a25ff5569d74c251d71d3a3161b3c80dd88",
-      "training_target_end": "2026-06-21T19:00:00+00:00",
-      "validation_target_end": "2026-06-21T19:00:00+00:00",
-      "source_snapshot": "26394b249fabe39f60e2c90359d498cb7765e545c06105a4f5646adc7e3f41ed",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "separate_heads_frozen_calibration_v1",
-      "head_choices": {
-        "probability": "730:climatology",
-        "point": "365:catboost",
-        "interval": "730:catboost"
-      },
-      "calibration_identity": "4384c34823cd387059be10170941803d",
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.13413263394529787,
-          0.7362307980517048,
-          0.1296365680029974
-        ],
-        "hit_up": 0.2571214392803598,
-        "hit_down": 0.2799850074962519,
-        "price_quantiles": [
-          2575.1509383823604,
-          2687.684533682588,
-          2799.705389897699
-        ],
-        "alert_thresholds": {
-          "up": 1.0,
-          "down": 1.0
-        }
-      },
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "7ae219508731a64e749f8c9ec5d08daa3b844736d470718571d3b942ac2d528a",
-      "issued_at": "2026-09-24T07:52:02.160721+00:00",
-      "role": "shadow_research"
+      "horizon": 24,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-09-27T08:00:00+00:00",
-      "horizon_seconds": 259200,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.04879016416943201,
-      "upper_barrier_price": 2819.8905000000004,
-      "lower_barrier_price": 2557.7238095238095,
-      "terminal_down_flat_up": [
-        0.09592799859009825,
-        0.8144523879491498,
-        0.08961961346075212
-      ],
-      "hit_up": 0.2262405990546928,
-      "hit_down": 0.14880940532512624,
-      "price_quantiles": [
-        2508.534218339596,
-        2629.6172430571305,
-        2789.099350901795
-      ],
-      "selected_model": "separate_heads_frozen_calibration_v1",
-      "alert_thresholds": {
-        "up": 0.2262405990546928,
-        "down": 0.14880940532512624
-      },
-      "model_version": "1f153bd17f93efd2f471d6ba46d3b877edcb88fa80eea0fb6657dc02fdb253f0",
-      "training_target_end": "2026-06-21T19:00:00+00:00",
-      "validation_target_end": "2026-06-21T19:00:00+00:00",
-      "source_snapshot": "757bc48be4540ae7601a800773d026013b3e5b02ffc0ce4555b94ad4cc7eac37",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "separate_heads_frozen_calibration_v1",
-      "head_choices": {
-        "probability": "730:climatology",
-        "point": "730:catboost",
-        "interval": "730:catboost"
-      },
-      "calibration_identity": "5c356f9e589c82f91c111b4e654ca8f4",
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.1444234404536862,
-          0.718336483931947,
-          0.13724007561436674
-        ],
-        "hit_up": 0.26626323751891073,
-        "hit_down": 0.2859304084720121,
-        "price_quantiles": [
-          2488.2528678666945,
-          2690.066554163679,
-          2881.678371380714
-        ],
-        "alert_thresholds": {
-          "up": 1.0,
-          "down": 1.0
-        }
-      },
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "18405f38b1abdffceb4ee4a410bd453abe372797eb6d5e5c770415c846483da0",
-      "issued_at": "2026-09-24T07:52:02.189537+00:00",
-      "role": "shadow_research"
+      "horizon": 72,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-10-01T08:00:00+00:00",
-      "horizon_seconds": 604800,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.06765864847381481,
-      "upper_barrier_price": 2873.6027000000004,
-      "lower_barrier_price": 2509.9158878504672,
-      "terminal_down_flat_up": [
-        0.08419859207967344,
-        0.8293500687219313,
-        0.08645133919839529
-      ],
-      "hit_up": 0.28290206364626563,
-      "hit_down": 0.0920921471893883,
-      "price_quantiles": [
-        2463.319327987254,
-        2470.4328705311227,
-        2768.4519451867213
-      ],
-      "selected_model": "separate_heads_frozen_calibration_v1",
-      "alert_thresholds": {
-        "up": 0.28290206364626563,
-        "down": 0.0920921471893883
-      },
-      "model_version": "99452febf73be51cf4c3ce76f455ac259c350e8b7fd85d2d2e21c6f4c44067af",
-      "training_target_end": "2026-06-21T19:00:00+00:00",
-      "validation_target_end": "2026-06-21T19:00:00+00:00",
-      "source_snapshot": "6aaa3be58aacbe650552790aa132ce42f63f8be1de86f0c45f579b05e8e1dc28",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "separate_heads_frozen_calibration_v1",
-      "head_choices": {
-        "probability": "365:climatology",
-        "point": "730:catboost",
-        "interval": "730:catboost"
-      },
-      "calibration_identity": "f7cea8cdd7a72261778c0bb840a746fe",
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.13192612137203166,
-          0.7335092348284961,
-          0.1345646437994723
-        ],
-        "hit_up": 0.3397887323943662,
-        "hit_down": 0.2438380281690141,
-        "price_quantiles": [
-          2433.1413978512996,
-          2722.588522329532,
-          2993.2469742086105
-        ],
-        "alert_thresholds": {
-          "up": 1.0,
-          "down": 1.0
-        }
-      },
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "698063a27d069923e47adcf693d8f2630542d87de687f27c29cfb0ccb35c7d69",
-      "issued_at": "2026-09-24T07:52:02.233177+00:00",
-      "role": "shadow_research"
+      "horizon": 168,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-10-08T08:00:00+00:00",
-      "horizon_seconds": 1209600,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.09531017980432487,
-      "upper_barrier_price": 2954.1710000000003,
-      "lower_barrier_price": 2441.4636363636364,
-      "terminal_down_flat_up": [
-        0.09799317860056113,
-        0.6595094143164121,
-        0.24249740708302667
-      ],
-      "hit_up": 0.12085579310219793,
-      "hit_down": 0.40629543460292034,
-      "price_quantiles": [
-        2040.5756423522964,
-        2685.61,
-        2880.0853221143466
-      ],
-      "selected_model": "separate_heads_frozen_calibration_v1",
-      "alert_thresholds": {
-        "up": 0.1687719819342198,
-        "down": 0.44255919178958
-      },
-      "model_version": "70c4dfea3dc400ba8583488d52ab18087662083d931f2ef73ddac2c1c29ebddc",
-      "training_target_end": "2025-08-31T19:00:00+00:00",
-      "validation_target_end": "2025-08-31T19:00:00+00:00",
-      "source_snapshot": "148707b15e28f229a2fdf1f89dadbce261797f80b9fc310594aca4cedf928714",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "separate_heads_frozen_calibration_v1",
-      "head_choices": {
-        "probability": "730:catboost_calibrated",
-        "point": "no_change",
-        "interval": "1095:climatology"
-      },
-      "calibration_identity": "3d814e7a8c3d35f71dad27279615b65a",
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.11196372514823857,
-          0.6581792814788978,
-          0.2298569933728636
-        ],
-        "hit_up": 0.345778087927425,
-        "hit_down": 0.28576413119330074,
-        "price_quantiles": [
-          2333.447786545995,
-          2707.277392103204,
-          3290.01046110353
-        ],
-        "alert_thresholds": {
-          "up": 1.0,
-          "down": 1.0
-        }
-      },
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "146325570462982e49732a47acb7d205b166b593d6ce6b6c33527dd96ed86930",
-      "issued_at": "2026-09-24T07:52:02.276623+00:00",
-      "role": "shadow_research"
+      "horizon": 336,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     },
     {
-      "slot": "2026-09-24T07:00:00+00:00",
-      "input_cutoff": "2026-09-24T07:00:00+00:00",
-      "available_at": "2026-09-24T07:51:58.775697920+00:00",
-      "window_start": "2026-09-24T08:00:00+00:00",
-      "target_end": "2026-10-24T08:00:00+00:00",
-      "horizon_seconds": 2592000,
-      "instrument": "ETH-USD",
-      "source": "coinbase_exchange",
-      "reference_price": 2685.61,
-      "log_barrier": 0.13976194237515868,
-      "upper_barrier_price": 3088.4515,
-      "lower_barrier_price": 2335.313043478261,
-      "terminal_down_flat_up": [
-        0.16387494525406363,
-        0.5694399349088838,
-        0.2666851198370527
-      ],
-      "hit_up": 0.008151674991741863,
-      "hit_down": 0.4769504211651281,
-      "price_quantiles": [
-        1691.3769496960188,
-        2685.61,
-        2837.01681263458
-      ],
-      "selected_model": "separate_heads_frozen_calibration_v1",
-      "alert_thresholds": {
-        "up": 0.008151674991741863,
-        "down": 0.4769504211651281
-      },
-      "model_version": "03e347a7e80c4336cd3e461af6a71e0d43a16791a1d529b021267776af8053ae",
-      "training_target_end": "2025-08-31T19:00:00+00:00",
-      "validation_target_end": "2025-08-31T19:00:00+00:00",
-      "source_snapshot": "35c6fce1a87f4310118dd55f96a4ac8931ddf04e93e297287449a029f29c3cfc",
-      "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-      "training_runtime_hash": "separate_heads_frozen_calibration_v1",
-      "head_choices": {
-        "probability": "1095:climatology",
-        "point": "no_change",
-        "interval": "1095:climatology"
-      },
-      "calibration_identity": "274234a82688963c5e6b8318e245419a",
-      "origin_market": {
-        "trend_state": "down",
-        "volatility_state": "normal"
-      },
-      "baseline": {
-        "terminal_down_flat_up": [
-          0.10467429139731477,
-          0.6780208851317753,
-          0.21730482347090999
-        ],
-        "hit_up": 0.34991295697587665,
-        "hit_down": 0.2748072618751554,
-        "price_quantiles": [
-          2200.5732927681793,
-          2683.226253680291,
-          3602.0067548596403
-        ],
-        "alert_thresholds": {
-          "up": 1.0,
-          "down": 1.0
-        }
-      },
-      "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-      "forecast_id": "b1e64610f2d66e117b9fd5a9def37f3eb5642c65ca7b3433abc1bb09c6eefd50",
-      "issued_at": "2026-09-24T07:52:02.305379+00:00",
-      "role": "shadow_research"
+      "horizon": 720,
+      "reason": "issuance_deadline: the hourly :55 cutoff has passed"
     }
   ],
-  "shadow_errors": [],
   "shadow_prospective": {
     "6": {
-      "issued": 170,
+      "issued": 171,
       "resolved": 168,
-      "pending": 2,
+      "pending": 3,
       "metrics": {
         "rows": 168,
         "terminal_brier": 0.4366699369067733,
@@ -8560,7 +7792,7 @@
         "return_rmse_pp": 1.5727885386467286,
         "return_mae_pp": 1.1470386846701859,
         "price_mae_usd": 29.368057100568194,
-        "price_mape_pct": 1.1405182390734958,
+        "price_mape_pct": 1.1405182390734963,
         "interval_score80_pp": 5.801199143164951,
         "confusion_actual_by_predicted": [
           [
@@ -8642,9 +7874,9 @@
       "promotion": "research_only"
     },
     "24": {
-      "issued": 170,
+      "issued": 171,
       "resolved": 157,
-      "pending": 13,
+      "pending": 14,
       "metrics": {
         "rows": 157,
         "terminal_brier": 0.42377865714753565,
@@ -8739,7 +7971,7 @@
         "return_rmse_pp": 2.9148134348723853,
         "return_mae_pp": 2.3089163156137333,
         "price_mae_usd": 58.820011932320185,
-        "price_mape_pct": 2.2820037471708075,
+        "price_mape_pct": 2.2820037471708083,
         "interval_score80_pp": 10.785754821460463,
         "confusion_actual_by_predicted": [
           [
@@ -8821,9 +8053,9 @@
       "promotion": "research_only"
     },
     "72": {
-      "issued": 170,
+      "issued": 171,
       "resolved": 130,
-      "pending": 40,
+      "pending": 41,
       "metrics": {
         "rows": 130,
         "terminal_brier": 0.550675911423728,
@@ -8918,7 +8150,7 @@
         "return_rmse_pp": 5.087671188752639,
         "return_mae_pp": 4.30307366786422,
         "price_mae_usd": 107.66773839157602,
-        "price_mape_pct": 4.1122217677589585,
+        "price_mape_pct": 4.112221767758959,
         "interval_score80_pp": 17.144740415202055,
         "confusion_actual_by_predicted": [
           [
@@ -9000,21 +8232,21 @@
       "promotion": "research_only"
     },
     "168": {
-      "issued": 170,
-      "resolved": 77,
+      "issued": 171,
+      "resolved": 78,
       "pending": 93,
       "metrics": {
-        "rows": 77,
-        "terminal_brier": 0.5920684854265793,
-        "terminal_accuracy": 0.5974025974025974,
+        "rows": 78,
+        "terminal_brier": 0.60120117990625,
+        "terminal_accuracy": 0.5897435897435898,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 1.0032971782503186,
-        "event_brier": 0.2029613972198664,
+        "terminal_logloss": 1.0161486320209312,
+        "event_brier": 0.20380239269743153,
         "up": {
-          "brier": 0.3249938149994079,
-          "pr_auc": 0.4769969242186892,
-          "prevalence": 0.5584415584415584,
-          "events": 43,
+          "brier": 0.32741985311830607,
+          "pr_auc": 0.4797643037784594,
+          "prevalence": 0.5641025641025641,
+          "events": 44,
           "recall": 0.0,
           "precision": null,
           "false_positive_rate": 0.0,
@@ -9022,9 +8254,9 @@
           "false_alerts": 0
         },
         "down": {
-          "brier": 0.0809289794403249,
+          "brier": 0.08018493227655699,
           "pr_auc": 0.08934397778549114,
-          "prevalence": 0.06493506493506493,
+          "prevalence": 0.0641025641025641,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -9032,16 +8264,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.051807907148176034,
-        "no_change_mae": 0.06939763628689294,
-        "mae_skill": 0.25346294311812256,
-        "coverage80": 0.8961038961038961,
-        "mean_interval_width": 0.22406792187708097,
-        "return_rmse_pp": 6.517180466125199,
-        "return_mae_pp": 5.180790714817603,
-        "price_mae_usd": 127.25766437274778,
-        "price_mape_pct": 4.7170822260356475,
-        "interval_score80_pp": 23.88599449521925,
+        "return_mae": 0.052122051037211174,
+        "no_change_mae": 0.06984266924273826,
+        "mae_skill": 0.25372194959987937,
+        "coverage80": 0.8974358974358975,
+        "mean_interval_width": 0.224075027663646,
+        "return_rmse_pp": 6.532663748652187,
+        "return_mae_pp": 5.212205103721117,
+        "price_mae_usd": 128.01239512218368,
+        "price_mape_pct": 4.745216429998265,
+        "interval_score80_pp": 23.867740941728176,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -9055,23 +8287,23 @@
           ],
           [
             0,
-            31,
+            32,
             0
           ]
         ]
       },
       "baseline": {
-        "rows": 77,
-        "terminal_brier": 0.5920684854265793,
-        "terminal_accuracy": 0.5974025974025974,
+        "rows": 78,
+        "terminal_brier": 0.60120117990625,
+        "terminal_accuracy": 0.5897435897435898,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 1.0032971782503186,
-        "event_brier": 0.2016277239067735,
+        "terminal_logloss": 1.0161486320209312,
+        "event_brier": 0.2023418473494435,
         "up": {
-          "brier": 0.3025638541658733,
-          "pr_auc": 0.8686256743712284,
-          "prevalence": 0.5584415584415584,
-          "events": 43,
+          "brier": 0.30445327434641806,
+          "pr_auc": 0.873811072648282,
+          "prevalence": 0.5641025641025641,
+          "events": 44,
           "recall": 0.0,
           "precision": null,
           "false_positive_rate": 0.0,
@@ -9079,9 +8311,9 @@
           "false_alerts": 0
         },
         "down": {
-          "brier": 0.10069159364767372,
+          "brier": 0.10023042035246896,
           "pr_auc": 0.08934397778549114,
-          "prevalence": 0.06493506493506493,
+          "prevalence": 0.0641025641025641,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -9089,16 +8321,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.06053842193370754,
-        "no_change_mae": 0.06939763628689294,
-        "mae_skill": 0.12765873345543088,
-        "coverage80": 0.8311688311688312,
-        "mean_interval_width": 0.21193417810868256,
-        "return_rmse_pp": 7.355910407633523,
-        "return_mae_pp": 6.053842193370754,
-        "price_mae_usd": 149.1114736139728,
-        "price_mape_pct": 5.514696817515614,
-        "interval_score80_pp": 25.19188883393439,
+        "return_mae": 0.060940167171425565,
+        "no_change_mae": 0.06984266924273826,
+        "mae_skill": 0.12746508929050293,
+        "coverage80": 0.8333333333333334,
+        "mean_interval_width": 0.21189089437534386,
+        "return_rmse_pp": 7.382267831741627,
+        "return_mae_pp": 6.094016717142557,
+        "price_mae_usd": 150.07269346940635,
+        "price_mape_pct": 5.550676851825834,
+        "interval_score80_pp": 25.13629801158685,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -9112,23 +8344,23 @@
           ],
           [
             0,
-            31,
+            32,
             0
           ]
         ]
       },
       "paired_selected": {
-        "rows": 77,
-        "terminal_brier": 0.5920684854265793,
-        "terminal_accuracy": 0.5974025974025974,
+        "rows": 78,
+        "terminal_brier": 0.60120117990625,
+        "terminal_accuracy": 0.5897435897435898,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 1.0032971782503186,
-        "event_brier": 0.2029613972198664,
+        "terminal_logloss": 1.0161486320209312,
+        "event_brier": 0.20380239269743153,
         "up": {
-          "brier": 0.3249938149994079,
-          "pr_auc": 0.4769969242186892,
-          "prevalence": 0.5584415584415584,
-          "events": 43,
+          "brier": 0.32741985311830607,
+          "pr_auc": 0.4797643037784594,
+          "prevalence": 0.5641025641025641,
+          "events": 44,
           "recall": 0.0,
           "precision": null,
           "false_positive_rate": 0.0,
@@ -9136,9 +8368,9 @@
           "false_alerts": 0
         },
         "down": {
-          "brier": 0.0809289794403249,
+          "brier": 0.08018493227655699,
           "pr_auc": 0.08934397778549114,
-          "prevalence": 0.06493506493506493,
+          "prevalence": 0.0641025641025641,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -9146,16 +8378,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.051807907148176034,
-        "no_change_mae": 0.06939763628689294,
-        "mae_skill": 0.25346294311812256,
-        "coverage80": 0.8961038961038961,
-        "mean_interval_width": 0.22406792187708097,
-        "return_rmse_pp": 6.517180466125199,
-        "return_mae_pp": 5.180790714817603,
-        "price_mae_usd": 127.25766437274778,
-        "price_mape_pct": 4.7170822260356475,
-        "interval_score80_pp": 23.88599449521925,
+        "return_mae": 0.052122051037211174,
+        "no_change_mae": 0.06984266924273826,
+        "mae_skill": 0.25372194959987937,
+        "coverage80": 0.8974358974358975,
+        "mean_interval_width": 0.224075027663646,
+        "return_rmse_pp": 6.532663748652187,
+        "return_mae_pp": 5.212205103721117,
+        "price_mae_usd": 128.01239512218368,
+        "price_mape_pct": 4.745216429998265,
+        "interval_score80_pp": 23.867740941728176,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -9169,7 +8401,7 @@
           ],
           [
             0,
-            31,
+            32,
             0
           ]
         ]
@@ -9179,9 +8411,9 @@
       "promotion": "research_only"
     },
     "336": {
-      "issued": 167,
+      "issued": 168,
       "resolved": 0,
-      "pending": 167,
+      "pending": 168,
       "metrics": {
         "rows": 0
       },
@@ -9196,9 +8428,9 @@
       "promotion": "research_only"
     },
     "720": {
-      "issued": 167,
+      "issued": 168,
       "resolved": 0,
-      "pending": 167,
+      "pending": 168,
       "metrics": {
         "rows": 0
       },
@@ -9440,7 +8672,7 @@
         "return_rmse_pp": 2.8939743015529475,
         "return_mae_pp": 2.2890332054011786,
         "price_mae_usd": 58.350765915595375,
-        "price_mape_pct": 2.2642665381497857,
+        "price_mape_pct": 2.2642665381497853,
         "interval_score80_pp": 10.586004999012255,
         "confusion_actual_by_predicted": [
           [
@@ -9602,20 +8834,20 @@
       "promotion": "incumbent_retained"
     },
     "168": {
-      "paired_rows": 75,
+      "paired_rows": 76,
       "nonoverlap": 1,
       "candidate": {
-        "rows": 75,
-        "terminal_brier": 0.5890628189610093,
-        "terminal_accuracy": 0.6,
+        "rows": 76,
+        "terminal_brier": 0.5984753957489024,
+        "terminal_accuracy": 0.5921052631578947,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.9992086969633414,
-        "event_brier": 0.2039060091053649,
+        "terminal_logloss": 1.0124521426922197,
+        "event_brier": 0.2047567069391094,
         "up": {
-          "brier": 0.32573686185392003,
-          "pr_auc": 0.47746339422245604,
-          "prevalence": 0.56,
-          "events": 42,
+          "brier": 0.3282169661489141,
+          "pr_auc": 0.48009078784512577,
+          "prevalence": 0.5657894736842105,
+          "events": 43,
           "recall": 0.0,
           "precision": null,
           "false_positive_rate": 0.0,
@@ -9623,9 +8855,9 @@
           "false_alerts": 0
         },
         "down": {
-          "brier": 0.08207515635680979,
+          "brier": 0.08129644772930475,
           "pr_auc": 0.08957011980267794,
-          "prevalence": 0.06666666666666667,
+          "prevalence": 0.06578947368421052,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -9633,16 +8865,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.05112675345618996,
-        "no_change_mae": 0.06861917275640653,
-        "mae_skill": 0.25492028827443736,
-        "coverage80": 0.8933333333333333,
-        "mean_interval_width": 0.22381421625571035,
-        "return_rmse_pp": 6.444467591218007,
-        "return_mae_pp": 5.112675345618996,
-        "price_mae_usd": 125.64632189760634,
-        "price_mape_pct": 4.658596054453742,
-        "interval_score80_pp": 23.900069327949158,
+        "return_mae": 0.05145812683825215,
+        "no_change_mae": 0.06908616004701733,
+        "mae_skill": 0.25516012464389726,
+        "coverage80": 0.8947368421052632,
+        "mean_interval_width": 0.22382484726851884,
+        "return_rmse_pp": 6.461496360466554,
+        "return_mae_pp": 5.1458126838252145,
+        "price_mae_usd": 126.44211585722664,
+        "price_mape_pct": 4.688240187094085,
+        "interval_score80_pp": 23.88115022261977,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -9656,33 +8888,33 @@
           ],
           [
             0,
-            30,
+            31,
             0
           ]
         ]
       },
       "incumbent": {
-        "rows": 75,
-        "terminal_brier": 0.5873922533464383,
-        "terminal_accuracy": 0.6,
+        "rows": 76,
+        "terminal_brier": 0.5969437601457817,
+        "terminal_accuracy": 0.5921052631578947,
         "terminal_balanced_accuracy": null,
-        "terminal_logloss": 0.9913718077445413,
-        "event_brier": 0.20982404679317795,
+        "terminal_logloss": 1.004925738620131,
+        "event_brier": 0.21079328421647425,
         "up": {
-          "brier": 0.3149648979940694,
-          "pr_auc": 0.56,
-          "prevalence": 0.56,
-          "events": 42,
+          "brier": 0.3173020969235966,
+          "pr_auc": 0.5657894736842105,
+          "prevalence": 0.5657894736842105,
+          "events": 43,
           "recall": 1.0,
-          "precision": 0.56,
+          "precision": 0.5657894736842105,
           "false_positive_rate": 1.0,
-          "alerts": 75,
+          "alerts": 76,
           "false_alerts": 33
         },
         "down": {
-          "brier": 0.10468319559228649,
-          "pr_auc": 0.06666666666666667,
-          "prevalence": 0.06666666666666667,
+          "brier": 0.10428447150935188,
+          "pr_auc": 0.06578947368421052,
+          "prevalence": 0.06578947368421052,
           "events": 5,
           "recall": 0.0,
           "precision": null,
@@ -9690,16 +8922,16 @@
           "alerts": 0,
           "false_alerts": 0
         },
-        "return_mae": 0.061505244061337644,
-        "no_change_mae": 0.06861917275640653,
-        "mae_skill": 0.10367260940791068,
-        "coverage80": 0.84,
+        "return_mae": 0.06196492890795518,
+        "no_change_mae": 0.06908616004701733,
+        "mae_skill": 0.1030775358511129,
+        "coverage80": 0.8421052631578947,
         "mean_interval_width": 0.21433294128272393,
-        "return_rmse_pp": 7.4914087878782105,
-        "return_mae_pp": 6.150524406133765,
-        "price_mae_usd": 151.56021005213094,
-        "price_mape_pct": 5.606054738610408,
-        "interval_score80_pp": 25.35261107008861,
+        "return_rmse_pp": 7.523734069804557,
+        "return_mae_pp": 6.1964928907955175,
+        "price_mae_usd": 152.6610643177428,
+        "price_mape_pct": 5.647221812641683,
+        "interval_score80_pp": 25.301041110327873,
         "confusion_actual_by_predicted": [
           [
             0,
@@ -9713,7 +8945,7 @@
           ],
           [
             0,
-            30,
+            31,
             0
           ]
         ]
@@ -9770,302 +9002,13 @@
       "point_and_probability": "unchanged incumbent",
       "promotion": "shadow_only"
     },
-    "current": [
-      {
-        "slot": "2026-09-24T07:00:00+00:00",
-        "input_cutoff": "2026-09-24T07:00:00+00:00",
-        "available_at": "2026-09-24T07:51:58.775697920+00:00",
-        "window_start": "2026-09-24T08:00:00+00:00",
-        "target_end": "2026-09-24T14:00:00+00:00",
-        "horizon_seconds": 21600,
-        "instrument": "ETH-USD",
-        "source": "coinbase_exchange",
-        "reference_price": 2685.61,
-        "log_barrier": 0.014888612493750654,
-        "upper_barrier_price": 2725.89415,
-        "lower_barrier_price": 2645.92118226601,
-        "terminal_down_flat_up": [
-          0.09552049172563017,
-          0.7993679607795517,
-          0.10511154749481799
-        ],
-        "hit_up": 0.16817240867795072,
-        "hit_down": 0.19034699886256007,
-        "price_quantiles": [
-          2644.1843434065777,
-          2685.4027013324608,
-          2725.9760018092456
-        ],
-        "selected_model": "short_range_mixture_v1",
-        "alert_thresholds": {
-          "up": 0.330374144593617,
-          "down": 0.4146604386235064
-        },
-        "model_version": "6dda4f06850a479e7136718bddcb5dae8edf5a56e0ae2f538fa56d181a86daca",
-        "training_target_end": "2026-08-31T19:00:00+00:00",
-        "validation_target_end": "2026-08-31T19:00:00+00:00",
-        "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-        "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-        "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-        "baseline": {
-          "terminal_down_flat_up": [
-            0.10978342046303212,
-            0.7684839432412248,
-            0.12173263629574309
-          ],
-          "hit_up": 0.2405677997758685,
-          "hit_down": 0.26036608143444157,
-          "price_quantiles": [
-            2634.423070253195,
-            2686.485242165242,
-            2739.6318679981136
-          ],
-          "alert_thresholds": {
-            "up": 0.23961424332344214,
-            "down": 0.2689169139465875
-          }
-        },
-        "origin_market": {
-          "trend_state": "down",
-          "volatility_state": "normal"
-        },
-        "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-        "range_weights": {
-          "incumbent": 0.3690772180337538,
-          "frequency": 0.20939431371837453,
-          "candidate": 0.42152846824787166
-        },
-        "range_experts": [
-          [
-            2647.7558174446717,
-            2685.4027013324608,
-            2722.2418094487693
-          ],
-          [
-            2634.423070253195,
-            2686.485242165242,
-            2739.6318679981136
-          ],
-          [
-            2645.906185335137,
-            2685.031365769121,
-            2722.461991457828
-          ]
-        ],
-        "range_feedback": {
-          "rows": 272,
-          "live_rows": 10,
-          "target_end": "2026-09-23T07:00:00+00:00",
-          "cutoff": "2026-09-24T06:00:00+00:00"
-        },
-        "range_seed": "86ece65401c7261c6b380f8fa24e6cb76a710e3937ca057fa8a559d755a96e9d",
-        "incumbent_forecast_id": "ee2b66c93e737ba2986dd68f6518a896c140e6828bf06177032c26a96415503d",
-        "paired_candidate_id": "1543d0f75ab0ac96d5954fa9b61bfb411ab2c5aacae0edd52fb36d8219bae48c",
-        "candidate_scope": "range_only_shadow; incumbent center and probabilities retained",
-        "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-        "forecast_id": "1d6d2b25bef77aaf5e51f6debe4679e3cb2b0d6bf9136d31cf7c437f67b1805b",
-        "issued_at": "2026-09-24T07:52:03.324898+00:00",
-        "role": "shadow_research"
-      },
-      {
-        "slot": "2026-09-24T07:00:00+00:00",
-        "input_cutoff": "2026-09-24T07:00:00+00:00",
-        "available_at": "2026-09-24T07:51:58.775697920+00:00",
-        "window_start": "2026-09-24T08:00:00+00:00",
-        "target_end": "2026-09-25T08:00:00+00:00",
-        "horizon_seconds": 86400,
-        "instrument": "ETH-USD",
-        "source": "coinbase_exchange",
-        "reference_price": 2685.61,
-        "log_barrier": 0.0295588022415444,
-        "upper_barrier_price": 2766.1783,
-        "lower_barrier_price": 2607.3883495145633,
-        "terminal_down_flat_up": [
-          0.13188448162716027,
-          0.7421334191720741,
-          0.12598209920076558
-        ],
-        "hit_up": 0.230708150587291,
-        "hit_down": 0.26171903861624646,
-        "price_quantiles": [
-          2588.3851249892314,
-          2687.105062829152,
-          2780.5939228833367
-        ],
-        "selected_model": "short_range_mixture_v1",
-        "alert_thresholds": {
-          "up": 0.3002158012074358,
-          "down": 0.33218822310373597
-        },
-        "model_version": "13756964d8c6b6096b25c68da9d84798ff02d2b69e0e4b8aeede9cc7f9464634",
-        "training_target_end": "2026-08-31T19:00:00+00:00",
-        "validation_target_end": "2026-08-31T19:00:00+00:00",
-        "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-        "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-        "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-        "baseline": {
-          "terminal_down_flat_up": [
-            0.12626451854627202,
-            0.7426002248032971,
-            0.13113525665043088
-          ],
-          "hit_up": 0.25862068965517243,
-          "hit_down": 0.2661169415292354,
-          "price_quantiles": [
-            2580.3540529762704,
-            2688.6825676122107,
-            2800.6291869863257
-          ],
-          "alert_thresholds": {
-            "up": 0.2539033457249071,
-            "down": 0.2821561338289963
-          }
-        },
-        "origin_market": {
-          "trend_state": "down",
-          "volatility_state": "normal"
-        },
-        "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-        "range_weights": {
-          "incumbent": 0.3601502394794828,
-          "frequency": 0.31718644267628915,
-          "candidate": 0.322663317844228
-        },
-        "range_experts": [
-          [
-            2584.528824847325,
-            2687.105062829152,
-            2787.977565528058
-          ],
-          [
-            2580.3540529762704,
-            2688.6825676122107,
-            2800.6291869863257
-          ],
-          [
-            2600.5842017500445,
-            2685.0170679670346,
-            2752.657264710169
-          ]
-        ],
-        "range_feedback": {
-          "rows": 271,
-          "live_rows": 10,
-          "target_end": "2026-09-24T01:00:00+00:00",
-          "cutoff": "2026-09-24T06:00:00+00:00"
-        },
-        "range_seed": "86ece65401c7261c6b380f8fa24e6cb76a710e3937ca057fa8a559d755a96e9d",
-        "incumbent_forecast_id": "f840f5e27f1a4bda9b02b48a61b3f0eac3dd0408f0b6c82cb72946d5e5a8d19d",
-        "paired_candidate_id": "7ae219508731a64e749f8c9ec5d08daa3b844736d470718571d3b942ac2d528a",
-        "candidate_scope": "range_only_shadow; incumbent center and probabilities retained",
-        "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-        "forecast_id": "b0fe97c31e74d1c60995a7c7e526b898c0efbe5a8f8a6f6d155aaa66f3543cad",
-        "issued_at": "2026-09-24T07:52:03.344853+00:00",
-        "role": "shadow_research"
-      },
-      {
-        "slot": "2026-09-24T07:00:00+00:00",
-        "input_cutoff": "2026-09-24T07:00:00+00:00",
-        "available_at": "2026-09-24T07:51:58.775697920+00:00",
-        "window_start": "2026-09-24T08:00:00+00:00",
-        "target_end": "2026-09-27T08:00:00+00:00",
-        "horizon_seconds": 259200,
-        "instrument": "ETH-USD",
-        "source": "coinbase_exchange",
-        "reference_price": 2685.61,
-        "log_barrier": 0.04879016416943201,
-        "upper_barrier_price": 2819.8905000000004,
-        "lower_barrier_price": 2557.7238095238095,
-        "terminal_down_flat_up": [
-          0.12551984877126654,
-          0.732703213610586,
-          0.14177693761814744
-        ],
-        "hit_up": 0.2723146747352496,
-        "hit_down": 0.26059001512859303,
-        "price_quantiles": [
-          2504.936298911762,
-          2693.1862717996105,
-          2850.1874872964904
-        ],
-        "selected_model": "short_range_mixture_v1",
-        "alert_thresholds": {
-          "up": 0.25953627524308154,
-          "down": 0.29281974569932684
-        },
-        "model_version": "32e1e5bcdd44a7dd70b5482af9e832882949dd4736789148206e60a0c5a4d398",
-        "training_target_end": "2026-08-31T19:00:00+00:00",
-        "validation_target_end": "2026-08-31T19:00:00+00:00",
-        "source_snapshot": "e01c32f6fedc8c747b75fd68ac0ec89b9e4da8f17d173a7cbbe4b35f45a1e686",
-        "runtime_hash": "1538ba7680f1e76d95aef0562b9e964e2d2d0a7ac924ee5bf704046d57b27b01",
-        "training_runtime_hash": "6996523961312e6140b92a6dd3249b8dd2f7cc1ec2111e2ef1d6a79fdc666603",
-        "baseline": {
-          "terminal_down_flat_up": [
-            0.12551984877126654,
-            0.732703213610586,
-            0.14177693761814744
-          ],
-          "hit_up": 0.2723146747352496,
-          "hit_down": 0.26059001512859303,
-          "price_quantiles": [
-            2502.9484659090194,
-            2693.1862717996105,
-            2883.9383858469205
-          ],
-          "alert_thresholds": {
-            "up": 0.25953627524308154,
-            "down": 0.29281974569932684
-          }
-        },
-        "origin_market": {
-          "trend_state": "down",
-          "volatility_state": "normal"
-        },
-        "input_snapshot": "c406f3cd436bff4c58bbad3750a346c625405ccc823630e16ab6c4e371ae2f63",
-        "range_weights": {
-          "incumbent": 0.3108091354333249,
-          "frequency": 0.3333152636607974,
-          "candidate": 0.3558756009058777
-        },
-        "range_experts": [
-          [
-            2502.9484659090194,
-            2693.1862717996105,
-            2883.9383858469205
-          ],
-          [
-            2502.9484659090194,
-            2693.1862717996105,
-            2883.9383858469205
-          ],
-          [
-            2508.534218339596,
-            2629.6172430571305,
-            2789.099350901795
-          ]
-        ],
-        "range_feedback": {
-          "rows": 265,
-          "live_rows": 8,
-          "target_end": "2026-09-24T01:00:00+00:00",
-          "cutoff": "2026-09-24T06:00:00+00:00"
-        },
-        "range_seed": "86ece65401c7261c6b380f8fa24e6cb76a710e3937ca057fa8a559d755a96e9d",
-        "incumbent_forecast_id": "e5706846096c439e3f9293fba6d2ebc23212d58125e86860dbbb0e4db7dc307b",
-        "paired_candidate_id": "18405f38b1abdffceb4ee4a410bd453abe372797eb6d5e5c770415c846483da0",
-        "candidate_scope": "range_only_shadow; incumbent center and probabilities retained",
-        "target_definition": "57b822a07f72adf4f9a8c1719c3583515a5ec30d918e8d2940f037fb72389ae2",
-        "forecast_id": "ee5e2387c00dbe5ba6209d8532c1bd8173f18109ff11f075966b6196357c2088",
-        "issued_at": "2026-09-24T07:52:03.364142+00:00",
-        "role": "shadow_research"
-      }
-    ],
+    "current": [],
     "errors": [],
     "prospective": {
       "6": {
-        "issued": 125,
+        "issued": 126,
         "resolved": 123,
-        "pending": 2,
+        "pending": 3,
         "metrics": {
           "rows": 123,
           "terminal_brier": 0.4608236709436835,
@@ -10103,7 +9046,7 @@
           "return_rmse_pp": 1.4514272741353729,
           "return_mae_pp": 1.1176971447112372,
           "price_mae_usd": 28.8594230159369,
-          "price_mape_pct": 1.1144607326448037,
+          "price_mape_pct": 1.114460732644804,
           "interval_score80_pp": 5.208699245354597,
           "confusion_actual_by_predicted": [
             [
@@ -10160,7 +9103,7 @@
           "return_rmse_pp": 1.440944487120948,
           "return_mae_pp": 1.1090934872084874,
           "price_mae_usd": 28.623006399294812,
-          "price_mape_pct": 1.1063508646056244,
+          "price_mape_pct": 1.106350864605624,
           "interval_score80_pp": 5.201500721974804,
           "confusion_actual_by_predicted": [
             [
@@ -10217,7 +9160,7 @@
           "return_rmse_pp": 1.4514272741353729,
           "return_mae_pp": 1.1176971447112372,
           "price_mae_usd": 28.8594230159369,
-          "price_mape_pct": 1.1144607326448037,
+          "price_mape_pct": 1.114460732644804,
           "interval_score80_pp": 5.208699245354597,
           "confusion_actual_by_predicted": [
             [
@@ -10242,9 +9185,9 @@
         "promotion": "research_only"
       },
       "24": {
-        "issued": 125,
+        "issued": 126,
         "resolved": 112,
-        "pending": 13,
+        "pending": 14,
         "metrics": {
           "rows": 112,
           "terminal_brier": 0.4980003095213381,
@@ -10339,7 +9282,7 @@
           "return_rmse_pp": 3.2075827969648736,
           "return_mae_pp": 2.5868032221217594,
           "price_mae_usd": 66.132315787959,
-          "price_mape_pct": 2.553828149543857,
+          "price_mape_pct": 2.5538281495438566,
           "interval_score80_pp": 11.453240029928123,
           "confusion_actual_by_predicted": [
             [
@@ -10421,9 +9364,9 @@
         "promotion": "research_only"
       },
       "72": {
-        "issued": 125,
+        "issued": 126,
         "resolved": 85,
-        "pending": 40,
+        "pending": 41,
         "metrics": {
           "rows": 85,
           "terminal_brier": 0.7051818543176931,
@@ -10641,7 +9584,7 @@
           "return_rmse_pp": 1.4514272741353729,
           "return_mae_pp": 1.1176971447112372,
           "price_mae_usd": 28.8594230159369,
-          "price_mape_pct": 1.1144607326448037,
+          "price_mape_pct": 1.114460732644804,
           "interval_score80_pp": 5.208699245354597,
           "confusion_actual_by_predicted": [
             [
@@ -10698,7 +9641,7 @@
           "return_rmse_pp": 1.4514272741353729,
           "return_mae_pp": 1.1176971447112372,
           "price_mae_usd": 28.8594230159369,
-          "price_mape_pct": 1.1144607326448037,
+          "price_mape_pct": 1.114460732644804,
           "interval_score80_pp": 5.323443813336244,
           "confusion_actual_by_predicted": [
             [
@@ -32233,5 +31176,5 @@
       "bytes": 20328
     }
   },
-  "release_id": "8e33ed399ace873f50e8594d81b3d71ce36f2db6cf1df203591b7cceb735b013"
+  "release_id": "ebef11d63acdab63830583e9e7db52f261248e6bbddeb0ac73440fcfe96ce22c"
 }
