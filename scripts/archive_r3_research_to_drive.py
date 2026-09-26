@@ -41,6 +41,10 @@ R3_ARTIFACTS = {
         "derivative-history-research",
         "free_source_backfill.yml",
     ),
+    "derivative-history-reconciliation-state": (
+        "derivative-history-research",
+        "data_reconciliation.yml",
+    ),
     "fast-derivative-state": (
         "derivative-fast-research",
         "fast_derivative_snapshots.yml",
