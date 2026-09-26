@@ -7,6 +7,8 @@ on:
       - data_lab/market_research_sources.py
       - scripts/collect_free_source_fallbacks.py
       - scripts/persist_data_branch_overlay.py
+      - scripts/restore_r3_research.py
+      - scripts/data_branch_policy.py
       - tests/test_free_source_fallbacks.py
       - tests/test_market_research_sources.py
       - tests/test_incremental_reconciliation.py
@@ -41,6 +43,18 @@ jobs:
           if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
             python scripts/daily_source_state.py restore origin/data/daily-forecast
           fi
+      - name: Restore private derivative history
+        env:
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          rm -rf private-derivative-history
+          python scripts/restore_r3_research.py --stream derivative-history-research --target private-derivative-history
+          mkdir -p lake/raw/vendor
+          cp -a private-derivative-history/lake/raw/vendor/. lake/raw/vendor/
       - name: Test incremental source refresh and branch persistence
         run: python -m pytest tests/test_free_source_fallbacks.py tests/test_market_research_sources.py tests/test_incremental_reconciliation.py tests/test_persist_data_branch_overlay.py -q
       - name: Collect incremental free research sources
@@ -49,9 +63,6 @@ jobs:
         run: |
           python scripts/persist_data_branch_overlay.py \
             --message "chore(data): refresh free fallback research sources" \
-            --file lake/raw/vendor/bitget_eth_free_features.csv \
-            --file lake/raw/vendor/deribit_eth_dvol_daily.csv \
-            --file lake/raw/vendor/hyperliquid_eth_free_features.csv \
             --file lake/raw/vendor/fred_current_vintage_long.csv \
             --file lake/raw/vendor/fred_initial_release_long.csv \
             --file lake/raw/vendor/fred_initial_asof_daily.csv \
@@ -59,7 +70,7 @@ jobs:
       - name: Package collection receipt
         run: |
           mkdir -p free-source-state/lake/raw/vendor free-source-state/lake/reports
-          for f in bitget_eth_free_features.csv deribit_eth_dvol_daily.csv hyperliquid_eth_free_features.csv fred_current_vintage_long.csv fred_initial_release_long.csv fred_initial_asof_daily.csv; do
+          for f in fred_current_vintage_long.csv fred_initial_release_long.csv fred_initial_asof_daily.csv; do
             if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" free-source-state/lake/raw/vendor/; fi
           done
           cp lake/reports/free_source_fallbacks.json free-source-state/lake/reports/
@@ -94,7 +105,7 @@ jobs:
               'model_use':'blocked_pending_rights_storage_pit_audit_and_preregistered_gate',
               'site_use':'blocked',
               'paid_product_use':'blocked',
-              'note':'Stage A private archive bridge; legacy public data-branch persistence is removed only after Drive recovery proof.',
+              'note':'Private derivative-history artifact; public hot-branch persistence is prohibited by policy.',
           }
           path=root/'lake/reports/derivative_history_private_archive.json'
           path.write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
