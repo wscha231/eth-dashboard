@@ -130,10 +130,6 @@ class R3DriveArchiveTests(unittest.TestCase):
         self.assertIn('verify_r3_derivative_recovery.py', text)
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
     def test_public_hot_branch_workflows_no_longer_persist_restricted_derivative_csvs(self):
         free = Path('.github/workflows/free_source_backfill.yml').read_text(encoding='utf-8')
         fast = Path('.github/workflows/fast_derivative_snapshots.yml').read_text(encoding='utf-8')
@@ -154,3 +150,19 @@ if __name__ == '__main__':
         for name in ('bitget_eth_free_features.csv','deribit_eth_dvol_daily.csv','hyperliquid_eth_free_features.csv'):
             self.assertIn(name, text)
         self.assertIn("'public_redistribution':'blocked'", text)
+
+    def test_derivative_recovery_verifier_can_be_invoked_exactly_like_workflow(self):
+        completed = subprocess.run(
+            [sys.executable, "scripts/verify_r3_derivative_recovery.py", "--help"],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--output", completed.stdout)
+
+
+if __name__ == '__main__':
+    unittest.main()

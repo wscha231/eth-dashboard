@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
 import tempfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import archive_r3_research_to_drive as r3
 from scripts.gdrive_store import Drive, Store
 
@@ -74,5 +77,17 @@ def verify(output: Path) -> dict:
     return document
 
 
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("drive-archive-status/r3_derivative_recovery_drills.json"),
+    )
+    args = parser.parse_args()
+    verify(args.output)
+    return 0
+
+
 if __name__ == "__main__":
-    verify(Path("drive-archive-status/r3_derivative_recovery_drills.json"))
+    raise SystemExit(main())
