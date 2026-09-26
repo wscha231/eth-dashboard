@@ -31,6 +31,10 @@ class R3DriveArchiveTests(unittest.TestCase):
             )
             self.assertNotIn('free-source-fallback-state', r3.R3_ARTIFACTS)
             self.assertEqual(
+                r3.R3_ARTIFACTS['derivative-history-reconciliation-state'],
+                ('derivative-history-research', 'data_reconciliation.yml'),
+            )
+            self.assertEqual(
                 r3.R3_ARTIFACTS['fast-derivative-state'],
                 ('derivative-fast-research', 'fast_derivative_snapshots.yml'),
             )
@@ -116,13 +120,37 @@ class R3DriveArchiveTests(unittest.TestCase):
         self.assertIn('ETH execution network research', text)
         self.assertIn('Free ETH research source backfill', text)
         self.assertIn('Fast ETH derivative snapshots', text)
+        self.assertIn('DATA weekly monthly reconciliation', text)
         self.assertIn('Derivative private archive seed', text)
         self.assertIn('cron: "23,53 * * * *"', text)
         self.assertIn('latest trusted R3 artifact not already covered', text)
         self.assertIn("group: gdrive-archive-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}", text)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", text)
         self.assertIn('archive_r3_research_to_drive.py', text)
+        self.assertIn('verify_r3_derivative_recovery.py', text)
 
 
 if __name__ == '__main__':
     unittest.main()
+
+
+    def test_public_hot_branch_workflows_no_longer_persist_restricted_derivative_csvs(self):
+        free = Path('.github/workflows/free_source_backfill.yml').read_text(encoding='utf-8')
+        fast = Path('.github/workflows/fast_derivative_snapshots.yml').read_text(encoding='utf-8')
+        reconcile = Path('.github/workflows/data_reconciliation.yml').read_text(encoding='utf-8')
+        public_persist_free = free.split('name: Persist research caches with retryable overlay',1)[1].split('name: Package collection receipt',1)[0]
+        public_persist_reconcile = reconcile.split('name: Persist reconciled sources and audit with retryable overlay',1)[1].split('name: Package reconciliation receipt',1)[0]
+        for name in ('bitget_eth_free_features.csv','deribit_eth_dvol_daily.csv','hyperliquid_eth_free_features.csv'):
+            self.assertNotIn(name, public_persist_free)
+            self.assertNotIn(name, public_persist_reconcile)
+        self.assertNotIn('Persist prospective context with retryable overlay', fast)
+        self.assertIn('restore_r3_research.py --stream derivative-history-research', free)
+        self.assertIn('restore_r3_research.py --stream derivative-history-research', reconcile)
+        self.assertIn('restore_r3_research.py --stream derivative-fast-research', fast)
+
+    def test_reconciliation_derivative_artifact_is_private_and_complete(self):
+        text = Path('.github/workflows/data_reconciliation.yml').read_text(encoding='utf-8')
+        self.assertIn('name: derivative-history-reconciliation-state', text)
+        for name in ('bitget_eth_free_features.csv','deribit_eth_dvol_daily.csv','hyperliquid_eth_free_features.csv'):
+            self.assertIn(name, text)
+        self.assertIn("'public_redistribution':'blocked'", text)
