@@ -28,6 +28,18 @@ jobs:
           if git fetch origin data/daily-forecast:refs/remotes/origin/data/daily-forecast; then
             python scripts/daily_source_state.py restore origin/data/daily-forecast
           fi
+      - name: Restore private derivative history
+        env:
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          rm -rf private-derivative-history
+          python scripts/restore_r3_research.py --stream derivative-history-research --target private-derivative-history
+          mkdir -p lake/raw/vendor
+          cp -a private-derivative-history/lake/raw/vendor/. lake/raw/vendor/
       - name: Test full-reconciliation and retry-safe persistence
         run: python -m pytest tests/test_incremental_reconciliation.py tests/test_free_source_fallbacks.py tests/test_market_research_sources.py tests/test_data_refresh_status.py tests/test_persist_data_branch_overlay.py -q
       - name: Reconcile full free historical sources
@@ -38,9 +50,6 @@ jobs:
         run: |
           python scripts/persist_data_branch_overlay.py \
             --message "chore(data): reconcile free research history" \
-            --file lake/raw/vendor/bitget_eth_free_features.csv \
-            --file lake/raw/vendor/deribit_eth_dvol_daily.csv \
-            --file lake/raw/vendor/hyperliquid_eth_free_features.csv \
             --file lake/raw/vendor/fred_current_vintage_long.csv \
             --file lake/raw/vendor/fred_initial_release_long.csv \
             --file lake/raw/vendor/fred_initial_asof_daily.csv \
@@ -50,12 +59,49 @@ jobs:
       - name: Package reconciliation receipt
         run: |
           mkdir -p reconciliation-state/lake/raw/vendor reconciliation-state/lake/reports
-          for f in bitget_eth_free_features.csv deribit_eth_dvol_daily.csv hyperliquid_eth_free_features.csv fred_current_vintage_long.csv fred_initial_release_long.csv fred_initial_asof_daily.csv; do
+          for f in fred_current_vintage_long.csv fred_initial_release_long.csv fred_initial_asof_daily.csv; do
             if [ -s "lake/raw/vendor/$f" ]; then cp "lake/raw/vendor/$f" reconciliation-state/lake/raw/vendor/; fi
           done
           for f in free_source_fallbacks.json data_refresh_status.json data_refresh_status.csv; do
             if [ -s "lake/reports/$f" ]; then cp "lake/reports/$f" reconciliation-state/lake/reports/; fi
           done
+      - name: Package isolated derivative-history reconciliation state
+        run: |
+          set -euo pipefail
+          mkdir -p derivative-history-reconciliation/lake/raw/vendor derivative-history-reconciliation/lake/reports
+          copied=0
+          for f in bitget_eth_free_features.csv deribit_eth_dvol_daily.csv hyperliquid_eth_free_features.csv; do
+            if [ -s "lake/raw/vendor/$f" ]; then
+              cp "lake/raw/vendor/$f" derivative-history-reconciliation/lake/raw/vendor/
+              copied=$((copied + 1))
+            fi
+          done
+          test "$copied" -eq 3
+          python - <<'PY'
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import hashlib, json
+          root=Path('derivative-history-reconciliation')
+          files={}
+          for p in sorted(root.glob('lake/raw/vendor/*.csv')):
+              files[p.relative_to(root).as_posix()]={'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
+          manifest={
+              'schema':1,'generated_at_utc':datetime.now(timezone.utc).isoformat(),
+              'status':'research_only_private_archive',
+              'files':files,'public_redistribution':'blocked',
+              'model_use':'blocked_pending_rights_storage_pit_audit_and_preregistered_gate',
+          }
+          (root/'lake/reports/derivative_history_reconciliation_private_archive.json').write_text(
+              json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          PY
+      - name: Upload isolated derivative-history reconciliation state
+        uses: actions/upload-artifact@v4
+        with:
+          name: derivative-history-reconciliation-state
+          path: derivative-history-reconciliation/
+          compression-level: 9
+          retention-days: 30
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: data-reconciliation-state
