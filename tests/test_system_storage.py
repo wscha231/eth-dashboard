@@ -78,6 +78,9 @@ def test_daily_cache_survives_a_runner_restart_without_private_files(tmp_path):
     assert not (durable / "lake/raw/vendor/token.json").exists()
     assert not allowed("lake/raw/vendor/../../secrets.csv")
     assert not allowed("/lake/raw/vendor/file.csv")
+    assert not allowed("lake/raw/vendor/deribit_eth_dvol_daily.csv")
+    assert not allowed("lake/raw/vendor/bitget_eth_context_4h.csv")
+    assert not allowed("lake/raw/vendor/hyperliquid_eth_free_features.csv")
 
 
 def test_system_audit_distinguishes_accuracy_from_publication():

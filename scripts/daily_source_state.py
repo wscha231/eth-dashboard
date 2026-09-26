@@ -3,13 +3,18 @@ import argparse
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.data_branch_policy import blocked_on_public_hot_branch
 
 
 def allowed(name):
     path = PurePosixPath(name)
     return (not path.is_absolute() and ".." not in path.parts and
             len(path.parts) == 4 and path.parts[:2] == ("lake", "raw") and
-            path.parts[2] in ("market", "vendor") and path.suffix == ".csv")
+            path.parts[2] in ("market", "vendor") and path.suffix == ".csv" and
+            not blocked_on_public_hot_branch(name))
 
 
 def persist(root, target):

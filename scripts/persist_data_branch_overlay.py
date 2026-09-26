@@ -15,6 +15,10 @@ import subprocess
 import tempfile
 import time
 from typing import Iterable
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.data_branch_policy import blocked_on_public_hot_branch
 
 
 @dataclass(frozen=True)
@@ -92,6 +96,9 @@ def persist_overlay(
     relative_files = tuple(dict.fromkeys(_safe_relative(value) for value in files))
     if not relative_files:
         raise ValueError("at least one overlay file is required")
+    blocked = tuple(path for path in relative_files if blocked_on_public_hot_branch(path, branch))
+    if blocked:
+        raise ValueError("restricted derivative cache cannot be persisted to public hot branch: " + ", ".join(blocked))
 
     existing = tuple(path for path in relative_files if (root / path).is_file())
     if not existing:

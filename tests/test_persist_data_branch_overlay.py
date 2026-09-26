@@ -125,3 +125,35 @@ def test_path_traversal_is_rejected(tmp_path):
             message="bad",
             files=["../outside.csv"],
         )
+
+
+def test_restricted_derivative_cache_is_rejected_on_public_hot_branch(tmp_path):
+    _, work = make_repo(tmp_path)
+    path = work / "lake/raw/vendor/deribit_eth_dvol_daily.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("date,value\n2026-09-16,1\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="restricted derivative cache"):
+        persist_overlay(
+            work,
+            branch="data/daily-forecast",
+            message="must not publish",
+            files=["lake/raw/vendor/deribit_eth_dvol_daily.csv"],
+        )
+
+
+def test_restricted_policy_does_not_block_nonpublic_branch(tmp_path):
+    _, work = make_repo(tmp_path)
+    git(work, "switch", "-c", "private/research")
+    git(work, "push", "-u", "origin", "private/research")
+    path = work / "lake/raw/vendor/deribit_eth_dvol_daily.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("date,value\n2026-09-16,1\n", encoding="utf-8")
+    result = persist_overlay(
+        work,
+        branch="private/research",
+        message="private research",
+        files=["lake/raw/vendor/deribit_eth_dvol_daily.csv"],
+        retries=2,
+        backoff_seconds=0,
+    )
+    assert result.status == "pushed"
