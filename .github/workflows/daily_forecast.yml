@@ -127,7 +127,7 @@ jobs:
           done
           if ! git -C "$RUNNER_TEMP/market-site" diff --cached --quiet; then
             git -C "$RUNNER_TEMP/market-site" commit -m "chore(data): refresh sources and settle retired forecasts"
-            git -C "$RUNNER_TEMP/market-site" push origin HEAD:refs/heads/data/daily-forecast
+            python scripts/push_data_branch_retry.py --worktree "$RUNNER_TEMP/market-site" --branch data/daily-forecast
           fi
       - name: Preserve daily inputs and settled records independently of git publication
         id: daily_snapshot
