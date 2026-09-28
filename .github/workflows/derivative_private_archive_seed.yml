@@ -24,6 +24,8 @@ jobs:
           persist-credentials: false
       - name: Fetch current public data branch without checking it out
         run: git fetch --no-tags origin data/daily-forecast:refs/remotes/origin/data/daily-forecast
+      - name: Fetch current event-feed branch without checking it out
+        run: git fetch --no-tags origin data/event-feed:refs/remotes/origin/data/event-feed
       - name: Seal current derivative caches into an isolated research snapshot
         shell: bash
         run: |
@@ -85,6 +87,66 @@ jobs:
         with:
           name: derivative-public-seed-state
           path: derivative-public-seed/
+          compression-level: 9
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Seal current event-feed Deribit bytes into an isolated research snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=derivative-event-feed-seed
+          mkdir -p "$root/lake/raw/vendor" "$root/lake/reports"
+          files=(
+            lake/raw/vendor/deribit_eth_funding_daily.csv
+            lake/raw/vendor/deribit_eth_future_snapshot_daily.csv
+            lake/raw/vendor/deribit_eth_historical_volatility.csv
+            lake/raw/vendor/deribit_eth_option_snapshot_daily.csv
+          )
+          for path in "${files[@]}"; do
+            git cat-file -e "origin/data/event-feed:$path"
+            git show "origin/data/event-feed:$path" > "$root/$path"
+            test -s "$root/$path"
+          done
+          source_commit="$(git rev-parse origin/data/event-feed)"
+          SOURCE_COMMIT="$source_commit" python - <<'PY'
+          from datetime import datetime, timezone
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path('derivative-event-feed-seed')
+          rows=[]
+          for path in sorted((root/'lake/raw/vendor').glob('*.csv')):
+              raw=path.read_bytes()
+              rows.append({
+                  'path':path.relative_to(root).as_posix(),
+                  'bytes':len(raw),
+                  'sha256':hashlib.sha256(raw).hexdigest(),
+              })
+          if len(rows) != 4:
+              raise SystemExit(f'expected 4 event-feed derivative files, got {len(rows)}')
+          manifest={
+              'schema':1,
+              'generated_at_utc':datetime.now(timezone.utc).isoformat(),
+              'status':'research_only_private_archive_seed',
+              'source_branch':'data/event-feed',
+              'source_commit':os.environ['SOURCE_COMMIT'],
+              'file_count':len(rows),
+              'files':rows,
+              'public_redistribution':'blocked',
+              'model_use':'blocked_pending_rights_storage_pit_audit_and_preregistered_gate',
+              'site_use':'blocked',
+              'paid_product_use':'blocked',
+              'note':'Pre-cleanup event-feed recovery seed. Presence here does not authorize public or commercial reuse.',
+          }
+          out=root/'lake/reports/derivative_event_feed_seed_manifest.json'
+          out.write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print(json.dumps(manifest,sort_keys=True))
+          PY
+      - name: Upload event-feed derivative recovery seed
+        uses: actions/upload-artifact@v4
+        with:
+          name: derivative-event-feed-seed-state
+          path: derivative-event-feed-seed/
           compression-level: 9
           retention-days: 30
           if-no-files-found: error
