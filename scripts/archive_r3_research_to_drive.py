@@ -228,6 +228,11 @@ def main() -> int:
     register()
     from scripts import archive_to_drive as archive
 
+    # Preserve the established direct CLI contract: --help must never require
+    # GitHub or Drive credentials merely to render usage.
+    if any(arg in {"-h", "--help"} for arg in sys.argv[1:]):
+        return archive.main()
+
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--source-run", type=int)
     args, _ = parser.parse_known_args()
