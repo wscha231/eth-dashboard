@@ -27,6 +27,9 @@ R3_STREAMS = {
     # One pre-cleanup snapshot seals every currently public derivative cache,
     # including legacy Deribit files produced outside the two P1 collectors.
     "derivative-public-seed",
+    # Preserve the distinct legacy Deribit bytes still present on data/event-feed
+    # under their own source-commit identity before any cleanup is considered.
+    "derivative-event-feed-seed",
 }
 R3_ARTIFACTS = {
     "eth-etf-flow-state": ("eth-etf-research", "eth_etf_flows.yml"),
@@ -51,6 +54,10 @@ R3_ARTIFACTS = {
     ),
     "derivative-public-seed-state": (
         "derivative-public-seed",
+        "derivative_private_archive_seed.yml",
+    ),
+    "derivative-event-feed-seed-state": (
+        "derivative-event-feed-seed",
         "derivative_private_archive_seed.yml",
     ),
 }
