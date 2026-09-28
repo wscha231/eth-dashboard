@@ -12,7 +12,11 @@ const COOLDOWN_MS = 20 * 60 * 1000;
 const HOSTING_POLICY = require('../ops/deployment_cooldown.json');
 
 module.exports = async function recover({github, context, core, now, clock = () => now ?? new Date()}) {
-  async function finish(decision, message) {
+  async function finish(decision, message, evidence = {}) {
+    core.setOutput('recovery_evidence', JSON.stringify({
+      decision, blocking_worker: null, cooldown_run: null,
+      dispatch_requested: false, dispatch_requested_at: null, ...evidence,
+    }));
     core.setOutput('recovery', decision);
     core.notice(message);
     await core.summary.addHeading('Hourly forecast recovery')
@@ -33,7 +37,7 @@ module.exports = async function recover({github, context, core, now, clock = () 
     const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
       {...context.repo, branch: 'main', status, per_page: 100});
     const active = runs.find(run => WORKERS.has(run.path?.split('/').at(-1)));
-    if (active) return finish('active_worker', `Recovery deferred: ${active.name} run ${active.id} is ${status}.`);
+    if (active) return finish('active_worker', `Recovery deferred: ${active.name} run ${active.id} is ${status}.`, {blocking_worker: active});
   }
 
   const {data} = await github.rest.actions.listWorkflowRuns({
@@ -45,10 +49,12 @@ module.exports = async function recover({github, context, core, now, clock = () 
   const recent = data.workflow_runs.find(run => run.event === 'workflow_dispatch' &&
     [run.created_at, run.run_started_at, run.updated_at].some(value =>
       Number.isFinite(Date.parse(value)) && dispatchTime.getTime() - Date.parse(value) < COOLDOWN_MS));
-  if (recent) return finish('cooldown', `Recovery deferred: manually dispatched hourly run ${recent.id} was active within the last 20 minutes.`);
+  if (recent) return finish('cooldown', `Recovery deferred: manually dispatched hourly run ${recent.id} was active within the last 20 minutes.`, {cooldown_run: recent});
   // Reserve five minutes for setup and inference before the existing :55 cutoff.
   if (clock().getUTCMinutes() >= 50) return finish('issuance_deadline', 'Recovery deferred: fewer than five minutes remain before the :55 issuance cutoff.');
 
+  const requestedAt = clock().toISOString();
   await github.rest.actions.createWorkflowDispatch({...context.repo, workflow_id: 'event_hourly.yml', ref: 'main'});
-  return finish('dispatched', 'One fresh hourly run requested on main; its external release must still be verified.');
+  return finish('dispatched', 'One fresh hourly run requested on main; its external release must still be verified.',
+    {dispatch_requested: true, dispatch_requested_at: requestedAt});
 };

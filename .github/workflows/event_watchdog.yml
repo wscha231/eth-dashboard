@@ -27,9 +27,28 @@ jobs:
         continue-on-error: true
         run: python scripts/verify_event_site.py --require-ready
       - name: Request a bounded recovery only when the shared workers are idle
+        id: recovery
         if: steps.health.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
             const recover = require('./scripts/event_recovery.cjs');
             await recover({github, context, core});
+      - name: Preserve slot-keyed control evidence
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          HEALTH_OUTCOME: ${{ steps.health.outcome }}
+          RECOVERY_EVIDENCE: ${{ steps.recovery.outputs.recovery_evidence }}
+        with:
+          script: |
+            const receipt = require('./scripts/watchdog_control_receipt.cjs');
+            await receipt.collect({github, context, env: process.env});
+      - name: Upload watchdog control receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-watchdog-control-receipt
+          path: watchdog-control/receipt.json
+          if-no-files-found: error
+          retention-days: 30

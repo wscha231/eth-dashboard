@@ -323,5 +323,47 @@ class SourceTests(unittest.TestCase):
                 extract_zip(path, Path(temporary) / 'out')
 
 
+class WatchdogTests(unittest.TestCase):
+    def test_watchdog_mapping_and_existing_sweep(self):
+        from scripts.archive_to_drive import ARTIFACTS, GitHub
+        self.assertEqual(ARTIFACTS['event-watchdog-control-receipt'], ('event-watchdog-control', 'event_watchdog.yml'))
+        self.assertIn('event-watchdog-control', storage.STREAMS)
+        legacy = {k: v for k, v in ARTIFACTS.items() if k != 'event-watchdog-control-receipt'}
+        self.assertEqual(storage.digest(storage.canonical(legacy)), '51a82846a910fde36688ac07fced0aa0b9d51fdf5a99f55b129806834d270961')
+        g = object.__new__(GitHub); calls = []
+        g.get = lambda path: calls.append(path) or {'artifacts': []}
+        list(g.artifacts())
+        self.assertTrue(any('name=event-watchdog-control-receipt' in p for p in calls))
+
+    def test_failed_watchdog_is_archived_and_restored_but_wrong_identity_is_rejected(self):
+        run = dict(id=55, run_attempt=2, head_sha='a'*40, event='schedule', status='completed', conclusion='failure',
+                   head_branch='main', path='.github/workflows/event_watchdog.yml', repository={'id': 1}, head_repository={'id': 1})
+        receipt = dict(schema=1, task_key='EF-OPS-02-SLOT-KEYED-CONTROL-TELEMETRY', repository=storage.REPOSITORY,
+                       watchdog=dict(run_id=55, run_attempt=2, head_sha='a'*40, event='schedule'))
+        artifact = dict(id=77, name='event-watchdog-control-receipt', workflow_run={'id': 55}, created_at='2026-09-28T10:20:00Z')
+        class GitHub:
+            repo_id = 1
+            def run(self, rid): return run
+            def get(self, path): return run
+            def download(self, aid, target):
+                with zipfile.ZipFile(target, 'w') as z: z.writestr('receipt.json', storage.canonical(receipt))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); stage = root/'stage'; stage.mkdir()
+            store = storage.Store(MemoryDrive())
+            result = archive_artifact(store, GitHub(), artifact, stage)
+            self.assertEqual(result['stream'], 'event-watchdog-control')
+            restored = store.restore('event-watchdog-control', root/'restored')
+            self.assertTrue(restored['restored'])
+            self.assertEqual((root/'restored/receipt.json').read_bytes(), storage.canonical(receipt))
+        for field, value in [('event', 'pull_request'), ('head_branch', 'feature'), ('path', '.github/workflows/event_hourly.yml'), ('head_repository', {'id': 9})]:
+            old = run[field]; run[field] = value
+            with tempfile.TemporaryDirectory() as tmp:
+                self.assertIsNone(archive_artifact(storage.Store(MemoryDrive()), GitHub(), artifact, Path(tmp)))
+            run[field] = old
+        receipt['watchdog']['run_id'] = 56
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(storage.CheckError, 'provenance mismatch'):
+            archive_artifact(storage.Store(MemoryDrive()), GitHub(), artifact, Path(tmp))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -23,6 +23,7 @@ from scripts.gdrive_store import (CheckError, Drive, MAX_FILES, MAX_TOTAL, NoRed
                                   REPOSITORY, STREAMS, Store, allowed, canonical, digest, report, safe_path)
 
 ARTIFACTS = {
+    "event-watchdog-control-receipt": ("event-watchdog-control", "event_watchdog.yml"),
     "daily-source-state": ("daily-data", "daily_forecast.yml"),
     "event-final-state": ("event-hourly", "event_hourly.yml"),
     "event-hourly-state": ("event-hourly", "event_hourly.yml"),
@@ -230,10 +231,32 @@ def archive_artifact(store, github, artifact, temporary):
         raise CheckError("Hourly artifact lacks required recovery files")
     if stream == "daily-data" and not all((root / p).is_file() for p in ("lake/gold/eth_master_daily.csv", "forecast_site/predictions.db")):
         raise CheckError("Daily artifact lacks required recovery files")
+    if stream == "event-watchdog-control":
+        files = [p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file()]
+        if files != ["receipt.json"] or (root / "receipt.json").stat().st_size > 65536:
+            raise CheckError("Invalid watchdog receipt artifact")
+        receipt = json.loads((root / "receipt.json").read_bytes())
+        watchdog = receipt.get("watchdog", {})
+        if (receipt.get("schema") != 1 or receipt.get("repository") != REPOSITORY
+                or receipt.get("task_key") != "EF-OPS-02-SLOT-KEYED-CONTROL-TELEMETRY"
+                or str(watchdog.get("run_id")) != str(run_id)
+                or watchdog.get("head_sha") != run["head_sha"]
+                or watchdog.get("event") != run["event"]
+                or not isinstance(watchdog.get("run_attempt"), int)
+                or not 1 <= watchdog["run_attempt"] <= run.get("run_attempt", 0)):
+            raise CheckError("Watchdog receipt provenance mismatch")
+        # A retained artifact can belong to an earlier attempt of the same run.
+        exact = github.get(f"/actions/runs/{int(run_id)}/attempts/{watchdog['run_attempt']}")
+        if (not trusted(exact, workflow, github.repo_id)
+                or exact.get("id") != run_id
+                or exact.get("run_attempt") != watchdog["run_attempt"]
+                or exact.get("head_sha") != watchdog["head_sha"]
+                or exact.get("event") != watchdog["event"]):
+            raise CheckError("Watchdog exact attempt is not trusted")
     return store.backup(root, stream, key, artifact["created_at"],
                         {"run_id": run_id, "artifact_id": artifact["id"], "commit": run["head_sha"],
                          "workflow": workflow, "conclusion": run.get("conclusion"),
-                         "role": "actual-issuance" if stream == "event-hourly" else "observed-and-issued" if stream == "daily-data" else "retrospective-research"})
+                         "role": "operational-control-evidence" if stream == "event-watchdog-control" else "actual-issuance" if stream == "event-hourly" else "observed-and-issued" if stream == "daily-data" else "retrospective-research"})
 
 
 def automation_status(store, result, recovery, output):
@@ -310,6 +333,16 @@ def main():
         with tempfile.TemporaryDirectory() as temporary:
             recovery = store.restore("event-hourly", Path(temporary) / "verified", required=False)
             report({"recovery_drill": recovery})
+        # Separate read-only drill; never install telemetry into a production path.
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "control"
+            control = store.restore("event-watchdog-control", target, required=False)
+            if control.get("restored"):
+                control["receipt_sha256"] = digest((target / "receipt.json").read_bytes())
+                output = Path("drive-archive-status")
+                output.mkdir(exist_ok=True)
+                (output / "watchdog_control_recovery.json").write_bytes(canonical(control))
+            report({"watchdog_control_recovery": control})
         if not saved:
             failed.append({"source": "archive", "error": "No eligible source snapshots found"})
     except Exception as exc:
