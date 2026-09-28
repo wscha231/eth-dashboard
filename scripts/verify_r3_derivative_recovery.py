@@ -35,6 +35,12 @@ EXPECTED = {
         "lake/raw/vendor/deribit_eth_historical_volatility.csv",
         "lake/raw/vendor/deribit_eth_option_snapshot_daily.csv",
     },
+    "derivative-event-feed-seed": {
+        "lake/raw/vendor/deribit_eth_funding_daily.csv",
+        "lake/raw/vendor/deribit_eth_future_snapshot_daily.csv",
+        "lake/raw/vendor/deribit_eth_historical_volatility.csv",
+        "lake/raw/vendor/deribit_eth_option_snapshot_daily.csv",
+    },
 }
 
 
@@ -59,6 +65,10 @@ def verify(output: Path) -> dict:
                 name: hashlib.sha256((target / name).read_bytes()).hexdigest()
                 for name in sorted(expected)
             }
+            if stream == "derivative-event-feed-seed":
+                seed_hashes = restored.get("source", {}).get("seed_files")
+                if seed_hashes != hashes:
+                    raise ValueError("event-feed restored hashes do not match the trusted seed receipt")
             results[stream] = {
                 **restored,
                 "required_files": sorted(expected),
