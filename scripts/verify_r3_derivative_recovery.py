@@ -65,6 +65,10 @@ def verify(output: Path) -> dict:
                 name: hashlib.sha256((target / name).read_bytes()).hexdigest()
                 for name in sorted(expected)
             }
+            if stream == "derivative-event-feed-seed":
+                seed_hashes = restored.get("source", {}).get("seed_files")
+                if seed_hashes != hashes:
+                    raise ValueError("event-feed restored hashes do not match the trusted seed receipt")
             results[stream] = {
                 **restored,
                 "required_files": sorted(expected),
