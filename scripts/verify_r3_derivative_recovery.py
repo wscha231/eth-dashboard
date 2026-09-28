@@ -35,6 +35,12 @@ EXPECTED = {
         "lake/raw/vendor/deribit_eth_historical_volatility.csv",
         "lake/raw/vendor/deribit_eth_option_snapshot_daily.csv",
     },
+    "derivative-event-feed-seed": {
+        "lake/raw/vendor/deribit_eth_funding_daily.csv",
+        "lake/raw/vendor/deribit_eth_future_snapshot_daily.csv",
+        "lake/raw/vendor/deribit_eth_historical_volatility.csv",
+        "lake/raw/vendor/deribit_eth_option_snapshot_daily.csv",
+    },
 }
 
 
