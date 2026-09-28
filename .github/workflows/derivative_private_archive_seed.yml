@@ -91,12 +91,13 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Seal current event-feed Deribit bytes into an isolated research snapshot
+      - name: Seal current event-feed Deribit bytes and emit a manifest-only receipt
         shell: bash
         run: |
           set -euo pipefail
-          root=derivative-event-feed-seed
-          mkdir -p "$root/lake/raw/vendor" "$root/lake/reports"
+          root=derivative-event-feed-seed-payload
+          receipt=derivative-event-feed-seed-state
+          mkdir -p "$root/lake/raw/vendor" "$receipt/lake/reports"
           files=(
             lake/raw/vendor/deribit_eth_funding_daily.csv
             lake/raw/vendor/deribit_eth_future_snapshot_daily.csv
@@ -109,11 +110,12 @@ jobs:
             test -s "$root/$path"
           done
           source_commit="$(git rev-parse origin/data/event-feed)"
-          SOURCE_COMMIT="$source_commit" python - <<'PY'
+          SOURCE_COMMIT="$source_commit" ROOT="$root" RECEIPT="$receipt" python - <<'PY'
           from datetime import datetime, timezone
           import hashlib, json, os
           from pathlib import Path
-          root=Path('derivative-event-feed-seed')
+          root=Path(os.environ['ROOT'])
+          receipt=Path(os.environ['RECEIPT'])
           rows=[]
           for path in sorted((root/'lake/raw/vendor').glob('*.csv')):
               raw=path.read_bytes()
@@ -136,17 +138,18 @@ jobs:
               'model_use':'blocked_pending_rights_storage_pit_audit_and_preregistered_gate',
               'site_use':'blocked',
               'paid_product_use':'blocked',
-              'note':'Pre-cleanup event-feed recovery seed. Presence here does not authorize public or commercial reuse.',
+              'note':'Manifest-only receipt. Restricted CSV bytes stay off public Actions artifacts and are re-read from the pinned Git commit by the private R3 Drive archiver.',
           }
-          out=root/'lake/reports/derivative_event_feed_seed_manifest.json'
+          out=receipt/'lake/reports/derivative_event_feed_seed_manifest.json'
           out.write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
           print(json.dumps(manifest,sort_keys=True))
           PY
-      - name: Upload event-feed derivative recovery seed
+          rm -rf "$root"
+      - name: Upload manifest-only event-feed derivative seed receipt
         uses: actions/upload-artifact@v4
         with:
           name: derivative-event-feed-seed-state
-          path: derivative-event-feed-seed/
+          path: derivative-event-feed-seed-state/
           compression-level: 9
           retention-days: 30
           if-no-files-found: error
