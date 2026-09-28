@@ -248,3 +248,92 @@ def test_watchdog_has_two_lightweight_recovery_checks_without_new_forecast_cron(
     assert 'scripts/event_recovery.cjs' in watchdog
     assert 'cron: "8 * * * *"' in hourly
     assert hourly.count('schedule:') == 1
+
+
+def control_receipt(*, outcome='success', evidence=None, producer=True, attempt=2, malformed=False):
+    harness = r'''
+const {build}=require('./scripts/watchdog_control_receipt.cjs');
+const p=JSON.parse(process.argv[1]),sha='a'.repeat(40),repo={full_name:'wscha231/eth-dashboard'};
+const run={id:100,run_attempt:2,event:'schedule',head_sha:sha,repository:repo,head_repository:repo,
+ head_branch:'main',path:'.github/workflows/event_watchdog.yml',created_at:'2026-09-28T10:18:00Z'};
+const job={name:'freshness',run_id:100,run_attempt:2,started_at:'2026-09-28T10:20:00Z',steps:[
+ {name:'Independently check public timestamps and delayed status',started_at:'2026-09-28T10:20:05Z'}]};
+const env={GITHUB_REPOSITORY:repo.full_name,GITHUB_RUN_ID:'100',GITHUB_RUN_ATTEMPT:String(p.attempt),
+ GITHUB_SHA:sha,GITHUB_EVENT_NAME:'schedule',HEALTH_OUTCOME:p.outcome};
+const producer={run:{...run,id:90,path:'.github/workflows/event_hourly.yml',created_at:'2026-09-28T10:08:00Z'},jobs:[
+ {name:'forecast',run_id:90,run_attempt:2,steps:[{name:'Collect closed bars, settle matured outcomes and infer from saved models',
+ status:'completed',conclusion:'success',started_at:p.malformed?'2026-09-28T09:59:59Z':'2026-09-28T10:12:00Z'}]}]};
+try { const args={run,job,env,checkedAt:'2026-09-28T10:21:00Z',runs:p.producer?[producer]:[],
+ publicData:{status:p.outcome==='success'?'ready':'delayed',release_id:'actual-release'},recovery:p.evidence};
+ const a=build(args), b=build(args); if(JSON.stringify(a)!==JSON.stringify(b)) throw Error('nondeterministic');
+ console.log(JSON.stringify(a)); } catch(e) {console.log(JSON.stringify({error:e.message}));}
+'''
+    result = subprocess.run(['node', '-e', harness, json.dumps(dict(outcome=outcome, evidence=evidence,
+        producer=producer, attempt=attempt, malformed=malformed))], cwd=ROOT, capture_output=True, text=True, check=True)
+    return json.loads(result.stdout)
+
+
+def test_healthy_receipt_exact_identity_slot_and_observed_execution():
+    d = control_receipt()
+    assert d['watchdog']['run_id'] == 100 and d['watchdog']['run_attempt'] == 2
+    assert d['slot']['expected_origin'] == '2026-09-28T10:00:00.000Z'
+    assert d['slot']['expected_primary_trigger_at'] == '2026-09-28T10:08:00.000Z'
+    assert d['slot']['issuance_deadline'] == '2026-09-28T10:55:00.000Z'
+    assert d['recovery']['decision'] == 'healthy'
+    assert d['producer_observation']['observed'] is True
+    assert d['producer_observation']['matching_runs'][0]['run_id'] == 90
+    assert d['health']['observed_release_id'] == 'actual-release'
+    assert 'identity mismatch' in control_receipt(attempt=1)['error']
+
+
+@pytest.mark.parametrize('decision', ['invalid_hosting_policy', 'hosting_cooldown', 'active_worker', 'cooldown', 'issuance_deadline', 'dispatched'])
+def test_degraded_receipt_preserves_actual_decision_and_evidence(decision):
+    e = dict(decision=decision, blocking_worker=None, cooldown_run=None,
+             dispatch_requested=decision == 'dispatched', dispatch_requested_at='2026-09-28T10:20:10Z' if decision == 'dispatched' else None)
+    if decision == 'active_worker': e['blocking_worker'] = dict(id=12, path='.github/workflows/event_hourly.yml', status='pending')
+    if decision == 'cooldown': e['cooldown_run'] = dict(id=11, event='workflow_dispatch')
+    d = control_receipt(outcome='failure', evidence=e, producer=False)
+    assert d['recovery']['decision'] == decision
+    assert not d['producer_observation']['observed']
+    assert d['producer_observation']['matching_runs'] == []
+    assert d['health']['public_status'] == 'delayed'
+    assert len(d['limitations']) >= 6
+    assert any('not proof' in x and 'scheduler' in x for x in d['limitations'])
+    assert any('absent watchdog' in x for x in d['limitations'])
+    assert any('not proof that publication recovered' in x for x in d['limitations'])
+    if decision == 'active_worker': assert d['recovery']['blocking_worker']['run_id'] == 12
+    if decision == 'cooldown': assert d['recovery']['cooldown_run']['run_id'] == 11
+    assert 'dispatched_run_id' not in d['recovery']
+
+
+def test_missing_or_wrong_slot_evidence_does_not_invent_execution_or_dispatch():
+    assert not control_receipt(malformed=True)['producer_observation']['observed']
+    d = control_receipt(outcome='failure', producer=False)
+    assert d['recovery']['decision'] is None and d['recovery']['dispatch_requested'] is None
+
+
+def test_recovery_outputs_capture_real_guard_objects_without_altering_actions():
+    worker = dict(id=12, name='source', status='pending', path='.github/workflows/daily_forecast.yml')
+    d = recovery(active=[worker]); e = json.loads(d['outputs']['recovery_evidence'])
+    assert e['blocking_worker'] == worker and not e['dispatch_requested'] and not d['dispatches']
+    recent = dict(id=11, event='workflow_dispatch', created_at='2026-09-07T06:30:00Z')
+    d = recovery(recent=[recent]); assert json.loads(d['outputs']['recovery_evidence'])['cooldown_run'] == recent
+    d = recovery(); e = json.loads(d['outputs']['recovery_evidence'])
+    assert e['dispatch_requested'] and e['dispatch_requested_at'] == '2026-09-07T06:38:00.000Z'
+    assert len(d['dispatches']) == 1 and d['failures']
+
+
+def test_control_telemetry_keeps_frozen_workflow_contract():
+    import hashlib
+    w = (ROOT/'.github/workflows/event_watchdog.yml').read_text()
+    assert 'concurrency:\n  group: event-watchdog\n  cancel-in-progress: false' in w
+    assert 'if: steps.health.outcome == \'failure\'' in w
+    assert 'run: python scripts/verify_event_site.py --require-ready' in w
+    assert w.count('name: event-watchdog-control-receipt') == 1
+    assert w.count('if: always()') == 2
+    assert 'if-no-files-found: error' in w
+    assert 'data/event-ledger' not in w
+    for path, expected in FROZEN_WORKFLOW_SHA256.items():
+        assert hashlib.sha256((ROOT/path).read_bytes()).hexdigest() == expected
+
+FROZEN_WORKFLOW_SHA256 = {'.github/workflows/event_hourly.yml': '8a117ebc82b796025ef999baf519e44ccb041162a5f70bf1e146a8581f12cde4', '.github/workflows/gdrive_archive.yml': 'bed1c1a5362123ab5079a30d331f4d6dd1b6403980dfcf9d8a3f65b3c5507f91'}

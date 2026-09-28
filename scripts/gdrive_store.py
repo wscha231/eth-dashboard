@@ -29,7 +29,7 @@ MAX_TOTAL = 20 * 1024 ** 3
 MAX_FILES = 100000
 UPLOAD_WORKERS = 4
 UPLOAD_PENDING = 8
-STREAMS = {"event-hourly", "event-research", "event-research-partial", "historical-state", "historical-report",
+STREAMS = {"event-watchdog-control", "event-hourly", "event-research", "event-research-partial", "historical-state", "historical-report",
            "adaptive-report", "adaptive-rows", "daily-data", "event-ledger",
            "hybrid-data", "forward-data", "legacy-model", "foundation-chronos2", "foundation-tirex2", "public-feed"}
 SUFFIXES = {".db", ".sqlite", ".json", ".jsonl", ".csv", ".parquet", ".gz", ".joblib", ".txt", ".md"}
