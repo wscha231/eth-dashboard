@@ -6,6 +6,7 @@ import unittest
 from scripts import archive_to_drive as archive
 from scripts import gdrive_store as storage
 from scripts import archive_r3_research_to_drive as r3
+from scripts import verify_r3_derivative_recovery as recovery
 
 
 class R3DriveArchiveTests(unittest.TestCase):
@@ -43,12 +44,17 @@ class R3DriveArchiveTests(unittest.TestCase):
                 ('derivative-public-seed', 'derivative_private_archive_seed.yml'),
             )
             self.assertEqual(
+                r3.R3_ARTIFACTS['derivative-event-feed-seed-state'],
+                ('derivative-event-feed-seed', 'derivative_private_archive_seed.yml'),
+            )
+            self.assertEqual(
                 len({
                     r3.R3_ARTIFACTS['derivative-history-research-state'][0],
                     r3.R3_ARTIFACTS['fast-derivative-state'][0],
                     r3.R3_ARTIFACTS['derivative-public-seed-state'][0],
+                    r3.R3_ARTIFACTS['derivative-event-feed-seed-state'][0],
                 }),
-                3,
+                4,
             )
             self.assertTrue(original_streams <= storage.STREAMS)
             for name, mapping in original_artifacts.items():
@@ -99,6 +105,45 @@ class R3DriveArchiveTests(unittest.TestCase):
         self.assertIn("'public_redistribution':'blocked'", text)
         self.assertIn('name: derivative-public-seed-state', text)
         self.assertIn('retention-days: 30', text)
+
+    def test_event_feed_derivative_seed_preserves_only_approved_bytes(self):
+        text = Path('.github/workflows/derivative_private_archive_seed.yml').read_text(encoding='utf-8')
+        package = text.split('name: Seal current event-feed Deribit bytes into an isolated research snapshot', 1)[1]
+        package = package.split('name: Upload event-feed derivative recovery seed', 1)[0]
+        expected = {
+            'deribit_eth_funding_daily.csv',
+            'deribit_eth_future_snapshot_daily.csv',
+            'deribit_eth_historical_volatility.csv',
+            'deribit_eth_option_snapshot_daily.csv',
+        }
+        for name in expected:
+            self.assertIn(name, package)
+        for name in (
+            'bitget_eth_context_4h.csv',
+            'bitget_eth_free_features.csv',
+            'hyperliquid_eth_context_4h.csv',
+            'hyperliquid_eth_free_features.csv',
+            'deribit_eth_dvol_daily.csv',
+        ):
+            self.assertNotIn(name, package)
+        self.assertIn('git fetch --no-tags origin data/event-feed:refs/remotes/origin/data/event-feed', text)
+        self.assertIn("if len(rows) != 4", package)
+        self.assertIn("'source_branch':'data/event-feed'", package)
+        self.assertIn("'public_redistribution':'blocked'", package)
+        self.assertIn("'model_use':'blocked_pending_rights_storage_pit_audit_and_preregistered_gate'", package)
+        self.assertIn("'site_use':'blocked'", package)
+        self.assertIn("'paid_product_use':'blocked'", package)
+        self.assertIn('name: derivative-event-feed-seed-state', text)
+        self.assertNotIn('git push', text)
+        self.assertEqual(
+            recovery.EXPECTED['derivative-event-feed-seed'],
+            {
+                'lake/raw/vendor/deribit_eth_funding_daily.csv',
+                'lake/raw/vendor/deribit_eth_future_snapshot_daily.csv',
+                'lake/raw/vendor/deribit_eth_historical_volatility.csv',
+                'lake/raw/vendor/deribit_eth_option_snapshot_daily.csv',
+            },
+        )
 
     def test_r3_archiver_can_be_invoked_exactly_like_workflow(self):
         completed = subprocess.run(
