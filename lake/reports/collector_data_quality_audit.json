@@ -1,11 +1,12 @@
 {
-  "generated_at": "2026-10-02T08:55:13.783685+00:00",
-  "dataset_end": "2026-10-01 00:00:00",
-  "row_count": 3249,
+  "generated_at": "2026-10-03T05:41:41.222128+00:00",
+  "dataset_end": "2026-10-02 00:00:00",
+  "row_count": 3250,
   "column_count": 178,
   "source_status_counts": {
-    "ok": 22,
+    "ok": 18,
     "skipped": 4,
+    "warning": 4,
     "error": 1
   },
   "source_errors": [
@@ -17,9 +18,45 @@
       "start": "",
       "end": "",
       "note": "HTTP Error 429: Too Many Requests"
+    },
+    {
+      "source": "binance_funding_history",
+      "status": "warning",
+      "rows": 45,
+      "columns": 2,
+      "start": "2026-08-19 00:00:00",
+      "end": "2026-10-02 00:00:00",
+      "note": "live_fetch_failed_using_cached_data: HTTP Error 451: "
+    },
+    {
+      "source": "binance_open_interest_hist",
+      "status": "warning",
+      "rows": 26,
+      "columns": 4,
+      "start": "2026-09-07 00:00:00",
+      "end": "2026-10-02 00:00:00",
+      "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
+    },
+    {
+      "source": "binance_basis",
+      "status": "warning",
+      "rows": 26,
+      "columns": 7,
+      "start": "2026-09-07 00:00:00",
+      "end": "2026-10-02 00:00:00",
+      "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
+    },
+    {
+      "source": "binance_taker_buy_sell_volume",
+      "status": "warning",
+      "rows": 26,
+      "columns": 3,
+      "start": "2026-09-06 00:00:00",
+      "end": "2026-10-01 00:00:00",
+      "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     }
   ],
-  "short_history_vendor_column_count": 20,
+  "short_history_vendor_column_count": 19,
   "learning_exclusion_column_count": 46,
   "stale_vendor_column_count": 0,
   "tail_event_readiness": "partial",
@@ -31,34 +68,34 @@
       "coverage_ratio": 1.0,
       "ready_column_count": 35,
       "latest_age_days_max": 0,
-      "history_span_days_max": 3248
+      "history_span_days_max": 3249
     },
     {
       "group": "macro_liquidity_credit",
       "status": "ok",
       "column_count": 21,
-      "coverage_ratio": 0.7220976417652318,
+      "coverage_ratio": 0.7223882783882785,
       "ready_column_count": 18,
-      "latest_age_days_max": 16,
-      "history_span_days_max": 3086
+      "latest_age_days_max": 17,
+      "history_span_days_max": 3087
     },
     {
       "group": "crypto_native",
       "status": "ok",
       "column_count": 31,
-      "coverage_ratio": 0.24086815794437985,
+      "coverage_ratio": 0.2410322580645162,
       "ready_column_count": 6,
-      "latest_age_days_max": 1,
-      "history_span_days_max": 3248
+      "latest_age_days_max": 2,
+      "history_span_days_max": 3249
     },
     {
       "group": "derivatives_tail",
       "status": "weak",
       "column_count": 34,
-      "coverage_ratio": 0.011831694820125648,
+      "coverage_ratio": 0.01207239819004525,
       "ready_column_count": 0,
-      "latest_age_days_max": 0,
-      "history_span_days_max": 197
+      "latest_age_days_max": 1,
+      "history_span_days_max": 198
     },
     {
       "group": "onchain_activity",
@@ -106,11 +143,6 @@
       "column_count": 4
     },
     {
-      "column_group": "fred_macro",
-      "learning_status": "short_history",
-      "column_count": 2
-    },
-    {
       "column_group": "coingecko",
       "learning_status": "empty",
       "column_count": 1
@@ -118,6 +150,16 @@
     {
       "column_group": "fred_macro",
       "learning_status": "empty",
+      "column_count": 1
+    },
+    {
+      "column_group": "fred_macro",
+      "learning_status": "low_coverage",
+      "column_count": 1
+    },
+    {
+      "column_group": "fred_macro",
+      "learning_status": "short_history",
       "column_count": 1
     }
   ],
@@ -193,10 +235,10 @@
       "column_group": "coingecko",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -204,10 +246,10 @@
       "column_group": "coingecko",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -215,10 +257,10 @@
       "column_group": "coingecko",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -226,10 +268,10 @@
       "column_group": "coingecko",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -237,10 +279,10 @@
       "column_group": "coingecko",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -248,10 +290,10 @@
       "column_group": "coingecko",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -259,10 +301,10 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -270,10 +312,10 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -281,10 +323,10 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -292,10 +334,10 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -303,10 +345,10 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -314,10 +356,10 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -325,10 +367,10 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     },
     {
@@ -336,17 +378,17 @@
       "column_group": "deribit_derivatives",
       "learning_status": "low_coverage",
       "exclusion_reasons": "low_rows<97",
-      "non_null_rows": 38,
-      "history_span_days": 166.0,
+      "non_null_rows": 39,
+      "history_span_days": 167.0,
       "latest_age_days": 0.0,
-      "rows_until_min": 59,
+      "rows_until_min": 58,
       "days_until_90d": 0
     }
   ],
   "recommendations": [
     "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
     "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
-    "20 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
+    "19 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
     "46 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons."
   ]
 }
