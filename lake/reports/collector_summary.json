@@ -36,14 +36,14 @@
         "column": "eth_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 2726.659912109375
+        "latest_value": 2726.509033203125
       },
       {
         "column_group": "market_context",
         "column": "btc_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 86512.9765625
+        "latest_value": 86480.3046875
       },
       {
         "column_group": "market_context",
@@ -132,16 +132,26 @@
     ]
   },
   "data_quality_audit": {
-    "generated_at": "2026-10-05T06:09:32.002207+00:00",
+    "generated_at": "2026-10-05T09:35:05.559598+00:00",
     "dataset_end": "2026-10-04 00:00:00",
     "row_count": 3252,
     "column_count": 178,
     "source_status_counts": {
-      "ok": 19,
+      "ok": 18,
       "skipped": 4,
-      "warning": 4
+      "warning": 4,
+      "error": 1
     },
     "source_errors": [
+      {
+        "source": "coingecko_defi_snapshot",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 429: Too Many Requests"
+      },
       {
         "source": "binance_funding_history",
         "status": "warning",
@@ -528,10 +538,10 @@
     {
       "source": "manual_external_csv",
       "status": "ok",
-      "rows": 3564,
+      "rows": 3565,
       "columns": 37,
       "start": "2017-01-01 00:00:00",
-      "end": "2026-10-04 00:00:00",
+      "end": "2026-10-05 00:00:00",
       "note": ""
     },
     {
@@ -635,12 +645,12 @@
     },
     {
       "source": "coingecko_defi_snapshot",
-      "status": "ok",
-      "rows": 12,
-      "columns": 7,
-      "start": "2026-09-14 00:00:00",
-      "end": "2026-10-05 00:00:00",
-      "note": ""
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 429: Too Many Requests"
     },
     {
       "source": "coingecko_global_market_chart",
