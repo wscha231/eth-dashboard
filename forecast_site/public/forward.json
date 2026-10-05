@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-04T12:30:51.251627+00:00",
+  "generated_at": "2026-10-05T06:10:43.849036+00:00",
   "protocol": {
     "version": "prospective_daily_v1",
     "horizons": [
@@ -71,34 +71,50 @@
   "protocol_hash": "c45b4ddee535f961035bf5868a3b47ebade2023ba3d20968f50daa3971ae9c0b",
   "status": "research_only",
   "source": {
-    "generated_at": "2026-10-04T12:30:51.197506+00:00",
+    "generated_at": "2026-10-05T06:10:43.594416+00:00",
     "latest_source_day": "2026-10-03",
-    "expected_source_day": "2026-10-03",
+    "expected_source_day": "2026-10-04",
     "new_days": 0,
     "stored_days": 3333,
-    "downloaded_archives": 0,
-    "request_tasks": 0,
-    "missing_day_count": 1,
+    "downloaded_archives": 2,
+    "request_tasks": 4,
+    "missing_day_count": 2,
     "recent_missing_days": [
-      "2017-09-06"
+      "2017-09-06",
+      "2026-10-04"
     ],
-    "errors": [],
-    "error_count": 0,
+    "errors": [
+      {
+        "stream": "binance_um_ethusdt_1h",
+        "source_day": "2026-10-04",
+        "error": "HTTPError",
+        "status": "unavailable_or_invalid",
+        "detail": "HTTP Error 404: Not Found"
+      },
+      {
+        "stream": "binance_um_btcusdt_1h",
+        "source_day": "2026-10-04",
+        "error": "HTTPError",
+        "status": "unavailable_or_invalid",
+        "detail": "HTTP Error 404: Not Found"
+      }
+    ],
+    "error_count": 2,
     "collection_stopped": false,
-    "ready_for_current_origin": true,
-    "runtime_seconds": 0.12044681300000093,
+    "ready_for_current_origin": false,
+    "runtime_seconds": 0.802939883999997,
     "publication_note": "bar end and observed download time are separate; archives can arrive late"
   },
   "attempt": {
     "new_issues": 0,
     "skips": [],
     "status": "retired_source_collection_only",
-    "actual_revisions": 0,
-    "total_seconds": 0.17262303400002565
+    "actual_revisions": 3,
+    "total_seconds": 1.053410951999993
   },
   "issued_count": 6,
-  "resolved_count": 3,
-  "pending_count": 3,
+  "resolved_count": 6,
+  "pending_count": 0,
   "latest_origin": "2026-09-05T00:00:00",
   "latest": [
     {
@@ -223,7 +239,7 @@
         0.29831144465290804
       ],
       "training_rows": 1066,
-      "actual_price": null
+      "actual_price": 2726.659912109375
     },
     {
       "candidate": "hist_price_flow",
@@ -254,7 +270,7 @@
         0.29831144465290804
       ],
       "training_rows": 1066,
-      "actual_price": null
+      "actual_price": 2726.659912109375
     },
     {
       "candidate": "ridge_price",
@@ -285,7 +301,7 @@
         0.29831144465290804
       ],
       "training_rows": 1066,
-      "actual_price": null
+      "actual_price": 2726.659912109375
     }
   ],
   "metrics": [
@@ -349,23 +365,59 @@
     {
       "horizon": 30,
       "candidate": "ridge_price",
-      "resolved": 0,
+      "resolved": 1,
       "review_eligible": false,
-      "promotion": "research_only"
+      "promotion": "research_only",
+      "return_mae": 0.09161485782813072,
+      "return_rmse": 0.09161485782813072,
+      "mae_skill_vs_no_change": 0.1684094829867402,
+      "multiclass_brier": 0.297884310515499,
+      "brier_skill_vs_training_prior": 0.29914319405994727,
+      "nonoverlapping_blocks": 1,
+      "mean_mae_improvement_95ci": null,
+      "actual_class_counts": {
+        "0": 0,
+        "1": 1,
+        "2": 0
+      }
     },
     {
       "horizon": 30,
       "candidate": "hist_price",
-      "resolved": 0,
+      "resolved": 1,
       "review_eligible": false,
-      "promotion": "research_only"
+      "promotion": "research_only",
+      "return_mae": 0.14315240804327922,
+      "return_rmse": 0.14315240804327922,
+      "mae_skill_vs_no_change": -0.299398239963766,
+      "multiclass_brier": 0.9264020424027409,
+      "brier_skill_vs_training_prior": -1.179621932189491,
+      "nonoverlapping_blocks": 1,
+      "mean_mae_improvement_95ci": null,
+      "actual_class_counts": {
+        "0": 0,
+        "1": 1,
+        "2": 0
+      }
     },
     {
       "horizon": 30,
       "candidate": "hist_price_flow",
-      "resolved": 0,
+      "resolved": 1,
       "review_eligible": false,
-      "promotion": "research_only"
+      "promotion": "research_only",
+      "return_mae": 0.13853417174177426,
+      "return_rmse": 0.13853417174177426,
+      "mae_skill_vs_no_change": -0.25747838542595014,
+      "multiclass_brier": 0.44528335320004575,
+      "brier_skill_vs_training_prior": -0.04765460162032542,
+      "nonoverlapping_blocks": 1,
+      "mean_mae_improvement_95ci": null,
+      "actual_class_counts": {
+        "0": 0,
+        "1": 1,
+        "2": 0
+      }
     }
   ],
   "source_ablation": [
@@ -378,9 +430,9 @@
     },
     {
       "horizon": 30,
-      "matched_origins": 0,
+      "matched_origins": 1,
       "excluded_different_input_vintages": 0,
-      "flow_mae_improvement": null,
+      "flow_mae_improvement": 0.004618236301504958,
       "95ci": null
     }
   ],
