@@ -91,7 +91,7 @@ def choose_start(path: Path, requested: pd.Timestamp, end: pd.Timestamp, overlap
 
 
 def collect_defillama_full(output_dir: Path, start: pd.Timestamp, end: pd.Timestamp) -> dict[str, Any]:
-    """Reuse the existing tested collectors but force a historical start."""
+    """Reuse existing collectors for frozen reconstructed stablecoin inputs."""
     from eth_data_collector import (
         DEFAULT_DEFILLAMA_CHAIN,
         collect_defillama_chain_tvl,
@@ -99,15 +99,17 @@ def collect_defillama_full(output_dir: Path, start: pd.Timestamp, end: pd.Timest
         collect_defillama_stablecoins,
     )
     configs = [
-        ("defillama_ethereum_stablecoins_daily.csv", collect_defillama_stablecoins),
-        ("defillama_ethereum_chain_tvl_daily.csv", collect_defillama_chain_tvl),
-        ("defillama_ethereum_dex_volume_daily.csv", collect_defillama_dex_volume),
+        ("defillama_global_stablecoins_daily.csv", collect_defillama_stablecoins, "all"),
+        ("defillama_ethereum_stablecoins_daily.csv", collect_defillama_stablecoins, DEFAULT_DEFILLAMA_CHAIN),
+        ("defillama_base_stablecoins_daily.csv", collect_defillama_stablecoins, "Base"),
+        ("defillama_ethereum_chain_tvl_daily.csv", collect_defillama_chain_tvl, DEFAULT_DEFILLAMA_CHAIN),
+        ("defillama_ethereum_dex_volume_daily.csv", collect_defillama_dex_volume, DEFAULT_DEFILLAMA_CHAIN),
     ]
     result: dict[str, Any] = {}
-    for filename, fn in configs:
+    for filename, fn, chain in configs:
         path = output_dir / filename
         try:
-            fetched = fn(DEFAULT_DEFILLAMA_CHAIN, start.tz_localize(None), end.tz_localize(None))
+            fetched = fn(chain, start.tz_localize(None), end.tz_localize(None))
             if fetched is not None and not fetched.empty:
                 if fetched.index.tz is None:
                     fetched.index = fetched.index.tz_localize("UTC")
@@ -120,6 +122,36 @@ def collect_defillama_full(output_dir: Path, start: pd.Timestamp, end: pd.Timest
     return result
 
 
+def collect_open_standard_ousd_receipt(output_dir: Path) -> dict[str, Any]:
+    """Capture one actual post-deployment OUSD chain-allocation receipt."""
+    from data_lab.stablecoin_chain_allocation import (
+        DEFILLAMA_STABLECOINS_URL,
+        parse_open_standard_ousd_snapshot,
+    )
+    from eth_data_collector import request_json
+
+    received_at = datetime.now(timezone.utc)
+    payload = request_json(
+        DEFILLAMA_STABLECOINS_URL,
+        params={"includePrices": "true"},
+        timeout=45,
+    )
+    row = parse_open_standard_ousd_snapshot(payload, received_at=received_at)
+    path = output_dir / "open_standard_ousd_chain_supply_receipt.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame([row]).to_csv(path, index=False)
+    return {
+        "status": "ok",
+        "path": str(path),
+        "received_at": row["received_at"],
+        "available_at_policy": "conservative available_at equals actual received_at",
+        "defillama_asset_id": row["defillama_asset_id"],
+        "raw_asset_sha256": row["raw_asset_sha256"],
+        "model_use": "blocked",
+        "public_hot_branch": "blocked",
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", default="lake/raw/vendor")
@@ -128,6 +160,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-bybit", action="store_true")
     parser.add_argument("--skip-fred-vintages", action="store_true")
     parser.add_argument("--skip-defillama-backfill", action="store_true")
+    parser.add_argument("--skip-ousd", action="store_true")
     return parser.parse_args()
 
 
@@ -219,6 +252,17 @@ def main() -> None:
 
     if not args.skip_defillama_backfill:
         report["sources"]["defillama_backfill"] = collect_defillama_full(out, start, end)
+
+    if not args.skip_ousd:
+        try:
+            report["sources"]["open_standard_ousd"] = collect_open_standard_ousd_receipt(out)
+        except Exception as exc:
+            report["sources"]["open_standard_ousd"] = {
+                "status": "error",
+                "error": type(exc).__name__,
+                "model_use": "blocked",
+                "public_hot_branch": "blocked",
+            }
 
     report["manual_feature_files"] = manual_files
     report_path = out.parent.parent / "reports" / "free_source_backfill.json"
