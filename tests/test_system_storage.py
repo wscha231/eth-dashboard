@@ -61,6 +61,7 @@ def test_archive_rejects_raw_corruption_and_modified_checkpoint(tmp_path):
 def test_daily_cache_survives_a_runner_restart_without_private_files(tmp_path):
     root, durable, restarted = [tmp_path / n for n in ("runner", "durable", "restarted")]
     for name in ("lake/raw/vendor/options.csv", "lake/raw/market/market_data_cache.csv",
+                 "lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv",
                  "lake/raw/vendor/token.json", "lake/raw/manual/private.csv"):
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +82,7 @@ def test_daily_cache_survives_a_runner_restart_without_private_files(tmp_path):
     assert not allowed("lake/raw/vendor/deribit_eth_dvol_daily.csv")
     assert not allowed("lake/raw/vendor/bitget_eth_context_4h.csv")
     assert not allowed("lake/raw/vendor/hyperliquid_eth_free_features.csv")
+    assert not allowed("lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv")
 
 
 def test_system_audit_distinguishes_accuracy_from_publication():
