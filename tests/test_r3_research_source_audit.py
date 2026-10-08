@@ -11,8 +11,8 @@ def test_repository_r3_registry_is_research_only_and_fail_closed():
     report = audit(ROOT / "config/r3_research_source_registry.json", root=ROOT)
     assert report["status"] == "pass", report["errors"]
     assert report["production_effect"] == "none"
-    assert report["research_source_count"] == 10
-    assert report["active_research_source_count"] == 8
+    assert report["research_source_count"] == 11
+    assert report["active_research_source_count"] == 9
     assert report["all_model_site_public_paid_use_blocked"] is True
     ids = {row["id"] for row in report["sources"]}
     assert ids == {
@@ -26,6 +26,7 @@ def test_repository_r3_registry_is_research_only_and_fail_closed():
         "r3_p1_hyperliquid_derivatives_fast",
         "r3_p1_deribit_eth_dvol_history",
         "r3_p1_eth_execution_network",
+        "defillama_open_standard_ousd_receipt",
     }
 
 
