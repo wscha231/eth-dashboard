@@ -72,6 +72,24 @@ def test_open_standard_ousd_fails_closed_on_missing_or_new_positive_chain():
         parse_open_standard_ousd_snapshot(extra)
 
 
+def test_ousd_collector_writes_actual_receipt_without_model_materialization(tmp_path, monkeypatch):
+    import eth_data_collector
+    from scripts.collect_free_research_sources import collect_open_standard_ousd_receipt
+
+    monkeypatch.setattr(eth_data_collector, "request_json", lambda *args, **kwargs: ousd_payload())
+    result = collect_open_standard_ousd_receipt(tmp_path)
+    path = tmp_path / "open_standard_ousd_chain_supply_receipt.csv"
+    frame = pd.read_csv(path)
+
+    assert result["status"] == "ok"
+    assert result["model_use"] == "blocked"
+    assert result["public_hot_branch"] == "blocked"
+    assert len(frame) == 1
+    assert frame.iloc[0]["source_id"] == "defillama_open_standard_ousd_receipt"
+    assert frame.iloc[0]["total_supply_ousd"] == 460_000_000
+    assert frame.iloc[0]["received_at"] == frame.iloc[0]["available_at"]
+
+
 def test_stablecoin_allocation_features_match_frozen_formulas_and_keep_missingness():
     idx = pd.date_range("2026-01-01", periods=10, freq="D", tz="UTC")
     global_supply = pd.Series([100, 110, 121, 133.1, 146.41, 161.051, 177.1561, 194.87171, 214.358881, 235.7947691], index=idx)
