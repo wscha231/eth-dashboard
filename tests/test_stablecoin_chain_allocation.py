@@ -20,9 +20,9 @@ def ousd_payload():
                 "pegType": "peggedUSD",
                 "circulating": {"peggedUSD": 6_000_000},
                 "chains": ["Ethereum"],
-                "chainCirculating": {
-                    "Ethereum": {"current": {"peggedUSD": 6_000_000}},
-                },
+                "chainCirculating": [
+                    {"chain": "Ethereum", "circulating": 6_000_000},
+                ],
             },
             {
                 "id": "open-usd",
@@ -30,14 +30,14 @@ def ousd_payload():
                 "symbol": "OUSD",
                 "pegType": "peggedUSD",
                 "price": 1.0,
-                "circulating": {"peggedUSD": 460_000_000},
-                "chains": ["Ethereum", "Base", "Solana", "Tempo"],
-                "chainCirculating": {
-                    "Ethereum": {"current": {"peggedUSD": 10_000_000}},
-                    "Base": {"current": {"peggedUSD": 15_000_000}},
-                    "Solana": {"current": {"peggedUSD": 10_000_000}},
-                    "Tempo": {"current": {"peggedUSD": 425_000_000}},
-                },
+                "circulating": 460_000_000,
+                "chains": ["Tempo", "Ethereum", "Solana", "Base"],
+                "chainCirculating": [
+                    {"chain": "Ethereum", "circulating": 10_000_000},
+                    {"chain": "Solana", "circulating": 10_000_000},
+                    {"chain": "Tempo", "circulating": 425_000_000},
+                    {"chain": "Base", "circulating": 15_000_000},
+                ],
             },
         ]
     }
@@ -59,15 +59,17 @@ def test_open_standard_ousd_identity_does_not_confuse_origin_dollar():
 
 def test_open_standard_ousd_fails_closed_on_missing_or_new_positive_chain():
     missing = ousd_payload()
-    del missing["peggedAssets"][1]["chainCirculating"]["Tempo"]
+    missing["peggedAssets"][1]["chainCirculating"] = [
+        row for row in missing["peggedAssets"][1]["chainCirculating"] if row["chain"] != "Tempo"
+    ]
     with pytest.raises(OUSDIdentityError, match="missing official OUSD chains"):
         parse_open_standard_ousd_snapshot(missing)
 
     extra = ousd_payload()
-    extra["peggedAssets"][1]["chainCirculating"]["NewChain"] = {
-        "current": {"peggedUSD": 1}
-    }
-    extra["peggedAssets"][1]["circulating"]["peggedUSD"] += 1
+    extra["peggedAssets"][1]["chainCirculating"].append(
+        {"chain": "NewChain", "circulating": 1}
+    )
+    extra["peggedAssets"][1]["circulating"] += 1
     with pytest.raises(OUSDIdentityError, match="unreviewed positive OUSD chain supply"):
         parse_open_standard_ousd_snapshot(extra)
 
