@@ -64,6 +64,33 @@ def _utc_iso(value: datetime | str | pd.Timestamp | None) -> str:
     return ts.isoformat()
 
 
+def _chain_supply_map(value: Any) -> dict[str, float]:
+    """Normalize current DefiLlama list shape and retained legacy dict shape."""
+    if isinstance(value, dict):
+        items = list(value.items())
+    elif isinstance(value, list):
+        items = []
+        for index, row in enumerate(value):
+            if not isinstance(row, dict):
+                raise ValueError(f"chainCirculating[{index}] must be an object")
+            chain = row.get("chain")
+            if not isinstance(chain, str) or not chain:
+                raise ValueError(f"chainCirculating[{index}].chain is missing")
+            if "circulating" not in row:
+                raise ValueError(f"chainCirculating[{index}].circulating is missing")
+            items.append((chain, row["circulating"]))
+    else:
+        raise ValueError("Open Standard OUSD chainCirculating is missing")
+
+    result: dict[str, float] = {}
+    for chain, raw in items:
+        chain = str(chain)
+        if chain in result:
+            raise OUSDIdentityError(f"duplicate OUSD chain: {chain}")
+        result[chain] = _circulating_amount(raw, field=f"chainCirculating.{chain}")
+    return result
+
+
 def parse_open_standard_ousd_snapshot(
     payload: Any,
     *,
@@ -95,31 +122,21 @@ def parse_open_standard_ousd_snapshot(
         raise OUSDIdentityError(f"expected exactly one Open Standard OUSD asset, found {len(matches)}")
     asset = matches[0]
 
-    chain_map = asset.get("chainCirculating")
-    if not isinstance(chain_map, dict):
-        raise ValueError("Open Standard OUSD chainCirculating is missing")
+    chain_map = _chain_supply_map(asset.get("chainCirculating"))
 
     missing = [chain for chain in OPEN_STANDARD_OUSD_EXPECTED_CHAINS if chain not in chain_map]
     if missing:
         raise OUSDIdentityError("missing official OUSD chains: " + ",".join(missing))
 
-    positive_unknown: list[str] = []
-    for chain, raw in chain_map.items():
-        if chain in OPEN_STANDARD_OUSD_EXPECTED_CHAINS:
-            continue
-        try:
-            amount = _circulating_amount(raw, field=f"chainCirculating.{chain}")
-        except ValueError:
-            continue
-        if amount > 0:
-            positive_unknown.append(str(chain))
+    positive_unknown = [
+        chain
+        for chain, amount in chain_map.items()
+        if chain not in OPEN_STANDARD_OUSD_EXPECTED_CHAINS and amount > 0
+    ]
     if positive_unknown:
         raise OUSDIdentityError("unreviewed positive OUSD chain supply: " + ",".join(sorted(positive_unknown)))
 
-    supplies = {
-        chain: _circulating_amount(chain_map[chain], field=f"chainCirculating.{chain}")
-        for chain in OPEN_STANDARD_OUSD_EXPECTED_CHAINS
-    }
+    supplies = {chain: chain_map[chain] for chain in OPEN_STANDARD_OUSD_EXPECTED_CHAINS}
     chain_total = float(sum(supplies.values()))
     if chain_total <= 0:
         raise ValueError("Open Standard OUSD supply must be positive")
