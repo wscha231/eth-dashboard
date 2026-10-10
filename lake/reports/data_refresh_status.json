@@ -5,7 +5,7 @@
     "planned": 3,
     "warning": 1
   },
-  "generated_at_utc": "2026-10-10T02:44:13.429680+00:00",
+  "generated_at_utc": "2026-10-10T11:22:14.224304+00:00",
   "hard_failures": [],
   "policy": {
     "fast_snapshot_hours": 4,
@@ -20,14 +20,14 @@
   "schema": 1,
   "sources": [
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 720,
       "critical": true,
       "family": "market",
       "hard_failure": false,
       "hard_stale_hours": 72,
       "id": "core_market_daily",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/market/market_data_cache.csv",
       "pit_status": "reconstructed_market_history",
       "role": "daily cross-asset market context",
@@ -38,14 +38,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "defi",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "defillama_ethereum_tvl",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/defillama_ethereum_chain_tvl_daily.csv",
       "pit_status": "reconstructed_backfill_then_receipt",
       "role": "Ethereum TVL and capital-state research",
@@ -56,14 +56,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "defi",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "defillama_ethereum_dex",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/defillama_ethereum_dex_volume_daily.csv",
       "pit_status": "reconstructed_backfill_then_receipt",
       "role": "Ethereum DEX activity research",
@@ -74,14 +74,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "liquidity",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "defillama_ethereum_stablecoins",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/defillama_ethereum_stablecoins_daily.csv",
       "pit_status": "reconstructed_backfill_then_receipt",
       "role": "Ethereum stablecoin liquidity research",
@@ -236,14 +236,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 720,
       "critical": false,
       "family": "macro_pit",
       "hard_failure": false,
       "hard_stale_hours": 168,
       "id": "fred_initial_asof",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/fred_initial_asof_daily.csv",
       "pit_status": "partial_pit",
       "role": "causally safer macro/liquidity research",
@@ -254,14 +254,14 @@
       "workflow": "free_source_backfill.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "sentiment",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "fear_greed",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/fear_greed_daily.csv",
       "pit_status": "reconstructed_history_then_receipt",
       "role": "sentiment regime research",
@@ -272,14 +272,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "market",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "coingecko_eth",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/coingecko_eth_daily.csv",
       "pit_status": "limited_history_then_receipt",
       "role": "market cap/volume cross-check",
@@ -344,14 +344,14 @@
       "workflow": null
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "market",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "coingecko_btc",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/coingecko_btc_daily.csv",
       "pit_status": "limited_history_then_receipt",
       "role": "BTC price/market-cap/volume cross-check",
@@ -362,14 +362,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "market",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "coingecko_sol",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/coingecko_sol_daily.csv",
       "pit_status": "limited_history_then_receipt",
       "role": "SOL crypto risk/relative-strength context",
@@ -380,14 +380,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "market",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "coingecko_bnb",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/coingecko_bnb_daily.csv",
       "pit_status": "limited_history_then_receipt",
       "role": "BNB crypto risk/relative-strength context",
@@ -398,14 +398,14 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "crypto_market",
       "hard_failure": false,
       "hard_stale_hours": 96,
       "id": "coingecko_global",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/coingecko_global_daily.csv",
       "pit_status": "prospective_snapshot_with_short_history",
       "role": "global crypto market-cap/volume/dominance context",
@@ -416,7 +416,7 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 74.737,
+      "age_hours": 83.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "defi",
@@ -452,7 +452,7 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 35.371,
       "cadence_minutes": 720,
       "critical": false,
       "family": "macro_reference",
@@ -470,14 +470,14 @@
       "workflow": "free_source_backfill.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 11.371,
       "cadence_minutes": 1440,
       "critical": false,
       "family": "macro_reference",
       "hard_failure": false,
       "hard_stale_hours": 168,
       "id": "fred_daily",
-      "latest": "2026-10-09T00:00:00+00:00",
+      "latest": "2026-10-10T00:00:00+00:00",
       "path": "lake/raw/vendor/fred_daily.csv",
       "pit_status": "current_vintage_daily_state",
       "role": "daily macro state for research, subject to release/vintage constraints",
@@ -488,7 +488,7 @@
       "workflow": "daily_forecast.yml"
     },
     {
-      "age_hours": 26.737,
+      "age_hours": 35.371,
       "cadence_minutes": 720,
       "critical": false,
       "family": "macro_pit",
