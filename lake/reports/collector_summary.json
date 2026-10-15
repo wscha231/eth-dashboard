@@ -36,14 +36,14 @@
         "column": "eth_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 2418.550048828125
+        "latest_value": 2418.20703125
       },
       {
         "column_group": "market_context",
         "column": "btc_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 81566.28125
+        "latest_value": 81562.4921875
       },
       {
         "column_group": "market_context",
@@ -132,15 +132,63 @@
     ]
   },
   "data_quality_audit": {
-    "generated_at": "2026-10-15T05:07:02.519086+00:00",
+    "generated_at": "2026-10-15T07:43:10.353516+00:00",
     "dataset_end": "2026-10-14 00:00:00",
     "row_count": 3262,
     "column_count": 178,
     "source_status_counts": {
-      "ok": 23,
-      "skipped": 4
+      "ok": 18,
+      "skipped": 4,
+      "warning": 4,
+      "error": 1
     },
-    "source_errors": [],
+    "source_errors": [
+      {
+        "source": "coingecko_defi_snapshot",
+        "status": "error",
+        "rows": 0,
+        "columns": 0,
+        "start": "",
+        "end": "",
+        "note": "HTTP Error 429: Too Many Requests"
+      },
+      {
+        "source": "binance_funding_history",
+        "status": "warning",
+        "rows": 46,
+        "columns": 2,
+        "start": "2026-08-31 00:00:00",
+        "end": "2026-10-15 00:00:00",
+        "note": "live_fetch_failed_using_cached_data: HTTP Error 451: "
+      },
+      {
+        "source": "binance_open_interest_hist",
+        "status": "warning",
+        "rows": 39,
+        "columns": 4,
+        "start": "2026-09-07 00:00:00",
+        "end": "2026-10-15 00:00:00",
+        "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
+      },
+      {
+        "source": "binance_basis",
+        "status": "warning",
+        "rows": 39,
+        "columns": 7,
+        "start": "2026-09-07 00:00:00",
+        "end": "2026-10-15 00:00:00",
+        "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
+      },
+      {
+        "source": "binance_taker_buy_sell_volume",
+        "status": "warning",
+        "rows": 39,
+        "columns": 3,
+        "start": "2026-09-06 00:00:00",
+        "end": "2026-10-14 00:00:00",
+        "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
+      }
+    ],
     "short_history_vendor_column_count": 18,
     "learning_exclusion_column_count": 46,
     "stale_vendor_column_count": 0,
@@ -592,12 +640,12 @@
     },
     {
       "source": "coingecko_defi_snapshot",
-      "status": "ok",
-      "rows": 14,
-      "columns": 7,
-      "start": "2026-09-14 00:00:00",
-      "end": "2026-10-15 00:00:00",
-      "note": ""
+      "status": "error",
+      "rows": 0,
+      "columns": 0,
+      "start": "",
+      "end": "",
+      "note": "HTTP Error 429: Too Many Requests"
     },
     {
       "source": "coingecko_global_market_chart",
@@ -610,39 +658,39 @@
     },
     {
       "source": "binance_funding_history",
-      "status": "ok",
-      "rows": 59,
+      "status": "warning",
+      "rows": 46,
       "columns": 2,
-      "start": "2026-08-18 00:00:00",
+      "start": "2026-08-31 00:00:00",
       "end": "2026-10-15 00:00:00",
-      "note": ""
+      "note": "live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_open_interest_hist",
-      "status": "ok",
+      "status": "warning",
       "rows": 39,
       "columns": 4,
       "start": "2026-09-07 00:00:00",
       "end": "2026-10-15 00:00:00",
-      "note": "Exchange exposes recent history only"
+      "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_basis",
-      "status": "ok",
+      "status": "warning",
       "rows": 39,
       "columns": 7,
       "start": "2026-09-07 00:00:00",
       "end": "2026-10-15 00:00:00",
-      "note": "Exchange exposes recent history only"
+      "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_taker_buy_sell_volume",
-      "status": "ok",
+      "status": "warning",
       "rows": 39,
       "columns": 3,
       "start": "2026-09-06 00:00:00",
       "end": "2026-10-14 00:00:00",
-      "note": "Exchange exposes recent history only"
+      "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "deribit_historical_volatility",
