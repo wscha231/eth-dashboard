@@ -15,6 +15,10 @@ RESTRICTED_DERIVATIVE_CACHES = frozenset({
     "lake/raw/vendor/deribit_eth_historical_volatility.csv",
     "lake/raw/vendor/deribit_eth_option_snapshot_daily.csv",
 })
+PRIVATE_RESEARCH_CACHES = frozenset({
+    "lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv",
+})
+PUBLIC_BRANCH_BLOCKED_CACHES = RESTRICTED_DERIVATIVE_CACHES | PRIVATE_RESEARCH_CACHES
 
 
 def normalize(path: str) -> str:
@@ -25,4 +29,4 @@ def normalize(path: str) -> str:
 
 
 def blocked_on_public_hot_branch(path: str, branch: str = "data/daily-forecast") -> bool:
-    return branch in PUBLIC_HOT_BRANCHES and normalize(path) in RESTRICTED_DERIVATIVE_CACHES
+    return branch in PUBLIC_HOT_BRANCHES and normalize(path) in PUBLIC_BRANCH_BLOCKED_CACHES
