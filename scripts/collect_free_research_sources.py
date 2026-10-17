@@ -130,12 +130,14 @@ def collect_open_standard_ousd_receipt(output_dir: Path) -> dict[str, Any]:
     )
     from eth_data_collector import request_json
 
-    received_at = datetime.now(timezone.utc)
     payload = request_json(
         DEFILLAMA_STABLECOINS_URL,
         params={"includePrices": "true"},
         timeout=45,
     )
+    # PIT contract: data cannot be available before the successful response has
+    # actually returned to EtherForecast.
+    received_at = datetime.now(timezone.utc)
     row = parse_open_standard_ousd_snapshot(payload, received_at=received_at)
     path = output_dir / "open_standard_ousd_chain_supply_receipt.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
