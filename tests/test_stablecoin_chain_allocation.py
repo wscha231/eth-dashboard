@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import math
 
 import pandas as pd
@@ -78,7 +79,13 @@ def test_ousd_collector_writes_actual_receipt_without_model_materialization(tmp_
     import eth_data_collector
     from scripts.collect_free_research_sources import collect_open_standard_ousd_receipt
 
-    monkeypatch.setattr(eth_data_collector, "request_json", lambda *args, **kwargs: ousd_payload())
+    timing = {}
+
+    def completed_response(*args, **kwargs):
+        timing["response_returned_at"] = datetime.now(timezone.utc)
+        return ousd_payload()
+
+    monkeypatch.setattr(eth_data_collector, "request_json", completed_response)
     result = collect_open_standard_ousd_receipt(tmp_path)
     path = tmp_path / "open_standard_ousd_chain_supply_receipt.csv"
     frame = pd.read_csv(path)
@@ -90,6 +97,7 @@ def test_ousd_collector_writes_actual_receipt_without_model_materialization(tmp_
     assert frame.iloc[0]["source_id"] == "defillama_open_standard_ousd_receipt"
     assert frame.iloc[0]["total_supply_ousd"] == 460_000_000
     assert frame.iloc[0]["received_at"] == frame.iloc[0]["available_at"]
+    assert pd.Timestamp(frame.iloc[0]["received_at"]) >= pd.Timestamp(timing["response_returned_at"])
 
 
 def test_stablecoin_allocation_features_match_frozen_formulas_and_keep_missingness():
