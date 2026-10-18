@@ -26,7 +26,7 @@ def ousd_payload():
                 ],
             },
             {
-                "id": "open-usd",
+                "id": "443",
                 "name": "Open USD",
                 "symbol": "OUSD",
                 "pegType": "peggedUSD",
@@ -48,7 +48,7 @@ def test_open_standard_ousd_identity_does_not_confuse_origin_dollar():
     row = parse_open_standard_ousd_snapshot(
         ousd_payload(), received_at="2026-10-08T12:00:00Z"
     )
-    assert row["defillama_asset_id"] == "open-usd"
+    assert row["defillama_asset_id"] == "443"
     assert row["received_at"] == row["available_at"]
     assert row["source_observation_at"] is None
     assert row["total_supply_ousd"] == 460_000_000
@@ -57,6 +57,13 @@ def test_open_standard_ousd_identity_does_not_confuse_origin_dollar():
     assert row["tempo_share"] == pytest.approx(425 / 460)
     assert row["raw_asset_sha256"] and len(row["raw_asset_sha256"]) == 64
 
+
+
+def test_open_standard_ousd_fails_closed_on_provider_id_mismatch():
+    corrupted = ousd_payload()
+    corrupted["peggedAssets"][1]["id"] = "23"
+    with pytest.raises(OUSDIdentityError, match="expected exactly one Open Standard OUSD asset"):
+        parse_open_standard_ousd_snapshot(corrupted)
 
 def test_open_standard_ousd_fails_closed_on_missing_or_new_positive_chain():
     missing = ousd_payload()
