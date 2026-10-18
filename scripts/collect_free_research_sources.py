@@ -142,10 +142,22 @@ def collect_open_standard_ousd_receipt(output_dir: Path) -> dict[str, Any]:
     row = parse_open_standard_ousd_snapshot(payload, received_at=received_at)
     path = output_dir / "open_standard_ousd_chain_supply_receipt.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame([row]).to_csv(path, index=False)
+    current = pd.DataFrame([row])
+    if path.exists():
+        previous = pd.read_csv(path)
+        required = {"received_at", "available_at", "source_id", "defillama_asset_id", "raw_asset_sha256"}
+        if not required.issubset(previous.columns):
+            raise ValueError("existing OUSD receipt history schema mismatch")
+        parsed = pd.to_datetime(previous["received_at"], utc=True, errors="coerce")
+        if parsed.isna().any():
+            raise ValueError("existing OUSD receipt history has invalid received_at")
+        previous = previous.assign(_received_at=parsed).sort_values("_received_at").drop(columns="_received_at")
+        current = pd.concat([previous, current], ignore_index=True)
+    current.to_csv(path, index=False)
     return {
         "status": "ok",
         "path": str(path),
+        "receipt_rows": int(len(current)),
         "received_at": row["received_at"],
         "available_at_policy": "conservative available_at equals actual received_at",
         "defillama_asset_id": row["defillama_asset_id"],
