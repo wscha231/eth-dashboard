@@ -284,7 +284,7 @@ class Store:
                     candidates.append((at, props.get("ef_captured", ""), name))
         return max(candidates)[2] if candidates else None
 
-    def restore(self, stream, destination, *, as_of=None, required=True, name=None):
+    def restore(self, stream, destination, *, as_of=None, required=True, name=None, include_paths=None):
         name = name or self.latest(stream, as_of)
         if not name:
             if required:
@@ -300,6 +300,24 @@ class Store:
         files = manifest["files"]
         if not isinstance(files, dict) or not 0 < len(files) <= MAX_FILES:
             raise CheckError("Invalid snapshot file count")
+        # Validate the whole manifest before applying a narrow restore filter so
+        # a filtered restore cannot hide unsafe entries elsewhere in the snapshot.
+        for relative in files:
+            if not allowed(relative):
+                raise CheckError("Manifest contains a disallowed file")
+        if include_paths:
+            requested = []
+            for value in include_paths:
+                relative = safe_path(value).as_posix()
+                if relative not in requested:
+                    requested.append(relative)
+            selected = {relative: files[relative] for relative in requested if relative in files}
+            if not selected:
+                if required:
+                    raise CheckError("Requested restore paths are absent from snapshot")
+                return {"stream": stream, "restored": False, "snapshot": name,
+                        "snapshot_at": manifest["snapshot_at"], "reason": "requested_paths_missing"}
+            files = selected
         destination = Path(destination).absolute()
         if destination.is_symlink() or any(p.is_symlink() for p in destination.parents):
             raise CheckError("Restore destination contains a symlink")
@@ -368,11 +386,13 @@ def main():
     parser.add_argument("--target", default="drive-restored")
     parser.add_argument("--as-of")
     parser.add_argument("--optional", action="store_true")
+    parser.add_argument("--include-path", action="append", default=[])
     args = parser.parse_args()
     try:
         store = Store(Drive())
         result = ({"stream": args.stream, "snapshot": store.latest(args.stream, args.as_of)} if args.action == "list"
-                  else store.restore(args.stream, args.target, as_of=args.as_of, required=not args.optional))
+                  else store.restore(args.stream, args.target, as_of=args.as_of, required=not args.optional,
+                                     include_paths=args.include_path or None))
         report(result)
     except Exception as exc:
         print("Drive storage failed: " + (str(exc) if isinstance(exc, CheckError) else type(exc).__name__), flush=True)
