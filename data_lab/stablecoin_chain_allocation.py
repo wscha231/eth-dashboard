@@ -215,8 +215,19 @@ def build_stablecoin_chain_allocation_features(
     )
 
     out = pd.DataFrame(index=frame.index)
-    out["sc_global_growth_1d"] = np.log(frame["global"]).diff(1)
-    out["sc_ethbase_share_delta_1d"] = share.diff(1)
-    out["sc_ethbase_share_delta_7d"] = share.diff(7)
-    out["sc_ethbase_vs_rest_flow_1d"] = np.log(ethbase).diff(1) - np.log(rest).diff(1)
+    log_global = np.log(frame["global"])
+    log_ethbase = np.log(ethbase)
+    log_rest = np.log(rest)
+    one_day = pd.Timedelta(days=1)
+    seven_days = pd.Timedelta(days=7)
+    # Calendar offsets, not row offsets: a missing source date must not turn a
+    # two-day or longer change into a mislabeled 1d/7d feature.
+    out["sc_global_growth_1d"] = log_global - log_global.shift(freq=one_day)
+    out["sc_ethbase_share_delta_1d"] = share - share.shift(freq=one_day)
+    out["sc_ethbase_share_delta_7d"] = share - share.shift(freq=seven_days)
+    out["sc_ethbase_vs_rest_flow_1d"] = (
+        log_ethbase - log_ethbase.shift(freq=one_day)
+        - log_rest
+        + log_rest.shift(freq=one_day)
+    )
     return out.replace([np.inf, -np.inf], np.nan)
