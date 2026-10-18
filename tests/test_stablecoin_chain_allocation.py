@@ -165,3 +165,19 @@ def test_defillama_backfill_does_not_report_empty_refresh_as_ok(tmp_path, monkey
     assert len(cached) == 1
     assert cached.iloc[0]["total_supply_usd"] == 100.0
 
+def test_stablecoin_allocation_features_use_calendar_not_row_offsets():
+    idx = pd.DatetimeIndex(
+        ["2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z", "2026-01-08T00:00:00Z"]
+    )
+    global_supply = pd.Series([100.0, 121.0, 200.0], index=idx)
+    ethereum = pd.Series([40.0, 48.0, 80.0], index=idx)
+    base = pd.Series([10.0, 12.0, 20.0], index=idx)
+
+    out = build_stablecoin_chain_allocation_features(global_supply, ethereum, base)
+
+    assert pd.isna(out.loc[idx[1], "sc_global_growth_1d"])
+    assert pd.isna(out.loc[idx[1], "sc_ethbase_share_delta_1d"])
+    assert pd.isna(out.loc[idx[2], "sc_global_growth_1d"])
+    assert pd.isna(out.loc[idx[2], "sc_ethbase_vs_rest_flow_1d"])
+    assert out.loc[idx[2], "sc_ethbase_share_delta_7d"] == pytest.approx(0.0)
+
