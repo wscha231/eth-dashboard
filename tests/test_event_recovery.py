@@ -246,6 +246,8 @@ def test_watchdog_has_two_lightweight_recovery_checks_without_new_forecast_cron(
     assert watchdog.count('schedule:') == 1
     assert 'createWorkflowDispatch' not in watchdog  # recovery remains centralized in event_recovery.cjs
     assert 'scripts/event_recovery.cjs' in watchdog
+    assert '"R3 research Google Drive archive"' in watchdog
+    assert watchdog.count('"R3 research Google Drive archive"') == 1
     assert 'cron: "8 * * * *"' in hourly
     assert hourly.count('schedule:') == 1
 
