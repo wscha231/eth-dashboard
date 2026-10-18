@@ -57,6 +57,15 @@ jobs:
           git show origin/data/daily-forecast:lake/gold/eth_provisional_daily.csv > lake/gold/eth_provisional_daily.csv || rm -f lake/gold/eth_provisional_daily.csv
           git show origin/data/daily-forecast:lake/gold/eth_master_daily.availability.json > lake/gold/eth_master_daily.availability.json || rm -f lake/gold/eth_master_daily.availability.json
           python scripts/daily_source_state.py restore origin/data/daily-forecast
+          rm -rf drive-private-recovery
+          python scripts/gdrive_store.py restore --stream daily-data --target drive-private-recovery --optional \
+            --include-path lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv
+          if [ -s drive-private-recovery/lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv ]; then
+            mkdir -p lake/raw/vendor
+            cp drive-private-recovery/lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv \
+              lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv
+          fi
+          rm -rf drive-private-recovery
           git show origin/data/daily-forecast:forecast_site/public/donations.json > forecast_site/public/donations.json || true
       - name: Backfill and refresh free research sources
         id: free_sources
