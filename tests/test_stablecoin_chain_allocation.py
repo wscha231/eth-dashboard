@@ -118,3 +118,43 @@ def test_stablecoin_allocation_features_match_frozen_formulas_and_keep_missingne
     missing = build_stablecoin_chain_allocation_features(global_supply, eth, base_missing)
     assert pd.isna(missing.loc[idx[5], "sc_ethbase_share_delta_1d"])
     assert pd.isna(missing.loc[idx[5], "sc_ethbase_vs_rest_flow_1d"])
+
+def test_defillama_backfill_does_not_report_empty_refresh_as_ok(tmp_path, monkeypatch):
+    import eth_data_collector
+    from scripts.collect_free_research_sources import collect_defillama_full
+
+    cached_path = tmp_path / "defillama_global_stablecoins_daily.csv"
+    pd.DataFrame(
+        {"total_supply_usd": [100.0]},
+        index=pd.DatetimeIndex(["2026-10-01T00:00:00Z"], name="date"),
+    ).to_csv(cached_path, index_label="date")
+
+    good = pd.DataFrame(
+        {"value": [1.0]},
+        index=pd.DatetimeIndex(["2026-10-02T00:00:00Z"]),
+    )
+
+    def stablecoins(chain, start, end):
+        if chain in {"all", "Base"}:
+            return pd.DataFrame()
+        return good.copy()
+
+    monkeypatch.setattr(eth_data_collector, "collect_defillama_stablecoins", stablecoins)
+    monkeypatch.setattr(eth_data_collector, "collect_defillama_chain_tvl", lambda *args, **kwargs: good.copy())
+    monkeypatch.setattr(eth_data_collector, "collect_defillama_dex_volume", lambda *args, **kwargs: good.copy())
+
+    result = collect_defillama_full(
+        tmp_path,
+        pd.Timestamp("2026-10-01T00:00:00Z"),
+        pd.Timestamp("2026-10-02T00:00:00Z"),
+    )
+
+    assert result["defillama_global_stablecoins_daily.csv"]["status"] == "error"
+    assert result["defillama_global_stablecoins_daily.csv"]["error"] == "ValueError"
+    assert result["defillama_base_stablecoins_daily.csv"]["status"] == "error"
+    assert result["defillama_base_stablecoins_daily.csv"]["error"] == "ValueError"
+    # A failed current refresh must not erase the retained reconstructed cache.
+    cached = pd.read_csv(cached_path)
+    assert len(cached) == 1
+    assert cached.iloc[0]["total_supply_usd"] == 100.0
+
