@@ -110,11 +110,12 @@ def collect_defillama_full(output_dir: Path, start: pd.Timestamp, end: pd.Timest
         path = output_dir / filename
         try:
             fetched = fn(chain, start.tz_localize(None), end.tz_localize(None))
-            if fetched is not None and not fetched.empty:
-                if fetched.index.tz is None:
-                    fetched.index = fetched.index.tz_localize("UTC")
-                else:
-                    fetched.index = fetched.index.tz_convert("UTC")
+            if fetched is None or fetched.empty:
+                raise ValueError("empty DefiLlama response")
+            if fetched.index.tz is None:
+                fetched.index = fetched.index.tz_localize("UTC")
+            else:
+                fetched.index = fetched.index.tz_convert("UTC")
             merged = save_history(path, fetched)
             result[filename] = {"status": "ok", **asdict(coverage(merged))}
         except Exception as exc:
