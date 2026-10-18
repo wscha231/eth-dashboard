@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 
+OPEN_STANDARD_OUSD_DEFILLAMA_ID = "443"
 OPEN_STANDARD_OUSD_NAME = "Open USD"
 OPEN_STANDARD_OUSD_SYMBOL = "OUSD"
 OPEN_STANDARD_OUSD_PEG_TYPE = "peggedUSD"
@@ -114,6 +115,7 @@ def parse_open_standard_ousd_snapshot(
         asset
         for asset in assets
         if isinstance(asset, dict)
+        and str(asset.get("id", "")) == OPEN_STANDARD_OUSD_DEFILLAMA_ID
         and asset.get("name") == OPEN_STANDARD_OUSD_NAME
         and asset.get("symbol") == OPEN_STANDARD_OUSD_SYMBOL
         and asset.get("pegType") == OPEN_STANDARD_OUSD_PEG_TYPE
