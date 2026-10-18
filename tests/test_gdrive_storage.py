@@ -72,6 +72,40 @@ class StorageTests(unittest.TestCase):
         self.assertEqual((latest / 'signals.json').read_text(), '{"forecast":2}')
         self.assertEqual((prior / 'signals.json').read_text(), '{"forecast":1}')
 
+
+
+    def test_filtered_restore_recovers_only_requested_private_receipt(self):
+        (self.source / 'lake/raw/vendor').mkdir(parents=True)
+        receipt = self.source / 'lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv'
+        receipt.write_text('received_at,total_supply_ousd\n2026-10-08T12:00:00+00:00,100\n')
+        (self.source / 'unrelated.json').write_text('large-unrelated-state')
+        self.save(stream='daily-data')
+        target = self.root / 'filtered-daily'
+        result = self.store.restore(
+            'daily-data',
+            target,
+            include_paths=['lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv'],
+        )
+        self.assertTrue(result['restored'])
+        self.assertEqual(result['files'], 1)
+        self.assertEqual(
+            (target / 'lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv').read_bytes(),
+            receipt.read_bytes(),
+        )
+        self.assertFalse((target / 'unrelated.json').exists())
+
+    def test_optional_filtered_restore_allows_pre_ousd_snapshot(self):
+        (self.source / 'unrelated.json').write_text('existing')
+        self.save(stream='daily-data')
+        result = self.store.restore(
+            'daily-data',
+            self.root / 'filtered-missing',
+            required=False,
+            include_paths=['lake/raw/vendor/open_standard_ousd_chain_supply_receipt.csv'],
+        )
+        self.assertFalse(result['restored'])
+        self.assertEqual(result['reason'], 'requested_paths_missing')
+
     def test_range_ledger_and_seed_versions_survive_drive_restore(self):
         root = self.root / 'operational'; root.mkdir()
         (root / 'active.json').write_text('{}')
