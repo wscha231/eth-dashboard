@@ -181,3 +181,19 @@ def test_stablecoin_allocation_features_use_calendar_not_row_offsets():
     assert pd.isna(out.loc[idx[2], "sc_ethbase_vs_rest_flow_1d"])
     assert out.loc[idx[2], "sc_ethbase_share_delta_7d"] == pytest.approx(0.0)
 
+def test_ousd_collector_appends_prior_prospective_receipt(tmp_path, monkeypatch):
+    import eth_data_collector
+    from scripts.collect_free_research_sources import collect_open_standard_ousd_receipt
+
+    monkeypatch.setattr(eth_data_collector, "request_json", lambda *args, **kwargs: ousd_payload())
+    first = collect_open_standard_ousd_receipt(tmp_path)
+    second = collect_open_standard_ousd_receipt(tmp_path)
+    frame = pd.read_csv(tmp_path / "open_standard_ousd_chain_supply_receipt.csv")
+
+    assert first["receipt_rows"] == 1
+    assert second["receipt_rows"] == 2
+    assert len(frame) == 2
+    assert frame["source_id"].eq("defillama_open_standard_ousd_receipt").all()
+    assert frame["defillama_asset_id"].astype(str).eq("443").all()
+    assert pd.to_datetime(frame["received_at"], utc=True).is_monotonic_increasing
+
