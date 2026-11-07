@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-11-07T06:31:14.139960+00:00",
+  "generated_at": "2026-11-07T09:10:46.702327+00:00",
   "dataset_end": "2026-11-06 00:00:00",
   "row_count": 3285,
   "column_count": 178,
   "source_status_counts": {
-    "ok": 17,
-    "warning": 5,
+    "ok": 18,
     "skipped": 4,
+    "warning": 4,
     "error": 1
   },
   "source_errors": [
@@ -54,18 +54,9 @@
       "start": "2026-09-23 00:00:00",
       "end": "2026-10-14 00:00:00",
       "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
-    },
-    {
-      "source": "freshness_guardrail",
-      "status": "warning",
-      "rows": 3285,
-      "columns": 6,
-      "start": "2017-11-09 00:00:00",
-      "end": "2026-11-06 00:00:00",
-      "note": "nulled_stale_vendor_columns=6 | max_age_days=30 | columns=cg_defi_defi_dominance, cg_defi_defi_market_cap, cg_defi_defi_to_eth_ratio, cg_defi_eth_market_cap, cg_defi_top_coin_defi_dominance, cg_defi_trading_volume_24h"
     }
   ],
-  "short_history_vendor_column_count": 18,
+  "short_history_vendor_column_count": 12,
   "learning_exclusion_column_count": 44,
   "stale_vendor_column_count": 0,
   "tail_event_readiness": "partial",
@@ -208,7 +199,73 @@
       "days_until_90d": 90
     },
     {
+      "column": "cg_defi_defi_dominance",
+      "column_group": "coingecko",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation",
+      "non_null_rows": 0,
+      "history_span_days": null,
+      "latest_age_days": null,
+      "rows_until_min": 98,
+      "days_until_90d": 90
+    },
+    {
+      "column": "cg_defi_defi_market_cap",
+      "column_group": "coingecko",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation",
+      "non_null_rows": 0,
+      "history_span_days": null,
+      "latest_age_days": null,
+      "rows_until_min": 98,
+      "days_until_90d": 90
+    },
+    {
+      "column": "cg_defi_defi_to_eth_ratio",
+      "column_group": "coingecko",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation",
+      "non_null_rows": 0,
+      "history_span_days": null,
+      "latest_age_days": null,
+      "rows_until_min": 98,
+      "days_until_90d": 90
+    },
+    {
+      "column": "cg_defi_eth_market_cap",
+      "column_group": "coingecko",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation",
+      "non_null_rows": 0,
+      "history_span_days": null,
+      "latest_age_days": null,
+      "rows_until_min": 98,
+      "days_until_90d": 90
+    },
+    {
+      "column": "cg_defi_top_coin_defi_dominance",
+      "column_group": "coingecko",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation",
+      "non_null_rows": 0,
+      "history_span_days": null,
+      "latest_age_days": null,
+      "rows_until_min": 98,
+      "days_until_90d": 90
+    },
+    {
       "column": "cg_defi_top_coin_name",
+      "column_group": "coingecko",
+      "learning_status": "empty",
+      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation",
+      "non_null_rows": 0,
+      "history_span_days": null,
+      "latest_age_days": null,
+      "rows_until_min": 98,
+      "days_until_90d": 90
+    },
+    {
+      "column": "cg_defi_trading_volume_24h",
       "column_group": "coingecko",
       "learning_status": "empty",
       "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation",
@@ -228,72 +285,6 @@
       "latest_age_days": null,
       "rows_until_min": 98,
       "days_until_90d": 90
-    },
-    {
-      "column": "cg_defi_defi_dominance",
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 23.0,
-      "latest_age_days": 30.0,
-      "rows_until_min": 98,
-      "days_until_90d": 67
-    },
-    {
-      "column": "cg_defi_defi_market_cap",
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 23.0,
-      "latest_age_days": 30.0,
-      "rows_until_min": 98,
-      "days_until_90d": 67
-    },
-    {
-      "column": "cg_defi_defi_to_eth_ratio",
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 23.0,
-      "latest_age_days": 30.0,
-      "rows_until_min": 98,
-      "days_until_90d": 67
-    },
-    {
-      "column": "cg_defi_eth_market_cap",
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 23.0,
-      "latest_age_days": 30.0,
-      "rows_until_min": 98,
-      "days_until_90d": 67
-    },
-    {
-      "column": "cg_defi_top_coin_defi_dominance",
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 23.0,
-      "latest_age_days": 30.0,
-      "rows_until_min": 98,
-      "days_until_90d": 67
-    },
-    {
-      "column": "cg_defi_trading_volume_24h",
-      "column_group": "coingecko",
-      "learning_status": "empty",
-      "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
-      "non_null_rows": 0,
-      "history_span_days": 23.0,
-      "latest_age_days": 30.0,
-      "rows_until_min": 98,
-      "days_until_90d": 67
     },
     {
       "column": "cg_global_active_cryptocurrencies",
@@ -387,7 +378,7 @@
   "recommendations": [
     "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
     "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
-    "18 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
+    "12 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
     "44 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons."
   ]
 }
