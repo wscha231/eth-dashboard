@@ -6,18 +6,22 @@
   "source_status_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_source_status.csv",
   "data_quality_audit_json": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_data_quality_audit.json",
   "learning_exclusion_report_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_learning_exclusion_report.csv",
-  "raw_rows": 3291,
+  "raw_rows": 3292,
   "column_count": 178,
   "start": "2017-11-09 00:00:00",
-  "end": "2026-11-12 00:00:00",
+  "end": "2026-11-13 00:00:00",
   "day_boundary_tz": "Asia/Seoul",
-  "refresh_window_start": "2026-09-29 00:00:00",
-  "refresh_window_end": "2026-11-13 00:00:00",
+  "refresh_window_start": "2026-09-30 00:00:00",
+  "refresh_window_end": "2026-11-14 00:00:00",
   "recent_refresh_days": 45,
   "max_stale_age_days": 30,
   "manual_feature_file_count": 2,
-  "stale_vendor_column_count": 0,
-  "stale_vendor_columns": [],
+  "stale_vendor_column_count": 3,
+  "stale_vendor_columns": [
+    "binance_eth_taker_buy_sell_buysellratio",
+    "binance_eth_taker_buy_sell_buyvol",
+    "binance_eth_taker_buy_sell_sellvol"
+  ],
   "macro_selection_readiness": {
     "status": "ok",
     "ready": true,
@@ -36,56 +40,56 @@
         "column": "eth_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 2016.8297119140625
+        "latest_value": 1927.47998046875
       },
       {
         "column_group": "market_context",
         "column": "btc_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 71342.96875
+        "latest_value": 68223.0078125
       },
       {
         "column_group": "market_context",
         "column": "spy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 757.1199951171875
+        "latest_value": 754.3699951171875
       },
       {
         "column_group": "market_context",
         "column": "qqq_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 688.1699829101562
+        "latest_value": 679.8900146484375
       },
       {
         "column_group": "market_context",
         "column": "dxy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 103.16999816894531
+        "latest_value": 103.41000366210938
       },
       {
         "column_group": "market_context",
         "column": "tnx_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 5.103000164031982
+        "latest_value": 5.1539998054504395
       },
       {
         "column_group": "market_context",
         "column": "oil_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 88.73999786376953
+        "latest_value": 88.55999755859375
       },
       {
         "column_group": "fred_macro",
         "column": "fred_bbb_oas",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 1.12
+        "latest_value": 1.11
       },
       {
         "column_group": "fred_macro",
@@ -106,14 +110,14 @@
         "column": "fred_rrp",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 0.25
+        "latest_value": 0.325
       },
       {
         "column_group": "sentiment",
         "column": "sentiment_fear_greed",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 28.0
+        "latest_value": 20.0
       },
       {
         "column_group": "network_activity",
@@ -132,14 +136,14 @@
     ]
   },
   "data_quality_audit": {
-    "generated_at": "2026-11-13T09:55:26.372036+00:00",
-    "dataset_end": "2026-11-12 00:00:00",
-    "row_count": 3291,
+    "generated_at": "2026-11-14T06:58:16.333245+00:00",
+    "dataset_end": "2026-11-13 00:00:00",
+    "row_count": 3292,
     "column_count": 178,
     "source_status_counts": {
-      "ok": 18,
+      "ok": 17,
+      "warning": 5,
       "skipped": 4,
-      "warning": 4,
       "error": 1
     },
     "source_errors": [
@@ -155,38 +159,47 @@
       {
         "source": "binance_funding_history",
         "status": "warning",
-        "rows": 17,
+        "rows": 16,
         "columns": 2,
-        "start": "2026-09-29 00:00:00",
+        "start": "2026-09-30 00:00:00",
         "end": "2026-10-15 00:00:00",
         "note": "live_fetch_failed_using_cached_data: HTTP Error 451: "
       },
       {
         "source": "binance_open_interest_hist",
         "status": "warning",
-        "rows": 17,
+        "rows": 16,
         "columns": 4,
-        "start": "2026-09-29 00:00:00",
+        "start": "2026-09-30 00:00:00",
         "end": "2026-10-15 00:00:00",
         "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
       },
       {
         "source": "binance_basis",
         "status": "warning",
-        "rows": 17,
+        "rows": 16,
         "columns": 7,
-        "start": "2026-09-29 00:00:00",
+        "start": "2026-09-30 00:00:00",
         "end": "2026-10-15 00:00:00",
         "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
       },
       {
         "source": "binance_taker_buy_sell_volume",
         "status": "warning",
-        "rows": 16,
+        "rows": 15,
         "columns": 3,
-        "start": "2026-09-29 00:00:00",
+        "start": "2026-09-30 00:00:00",
         "end": "2026-10-14 00:00:00",
         "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
+      },
+      {
+        "source": "freshness_guardrail",
+        "status": "warning",
+        "rows": 3292,
+        "columns": 3,
+        "start": "2017-11-09 00:00:00",
+        "end": "2026-11-13 00:00:00",
+        "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=binance_eth_taker_buy_sell_buysellratio, binance_eth_taker_buy_sell_buyvol, binance_eth_taker_buy_sell_sellvol"
       }
     ],
     "short_history_vendor_column_count": 18,
@@ -201,34 +214,34 @@
         "coverage_ratio": 1.0,
         "ready_column_count": 35,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3290
+        "history_span_days_max": 3291
       },
       {
         "group": "macro_liquidity_credit",
         "status": "ok",
         "column_count": 21,
-        "coverage_ratio": 0.7254995586809625,
+        "coverage_ratio": 0.7255684776948447,
         "ready_column_count": 18,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3128
+        "history_span_days_max": 3129
       },
       {
         "group": "crypto_native",
         "status": "ok",
         "column_count": 31,
-        "coverage_ratio": 0.24802736691465485,
+        "coverage_ratio": 0.2481871986830243,
         "ready_column_count": 6,
-        "latest_age_days_max": 3,
-        "history_span_days_max": 3290
+        "latest_age_days_max": 4,
+        "history_span_days_max": 3291
       },
       {
         "group": "derivatives_tail",
         "status": "weak",
         "column_count": 34,
-        "coverage_ratio": 0.01991170214667453,
+        "coverage_ratio": 0.019021156457722822,
         "ready_column_count": 0,
         "latest_age_days_max": 29,
-        "history_span_days_max": 239
+        "history_span_days_max": 240
       },
       {
         "group": "onchain_activity",
@@ -258,7 +271,12 @@
       {
         "column_group": "binance_derivatives",
         "learning_status": "short_history",
-        "column_count": 12
+        "column_count": 9
+      },
+      {
+        "column_group": "binance_derivatives",
+        "learning_status": "empty",
+        "column_count": 7
       },
       {
         "column_group": "coingecko",
@@ -269,11 +287,6 @@
         "column_group": "coingecko",
         "learning_status": "short_history",
         "column_count": 6
-      },
-      {
-        "column_group": "binance_derivatives",
-        "learning_status": "empty",
-        "column_count": 4
       },
       {
         "column_group": "coingecko",
@@ -354,14 +367,47 @@
         "days_until_90d": 90
       },
       {
+        "column": "binance_eth_taker_buy_sell_buysellratio",
+        "column_group": "binance_derivatives",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 38.0,
+        "latest_age_days": 30.0,
+        "rows_until_min": 98,
+        "days_until_90d": 52
+      },
+      {
+        "column": "binance_eth_taker_buy_sell_buyvol",
+        "column_group": "binance_derivatives",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 38.0,
+        "latest_age_days": 30.0,
+        "rows_until_min": 98,
+        "days_until_90d": 52
+      },
+      {
+        "column": "binance_eth_taker_buy_sell_sellvol",
+        "column_group": "binance_derivatives",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 38.0,
+        "latest_age_days": 30.0,
+        "rows_until_min": 98,
+        "days_until_90d": 52
+      },
+      {
         "column": "cg_global_active_cryptocurrencies",
         "column_group": "coingecko",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -369,10 +415,10 @@
         "column_group": "coingecko",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -380,10 +426,10 @@
         "column_group": "coingecko",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -391,10 +437,10 @@
         "column_group": "coingecko",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -402,10 +448,10 @@
         "column_group": "coingecko",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -413,10 +459,10 @@
         "column_group": "coingecko",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -424,10 +470,10 @@
         "column_group": "deribit_derivatives",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -435,10 +481,10 @@
         "column_group": "deribit_derivatives",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -446,10 +492,10 @@
         "column_group": "deribit_derivatives",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -457,10 +503,10 @@
         "column_group": "deribit_derivatives",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       },
       {
@@ -468,43 +514,10 @@
         "column_group": "deribit_derivatives",
         "learning_status": "low_coverage",
         "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
+        "non_null_rows": 81,
+        "history_span_days": 209.0,
         "latest_age_days": 0.0,
-        "rows_until_min": 18,
-        "days_until_90d": 0
-      },
-      {
-        "column": "deribit_eth_future_volume_usd_sum",
-        "column_group": "deribit_derivatives",
-        "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 18,
-        "days_until_90d": 0
-      },
-      {
-        "column": "deribit_eth_option_mark_iv_mean",
-        "column_group": "deribit_derivatives",
-        "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 18,
-        "days_until_90d": 0
-      },
-      {
-        "column": "deribit_eth_option_mark_price_mean",
-        "column_group": "deribit_derivatives",
-        "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 80,
-        "history_span_days": 208.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 18,
+        "rows_until_min": 17,
         "days_until_90d": 0
       }
     ],
@@ -519,10 +532,10 @@
     {
       "source": "market_ohlcv_yfinance",
       "status": "ok",
-      "rows": 3292,
+      "rows": 3293,
       "columns": 55,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
@@ -537,46 +550,46 @@
     {
       "source": "fred_macro",
       "status": "ok",
-      "rows": 107,
+      "rows": 108,
       "columns": 20,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "sentiment_fear_greed",
       "status": "ok",
-      "rows": 107,
+      "rows": 108,
       "columns": 2,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "defillama_stablecoins",
       "status": "ok",
-      "rows": 3272,
+      "rows": 3273,
       "columns": 2,
       "start": "2017-11-29 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "defillama_chain_tvl",
       "status": "ok",
-      "rows": 3335,
+      "rows": 3336,
       "columns": 1,
       "start": "2017-09-27 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "defillama_dex_volume",
       "status": "ok",
-      "rows": 2934,
+      "rows": 2935,
       "columns": 1,
       "start": "2018-11-02 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
@@ -591,46 +604,46 @@
     {
       "source": "coingecko_eth",
       "status": "ok",
-      "rows": 107,
+      "rows": 108,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_btc",
       "status": "ok",
-      "rows": 107,
+      "rows": 108,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_sol",
       "status": "ok",
-      "rows": 107,
+      "rows": 108,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_bnb",
       "status": "ok",
-      "rows": 107,
+      "rows": 108,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_global_snapshot",
       "status": "ok",
-      "rows": 62,
+      "rows": 63,
       "columns": 6,
       "start": "2026-09-13 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
@@ -654,36 +667,36 @@
     {
       "source": "binance_funding_history",
       "status": "warning",
-      "rows": 17,
+      "rows": 16,
       "columns": 2,
-      "start": "2026-09-29 00:00:00",
+      "start": "2026-09-30 00:00:00",
       "end": "2026-10-15 00:00:00",
       "note": "live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_open_interest_hist",
       "status": "warning",
-      "rows": 17,
+      "rows": 16,
       "columns": 4,
-      "start": "2026-09-29 00:00:00",
+      "start": "2026-09-30 00:00:00",
       "end": "2026-10-15 00:00:00",
       "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_basis",
       "status": "warning",
-      "rows": 17,
+      "rows": 16,
       "columns": 7,
-      "start": "2026-09-29 00:00:00",
+      "start": "2026-09-30 00:00:00",
       "end": "2026-10-15 00:00:00",
       "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_taker_buy_sell_volume",
       "status": "warning",
-      "rows": 16,
+      "rows": 15,
       "columns": 3,
-      "start": "2026-09-29 00:00:00",
+      "start": "2026-09-30 00:00:00",
       "end": "2026-10-14 00:00:00",
       "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
@@ -692,8 +705,8 @@
       "status": "ok",
       "rows": 17,
       "columns": 1,
-      "start": "2026-10-28 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "start": "2026-10-29 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
@@ -701,8 +714,8 @@
       "status": "ok",
       "rows": 32,
       "columns": 4,
-      "start": "2026-10-13 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "start": "2026-10-14 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
@@ -710,8 +723,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-11-13 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "start": "2026-11-14 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
@@ -719,8 +732,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 7,
-      "start": "2026-11-13 00:00:00",
-      "end": "2026-11-13 00:00:00",
+      "start": "2026-11-14 00:00:00",
+      "end": "2026-11-14 00:00:00",
       "note": ""
     },
     {
@@ -743,20 +756,20 @@
     },
     {
       "source": "freshness_guardrail",
-      "status": "ok",
-      "rows": 3291,
-      "columns": 0,
+      "status": "warning",
+      "rows": 3292,
+      "columns": 3,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-11-12 00:00:00",
-      "note": "no_stale_vendor_columns | max_age_days=30"
+      "end": "2026-11-13 00:00:00",
+      "note": "nulled_stale_vendor_columns=3 | max_age_days=30 | columns=binance_eth_taker_buy_sell_buysellratio, binance_eth_taker_buy_sell_buyvol, binance_eth_taker_buy_sell_sellvol"
     },
     {
       "source": "macro_selection_readiness",
       "status": "ok",
-      "rows": 3291,
+      "rows": 3292,
       "columns": 12,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-11-12 00:00:00",
+      "end": "2026-11-13 00:00:00",
       "note": "ready_columns=12/14 | ready_ratio=0.86 | market_context_ready=1 | missing=artemis_stablecoin_total_supply,artemis_non_sybil_users"
     }
   ]
