@@ -6,18 +6,35 @@
   "source_status_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_source_status.csv",
   "data_quality_audit_json": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_data_quality_audit.json",
   "learning_exclusion_report_csv": "/home/runner/work/eth-dashboard/eth-dashboard/lake/reports/collector_learning_exclusion_report.csv",
-  "raw_rows": 3293,
+  "raw_rows": 3294,
   "column_count": 178,
   "start": "2017-11-09 00:00:00",
-  "end": "2026-11-14 00:00:00",
+  "end": "2026-11-15 00:00:00",
   "day_boundary_tz": "Asia/Seoul",
-  "refresh_window_start": "2026-10-01 00:00:00",
-  "refresh_window_end": "2026-11-15 00:00:00",
+  "refresh_window_start": "2026-10-02 00:00:00",
+  "refresh_window_end": "2026-11-16 00:00:00",
   "recent_refresh_days": 45,
   "max_stale_age_days": 30,
   "manual_feature_file_count": 2,
-  "stale_vendor_column_count": 12,
+  "stale_vendor_column_count": 29,
   "stale_vendor_columns": [
+    "external_bybit_eth_free_features_bybit_eth_funding_rate_last",
+    "external_bybit_eth_free_features_bybit_eth_funding_rate_mean",
+    "external_bybit_eth_free_features_bybit_eth_funding_settlements",
+    "external_bybit_eth_free_features_bybit_eth_open_interest_eth_last",
+    "external_bybit_eth_free_features_bybit_eth_single_open_interest_eth_last",
+    "external_bybit_eth_free_features_bybit_eth_leverage_pressure",
+    "external_bybit_eth_free_features_bybit_eth_oi_log_change_1d",
+    "external_bybit_eth_free_features_bybit_eth_funding_rate_mean_7d",
+    "external_bybit_eth_free_features_bybit_eth_oi_log_change_7d",
+    "external_bybit_eth_free_features_bybit_eth_funding_z30",
+    "external_bybit_eth_free_features_bybit_eth_premium_index_close",
+    "external_bybit_eth_free_features_bybit_eth_premium_index_high",
+    "external_bybit_eth_free_features_bybit_eth_premium_index_low",
+    "external_bybit_eth_free_features_bybit_eth_premium_index_ohlc_mean",
+    "external_bybit_eth_free_features_bybit_eth_premium_index_open",
+    "external_bybit_eth_free_features_bybit_eth_premium_index_mean_7d",
+    "external_bybit_eth_free_features_bybit_eth_premium_z30",
     "binance_eth_basis_basis",
     "binance_eth_basis_basisrate",
     "binance_eth_basis_futuresprice",
@@ -49,14 +66,14 @@
         "column": "eth_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 1769.1204833984375
+        "latest_value": 1835.4952392578125
       },
       {
         "column_group": "market_context",
         "column": "btc_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 64128.05078125
+        "latest_value": 65305.0625
       },
       {
         "column_group": "market_context",
@@ -77,7 +94,7 @@
         "column": "dxy_close",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 103.41000366210938
+        "latest_value": 103.40699768066406
       },
       {
         "column_group": "market_context",
@@ -126,7 +143,7 @@
         "column": "sentiment_fear_greed",
         "status": "ready",
         "latest_age_days": 0.0,
-        "latest_value": 13.0
+        "latest_value": 10.0
       },
       {
         "column_group": "network_activity",
@@ -145,9 +162,9 @@
     ]
   },
   "data_quality_audit": {
-    "generated_at": "2026-11-15T09:49:39.831330+00:00",
-    "dataset_end": "2026-11-14 00:00:00",
-    "row_count": 3293,
+    "generated_at": "2026-11-16T07:12:20.823388+00:00",
+    "dataset_end": "2026-11-15 00:00:00",
+    "row_count": 3294,
     "column_count": 178,
     "source_status_counts": {
       "ok": 17,
@@ -168,52 +185,52 @@
       {
         "source": "binance_funding_history",
         "status": "warning",
-        "rows": 15,
+        "rows": 14,
         "columns": 2,
-        "start": "2026-10-01 00:00:00",
+        "start": "2026-10-02 00:00:00",
         "end": "2026-10-15 00:00:00",
         "note": "live_fetch_failed_using_cached_data: HTTP Error 451: "
       },
       {
         "source": "binance_open_interest_hist",
         "status": "warning",
-        "rows": 15,
+        "rows": 14,
         "columns": 4,
-        "start": "2026-10-01 00:00:00",
+        "start": "2026-10-02 00:00:00",
         "end": "2026-10-15 00:00:00",
         "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
       },
       {
         "source": "binance_basis",
         "status": "warning",
-        "rows": 15,
+        "rows": 14,
         "columns": 7,
-        "start": "2026-10-01 00:00:00",
+        "start": "2026-10-02 00:00:00",
         "end": "2026-10-15 00:00:00",
         "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
       },
       {
         "source": "binance_taker_buy_sell_volume",
         "status": "warning",
-        "rows": 14,
+        "rows": 13,
         "columns": 3,
-        "start": "2026-10-01 00:00:00",
+        "start": "2026-10-02 00:00:00",
         "end": "2026-10-14 00:00:00",
         "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
       },
       {
         "source": "freshness_guardrail",
         "status": "warning",
-        "rows": 3293,
-        "columns": 12,
+        "rows": 3294,
+        "columns": 29,
         "start": "2017-11-09 00:00:00",
-        "end": "2026-11-14 00:00:00",
-        "note": "nulled_stale_vendor_columns=12 | max_age_days=30 | columns=binance_eth_basis_basis, binance_eth_basis_basisrate, binance_eth_basis_futuresprice, binance_eth_basis_indexprice, binance_eth_funding_rate_mean, binance_eth_mark_price_last, binance_eth_oi_cmccirculatingsupply, binance_eth_oi_sumopeninterest"
+        "end": "2026-11-15 00:00:00",
+        "note": "nulled_stale_vendor_columns=29 | max_age_days=30 | columns=external_bybit_eth_free_features_bybit_eth_funding_rate_last, external_bybit_eth_free_features_bybit_eth_funding_rate_mean, external_bybit_eth_free_features_bybit_eth_funding_settlements, external_bybit_eth_free_features_bybit_eth_open_interest_eth_last, external_bybit_eth_free_features_bybit_eth_single_open_interest_eth_last, external_bybit_eth_free_features_bybit_eth_leverage_pressure, external_bybit_eth_free_features_bybit_eth_oi_log_change_1d, external_bybit_eth_free_features_bybit_eth_funding_rate_mean_7d"
       }
     ],
     "short_history_vendor_column_count": 18,
-    "learning_exclusion_column_count": 43,
-    "stale_vendor_column_count": 3,
+    "learning_exclusion_column_count": 60,
+    "stale_vendor_column_count": 12,
     "tail_event_readiness": "partial",
     "group_summary": [
       {
@@ -223,34 +240,34 @@
         "coverage_ratio": 1.0,
         "ready_column_count": 35,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3292
+        "history_span_days_max": 3293
       },
       {
         "group": "macro_liquidity_credit",
         "status": "ok",
         "column_count": 21,
-        "coverage_ratio": 0.7256373548508381,
+        "coverage_ratio": 0.7257061901870645,
         "ready_column_count": 18,
         "latest_age_days_max": 0,
-        "history_span_days_max": 3130
+        "history_span_days_max": 3131
       },
       {
         "group": "crypto_native",
         "status": "ok",
         "column_count": 31,
-        "coverage_ratio": 0.2483469333777416,
+        "coverage_ratio": 0.24850657108721627,
         "ready_column_count": 6,
-        "latest_age_days_max": 5,
-        "history_span_days_max": 3292
+        "latest_age_days_max": 6,
+        "history_span_days_max": 3293
       },
       {
         "group": "derivatives_tail",
         "status": "weak",
         "column_count": 34,
-        "coverage_ratio": 0.015683892749325662,
+        "coverage_ratio": 0.015839851423265116,
         "ready_column_count": 0,
         "latest_age_days_max": 0,
-        "history_span_days_max": 241
+        "history_span_days_max": 242
       },
       {
         "group": "onchain_activity",
@@ -272,6 +289,11 @@
       }
     ],
     "learning_exclusion_summary": [
+      {
+        "column_group": "manual_external",
+        "learning_status": "empty",
+        "column_count": 17
+      },
       {
         "column_group": "binance_derivatives",
         "learning_status": "empty",
@@ -376,10 +398,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 13.0,
-        "latest_age_days": 31.0,
+        "history_span_days": 12.0,
+        "latest_age_days": 32.0,
         "rows_until_min": 98,
-        "days_until_90d": 77
+        "days_until_90d": 78
       },
       {
         "column": "binance_eth_taker_buy_sell_buyvol",
@@ -387,10 +409,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 13.0,
-        "latest_age_days": 31.0,
+        "history_span_days": 12.0,
+        "latest_age_days": 32.0,
         "rows_until_min": 98,
-        "days_until_90d": 77
+        "days_until_90d": 78
       },
       {
         "column": "binance_eth_taker_buy_sell_sellvol",
@@ -398,10 +420,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 13.0,
-        "latest_age_days": 31.0,
+        "history_span_days": 12.0,
+        "latest_age_days": 32.0,
         "rows_until_min": 98,
-        "days_until_90d": 77
+        "days_until_90d": 78
       },
       {
         "column": "binance_eth_basis_basis",
@@ -409,10 +431,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_basis_basisrate",
@@ -420,10 +442,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_basis_futuresprice",
@@ -431,10 +453,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_basis_indexprice",
@@ -442,10 +464,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_funding_rate_mean",
@@ -453,10 +475,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_mark_price_last",
@@ -464,10 +486,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_oi_cmccirculatingsupply",
@@ -475,10 +497,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_oi_sumopeninterest",
@@ -486,10 +508,10 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
         "column": "binance_eth_oi_sumopeninterestvalue",
@@ -497,31 +519,31 @@
         "learning_status": "empty",
         "exclusion_reasons": "empty;low_rows<98;short_history<60d;low_variation;stale>=30d",
         "non_null_rows": 0,
-        "history_span_days": 14.0,
-        "latest_age_days": 30.0,
+        "history_span_days": 13.0,
+        "latest_age_days": 31.0,
         "rows_until_min": 98,
-        "days_until_90d": 76
+        "days_until_90d": 77
       },
       {
-        "column": "cg_global_active_cryptocurrencies",
-        "column_group": "coingecko",
-        "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 82,
-        "history_span_days": 210.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 16,
+        "column": "external_bybit_eth_free_features_bybit_eth_funding_rate_last",
+        "column_group": "manual_external",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<98;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2185.0,
+        "latest_age_days": 30.0,
+        "rows_until_min": 98,
         "days_until_90d": 0
       },
       {
-        "column": "cg_global_btc_dominance_pct",
-        "column_group": "coingecko",
-        "learning_status": "low_coverage",
-        "exclusion_reasons": "low_rows<98",
-        "non_null_rows": 82,
-        "history_span_days": 210.0,
-        "latest_age_days": 0.0,
-        "rows_until_min": 16,
+        "column": "external_bybit_eth_free_features_bybit_eth_funding_rate_mean",
+        "column_group": "manual_external",
+        "learning_status": "empty",
+        "exclusion_reasons": "empty;low_rows<98;low_variation;stale>=30d",
+        "non_null_rows": 0,
+        "history_span_days": 2185.0,
+        "latest_age_days": 30.0,
+        "rows_until_min": 98,
         "days_until_90d": 0
       }
     ],
@@ -529,18 +551,18 @@
       "Backfill at least 6-12 months of ETH funding, open interest, basis, liquidations, options IV, and skew data (Coin Metrics/Kaiko/Amberdata-class archives if free exchange endpoints are too short).",
       "Add durable on-chain activity/history sources: active addresses, transfer volume, exchange flows, fees, realized price, and stablecoin liquidity (Glassnode/Coin Metrics/DefiLlama-class sources).",
       "18 vendor columns are too short for fold training; keep collecting but do not rely on them yet.",
-      "43 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
-      "3 vendor columns are stale beyond 30 days."
+      "60 collected vendor columns are currently unlikely to survive training coverage filters; review collector_learning_exclusion_report.csv for exact columns and reasons.",
+      "12 vendor columns are stale beyond 30 days."
     ]
   },
   "sources": [
     {
       "source": "market_ohlcv_yfinance",
       "status": "ok",
-      "rows": 3294,
+      "rows": 3295,
       "columns": 55,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
@@ -555,46 +577,46 @@
     {
       "source": "fred_macro",
       "status": "ok",
-      "rows": 109,
+      "rows": 110,
       "columns": 20,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "sentiment_fear_greed",
       "status": "ok",
-      "rows": 109,
+      "rows": 110,
       "columns": 2,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "defillama_stablecoins",
       "status": "ok",
-      "rows": 3274,
+      "rows": 3275,
       "columns": 2,
       "start": "2017-11-29 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "defillama_chain_tvl",
       "status": "ok",
-      "rows": 3337,
+      "rows": 3338,
       "columns": 1,
       "start": "2017-09-27 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "defillama_dex_volume",
       "status": "ok",
-      "rows": 2936,
+      "rows": 2937,
       "columns": 1,
       "start": "2018-11-02 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
@@ -609,46 +631,46 @@
     {
       "source": "coingecko_eth",
       "status": "ok",
-      "rows": 109,
+      "rows": 110,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_btc",
       "status": "ok",
-      "rows": 109,
+      "rows": 110,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_sol",
       "status": "ok",
-      "rows": 109,
+      "rows": 110,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_bnb",
       "status": "ok",
-      "rows": 109,
+      "rows": 110,
       "columns": 3,
       "start": "2026-07-30 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
       "source": "coingecko_global_snapshot",
       "status": "ok",
-      "rows": 64,
+      "rows": 65,
       "columns": 6,
       "start": "2026-09-13 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
@@ -672,36 +694,36 @@
     {
       "source": "binance_funding_history",
       "status": "warning",
-      "rows": 15,
+      "rows": 14,
       "columns": 2,
-      "start": "2026-10-01 00:00:00",
+      "start": "2026-10-02 00:00:00",
       "end": "2026-10-15 00:00:00",
       "note": "live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_open_interest_hist",
       "status": "warning",
-      "rows": 15,
+      "rows": 14,
       "columns": 4,
-      "start": "2026-10-01 00:00:00",
+      "start": "2026-10-02 00:00:00",
       "end": "2026-10-15 00:00:00",
       "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_basis",
       "status": "warning",
-      "rows": 15,
+      "rows": 14,
       "columns": 7,
-      "start": "2026-10-01 00:00:00",
+      "start": "2026-10-02 00:00:00",
       "end": "2026-10-15 00:00:00",
       "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
     {
       "source": "binance_taker_buy_sell_volume",
       "status": "warning",
-      "rows": 14,
+      "rows": 13,
       "columns": 3,
-      "start": "2026-10-01 00:00:00",
+      "start": "2026-10-02 00:00:00",
       "end": "2026-10-14 00:00:00",
       "note": "Exchange exposes recent history only | live_fetch_failed_using_cached_data: HTTP Error 451: "
     },
@@ -710,8 +732,8 @@
       "status": "ok",
       "rows": 17,
       "columns": 1,
-      "start": "2026-10-30 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "start": "2026-10-31 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
@@ -719,8 +741,8 @@
       "status": "ok",
       "rows": 32,
       "columns": 4,
-      "start": "2026-10-15 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "start": "2026-10-16 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
@@ -728,8 +750,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 6,
-      "start": "2026-11-15 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "start": "2026-11-16 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
@@ -737,8 +759,8 @@
       "status": "ok",
       "rows": 1,
       "columns": 7,
-      "start": "2026-11-15 00:00:00",
-      "end": "2026-11-15 00:00:00",
+      "start": "2026-11-16 00:00:00",
+      "end": "2026-11-16 00:00:00",
       "note": ""
     },
     {
@@ -762,19 +784,19 @@
     {
       "source": "freshness_guardrail",
       "status": "warning",
-      "rows": 3293,
-      "columns": 12,
+      "rows": 3294,
+      "columns": 29,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-11-14 00:00:00",
-      "note": "nulled_stale_vendor_columns=12 | max_age_days=30 | columns=binance_eth_basis_basis, binance_eth_basis_basisrate, binance_eth_basis_futuresprice, binance_eth_basis_indexprice, binance_eth_funding_rate_mean, binance_eth_mark_price_last, binance_eth_oi_cmccirculatingsupply, binance_eth_oi_sumopeninterest"
+      "end": "2026-11-15 00:00:00",
+      "note": "nulled_stale_vendor_columns=29 | max_age_days=30 | columns=external_bybit_eth_free_features_bybit_eth_funding_rate_last, external_bybit_eth_free_features_bybit_eth_funding_rate_mean, external_bybit_eth_free_features_bybit_eth_funding_settlements, external_bybit_eth_free_features_bybit_eth_open_interest_eth_last, external_bybit_eth_free_features_bybit_eth_single_open_interest_eth_last, external_bybit_eth_free_features_bybit_eth_leverage_pressure, external_bybit_eth_free_features_bybit_eth_oi_log_change_1d, external_bybit_eth_free_features_bybit_eth_funding_rate_mean_7d"
     },
     {
       "source": "macro_selection_readiness",
       "status": "ok",
-      "rows": 3293,
+      "rows": 3294,
       "columns": 12,
       "start": "2017-11-09 00:00:00",
-      "end": "2026-11-14 00:00:00",
+      "end": "2026-11-15 00:00:00",
       "note": "ready_columns=12/14 | ready_ratio=0.86 | market_context_ready=1 | missing=artemis_stablecoin_total_supply,artemis_non_sybil_users"
     }
   ]
